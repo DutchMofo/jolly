@@ -1,0 +1,9 @@
+# Ignore bin and obj
+/bin
+/obj
+
+# Include only settings, launch and tasks
+/.vscode/*
+!/.vscode/launch.json
+!/.vscode/settings.json
+!/.vscode/tasks.json
