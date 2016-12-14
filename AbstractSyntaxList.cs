@@ -78,7 +78,8 @@ namespace Jolly
 	
 	class _List : Node 
 	{
-		public _List(SourceLocation loc, Scope parentScope) : base(NodeType.LIST, loc, parentScope) { }
+		public _List(SourceLocation loc, Scope parentScope)
+			: base(NodeType.LIST, loc, parentScope) { }
 		
 		public List<Node> list = new List<Node>();
 		public bool locked;
@@ -86,7 +87,8 @@ namespace Jolly
 	
 	class Result : Node
 	{
-		public Result(SourceLocation loc, Scope parentScope/*, TypeInfo dType*/) : base(NodeType.RESULT, loc, parentScope) { /*this.dType = dType;*/ }
+		public Result(SourceLocation loc, Scope parentScope/*, TypeInfo dType*/)
+			: base(NodeType.RESULT, loc, parentScope) { /*this.dType = dType;*/ }
 	}
 	
 	class Variable : Symbol
@@ -121,16 +123,15 @@ namespace Jolly
 			INTEGER
 		}
 		
-		public Literal(SourceLocation loc, Scope parentScope, string s) : base(NodeType.LITERAL, loc, parentScope) { lType = LType.STRING; _string = s; }
-		public Literal(SourceLocation loc, Scope parentScope, ulong i) : base(NodeType.LITERAL, loc, parentScope) { lType = LType.INTEGER; _integer = i; }
-		public Literal(SourceLocation loc, Scope parentScope, double f) : base(NodeType.LITERAL, loc, parentScope) { lType = LType.FLOAT; _float = f; }
+		public Literal(SourceLocation loc, Scope parentScope, string s)
+			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.STRING; data = (object)s; }
+		public Literal(SourceLocation loc, Scope parentScope, ulong i)
+			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.INTEGER; data = (object)i; }
+		public Literal(SourceLocation loc, Scope parentScope, double f)
+			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.FLOAT; data = (object)f; }
 		
 		public LType lType;
-		// union {
-		public string _string;
-		public ulong _integer;
-		public double _float;
-		// }
+		public object data;
 	}
 	
 	class Function_call : Node
