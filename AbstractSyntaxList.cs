@@ -5,29 +5,94 @@ namespace Jolly
 {
 	using NT = Node.NodeType;
 	
-	enum SymbolFlag
+	enum NameFlags
 	{
-		none				= 0,
-		overwrite_global	= 1<<0,
-		global				= 1<<1,
-		private_members		= 1<<2,
+		FOLDER = 1<<0,
+		STATIC = 1<<1,
+		READ_ONLY = 1<<2,
+		IS_UNION = 1<<3,
 	}
-	
+
+	class TableItem
+	{
+		public static TableItem[] baseTypes;
+		public int size, align, offset;
+		public TableFolder parent;
+		public NameFlags flags;
+		public Symbol node;
+		
+		public TableItem(Symbol node) { this.node = node; }
+		public virtual void calculateSize() { }
+	}
+
+	class TableName : TableItem
+	{
+		public TableName(int size, Symbol node)
+			: base(node) { this.align = this.size = size; }
+	}
+
+	class TableFolder : TableItem
+	{
+		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
+		
+		public TableFolder(Symbol node)
+			: base(node) { }
+		
+		public bool addChild(string childName, TableItem child)
+		{
+			TableFolder iterator = this;
+			while(iterator != null) {
+				if(iterator.children.ContainsKey(childName))
+					return false;
+				iterator = iterator.parent;
+			}
+			children.Add(childName, child);
+			child.parent = this;
+			return true;
+		}
+		
+		public override void calculateSize()
+		{
+			// Todo: Validate results, Look into optimization
+			if((flags & NameFlags.IS_UNION) != 0)
+			{
+				foreach(var child in children.Values)
+				{
+					child.calculateSize();
+					//child.offset = 0; Not nessesary
+					if(child.size > size)
+						size = child.size;
+					if(child.align > align)
+						align = child.align;
+				}
+			}
+			else
+			{
+				int offset = 0;
+				foreach(var child in children.Values)
+				{
+					child.calculateSize();
+					if(child.size == 0)
+						continue;
+					if(child.align > align)
+						align = child.align;
+					child.offset += (child.align - (offset % child.align)) % child.align;
+					offset = child.offset + child.size; 
+				}
+				size = (offset == 0) ? 0 : ((size-1) / align + 1) * align;
+			}
+		}
+	}
+
 	class Symbol : Node
 	{
-		public string name;
-		public SymbolFlag flags;
-		public Symbol(NodeType type, SourceLocation loc, Scope parentScope, string name, SymbolFlag flags)
-			: base(type, loc, parentScope)
-		{
-			this.name = name;
-			this.flags = flags;
-		}
+		public Symbol(NodeType type, SourceLocation loc, TableFolder parentScope)
+			: base(type, loc) { }
 	}
 	
 	class Node
 	{
-		public Node(NodeType nT, SourceLocation l, Scope s) { nType = nT; location = l; parentScope = s; }
+		public Node(NodeType nT, SourceLocation l) { nType = nT; location = l; }
 		
 		public enum NodeType
 		{
@@ -66,7 +131,6 @@ namespace Jolly
 		
 		public Node type;
 		public NodeType nType;
-		public Scope parentScope;
 		// public TypeInfo dType;
 		public SourceLocation location;
 		
@@ -76,10 +140,17 @@ namespace Jolly
 		}
 	}
 	
+	class Name : Symbol
+	{
+		public Name(SourceLocation loc, string name)
+			: base(NodeType.LIST, loc, null) { this.name = name; }
+		public string name;
+	}
+	
 	class _List : Node 
 	{
-		public _List(SourceLocation loc, Scope parentScope)
-			: base(NodeType.LIST, loc, parentScope) { }
+		public _List(SourceLocation loc)
+			: base(NodeType.LIST, loc) { }
 		
 		public List<Node> list = new List<Node>();
 		public bool locked;
@@ -87,20 +158,14 @@ namespace Jolly
 	
 	class Result : Node
 	{
-		public Result(SourceLocation loc, Scope parentScope/*, TypeInfo dType*/)
-			: base(NodeType.RESULT, loc, parentScope) { /*this.dType = dType;*/ }
+		public Result(SourceLocation loc)
+			: base(NodeType.RESULT, loc) {  }
 	}
-	
-	class Variable : Symbol
-	{
-		public Variable(SourceLocation loc, Scope parentScope, string name, Node type, SymbolFlag flags)
-			: base(NodeType.VARIABLE, loc, parentScope, name, flags) { this.type = type; }
-	}
-	
+		
 	class Operator : Node
 	{
-		public Operator(SourceLocation loc, Scope parentScope, Token.Type operation, Node a, Node b, Node result)
-			: base(NodeType.OPERATOR, loc, parentScope)
+		public Operator(SourceLocation loc, Token.Type operation, Node a, Node b, Node result)
+			: base(NodeType.OPERATOR, loc)
 		{
 			this.operation = operation;
 			this.result = result;
@@ -123,12 +188,12 @@ namespace Jolly
 			INTEGER
 		}
 		
-		public Literal(SourceLocation loc, Scope parentScope, string s)
-			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.STRING; data = (object)s; }
-		public Literal(SourceLocation loc, Scope parentScope, ulong i)
-			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.INTEGER; data = (object)i; }
-		public Literal(SourceLocation loc, Scope parentScope, double f)
-			: base(NodeType.LITERAL, loc, parentScope) { lType = LType.FLOAT; data = (object)f; }
+		public Literal(SourceLocation loc, string s)
+			: base(NodeType.LITERAL, loc) { lType = LType.STRING; data = (object)s; }
+		public Literal(SourceLocation loc, ulong i)
+			: base(NodeType.LITERAL, loc) { lType = LType.INTEGER; data = (object)i; }
+		public Literal(SourceLocation loc, double f)
+			: base(NodeType.LITERAL, loc) { lType = LType.FLOAT; data = (object)f; }
 		
 		public LType lType;
 		public object data;
@@ -136,8 +201,8 @@ namespace Jolly
 	
 	class Function_call : Node
 	{
-		public Function_call(SourceLocation loc, Scope parentScope, string f, Node[] a)
-			: base(NodeType.FUNCTION_CALL, loc, parentScope)
+		public Function_call(SourceLocation loc, string f, Node[] a)
+			: base(NodeType.FUNCTION_CALL, loc)
 		{
 			functionName = f; arguments = a;
 		}
@@ -148,86 +213,25 @@ namespace Jolly
 	
 	class Return : Node
 	{
-		public Return(SourceLocation loc, Scope parentScope, Node returns) : base(NodeType.RETURN, loc, parentScope) { this.returns = returns; }
+		public Return(SourceLocation loc, Node returns)
+			: base(NodeType.RETURN, loc) { this.returns = returns; }
 		public Node returns;
 	}
-	
-	class Scope : Symbol
+
+	class Function : Symbol
 	{
-		public List<Symbol> symbols = new List<Symbol>();
-		
-		public Scope(SourceLocation loc, NodeType nType, Scope parentScope, string name, SymbolFlag flags)
-			: base(nType, loc, parentScope, name, flags) { }
-		
-		bool canDefine(Symbol symbol)
-		{
-			foreach(var sym in symbols) {
-				if(sym.name == symbol.name) {
-					if((symbol.flags & SymbolFlag.overwrite_global) != 0 && (sym.flags & SymbolFlag.global) != 0)
-						continue;
-					
-					return false;
-				}
-			}
-				
-			return parentScope?.canDefine(symbol) ?? true;
-		}
-				
-		public Symbol getSymbol(string name)
-		{
-			return symbols.FirstOrDefault(s => s.name == name);
-		}
-		
-		public Function getFunction(string name)
-		{
-			return symbols.FirstOrDefault(s => s.nType == NT.FUNCTION && s.name == name) as Function;
-		}
-		
-		public bool addSymbol(Symbol symbol)
-		{
-			if(symbols.Any(s => s.name == symbol.name) || !canDefine(symbol))
-				return false;
-			symbols.Add(symbol);
-			return true;
-		}
-	}
-	
-	class Function : Scope
-	{
-		public Variable[] arguments;
+		public Name[] arguments;
 		public Node returns;
 		// public TypeInfo[] returns;
 		
-		public Function(SourceLocation loc, Scope scope, string name, Variable[] arguments, SymbolFlag flags)
-			: base(loc, NodeType.FUNCTION, scope, name, flags) { this.arguments = arguments; }
-		// public Function(SourceLocation loc, string name, Variable[] arguments, SymbolFlag flags, TypeInfo[] returns)
-		// 	: base(loc, NodeType.FUNCTION, null, name, flags) { this.arguments = arguments; this.returns = returns; }
-		
-		public override bool Equals(object obj)
-		{
-			Function function = obj as Function;
-			if( function == null ||
-				function.arguments.Length != arguments.Length ||
-				function.name != name)
-				return false;
-				
-			for(int i = 0; i < arguments.Length; ++i)
-				if(arguments[i].type != function.arguments[i].type)
-					return false;
-			
-			return true;
-		}
-
-		public override int GetHashCode()
-		{
-			return name.GetHashCode();
-		}
+		public Function(SourceLocation loc, Name[] arguments, TableFolder parentScope)
+			: base(NodeType.FUNCTION, loc, parentScope) { this.arguments = arguments; }
 	}
 	
-	class If  : Scope
+	class If  : Symbol
 	{
-		public If(SourceLocation loc, Node[] condition, Node conditionValue, SymbolFlag flags)
-			: base(loc, NodeType.IF, null, null, flags)
+		public If(SourceLocation loc, Node[] condition, Node conditionValue)
+			: base(NodeType.IF, loc, null)
 		{ 
 			this.conditionValue = conditionValue;
 			this.condition = condition;
@@ -237,10 +241,10 @@ namespace Jolly
 		public Node conditionValue;
 	}
 	
-	class For : Scope
+	class For : Symbol
 	{
-		public For(SourceLocation loc, string name, SymbolFlag flags)
-			: base(loc, NodeType.FOR, null, name, flags) { }
+		public For(SourceLocation loc)
+			: base(NodeType.FOR, loc, null) { }
 		
 		public Node[] counter, condition, increment;
 		public Node conditionValue;

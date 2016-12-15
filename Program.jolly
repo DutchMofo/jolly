@@ -8,22 +8,10 @@ struct Example
 	}
 }
 
-auto a, b = func();
-
-int, string func()
+string func()
 {
 	Example example;
-	int _T = 0;
-	
-	_T, example.name = 0, "";
-	
-	for(int a = 0; a < 10; ++a)
-	{
-		
-	}
-	
-	
-	return 1, @"c:\code\otherFile2.jolly";
+	return example.name;
 }
 
 

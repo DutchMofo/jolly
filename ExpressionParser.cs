@@ -18,8 +18,7 @@ struct Op
 
 class ExpressionParser
 {
-	public ExpressionParser(Scope scope, Token[] tokens, Token.Type terminator, int cursor, int end, SymbolFlag variableFlags) {
-		this.variableFlags = variableFlags | SymbolFlag.overwrite_global;
+	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end) {
 		this.terminator = terminator;
 		this.cursor = cursor;
 		this.tokens = tokens;
@@ -28,11 +27,10 @@ class ExpressionParser
 	}
 	
 	Token token;
-	Scope scope;
+	TableFolder scope;
 	Token[] tokens;
 	int end, cursor;
 	Token.Type terminator;
-	SymbolFlag variableFlags;
 	
 	bool wasOperator, isOperator, defining;
 	List<Node> expression = new List<Node>();
@@ -40,7 +38,7 @@ class ExpressionParser
 	Stack<Op> operators = new Stack<Op>();
 	
 	public bool isFunction;
-	public Function theFunction;
+	public TableFolder theFunction;
 	
 	public List<Node> getExpression() { return expression; }
 	public Node getValue() { return values.PeekOrDefault(); }
@@ -74,7 +72,7 @@ class ExpressionParser
 						throw new ParseException();
 					}
 				} else {
-					list = new _List(_op.location, scope);
+					list = new _List(_op.location);
 					list.list.Add(a);
 					list.list.Add(b);
 					values.Push(list);
@@ -93,7 +91,7 @@ class ExpressionParser
 			// dataType = a.dType;
 		}
 		
-		Operator op = new Operator(_op.location, scope, _op.operation, a, b, new Result(_op.location, scope) { /*dType = dataType*/ });
+		Operator op = new Operator(_op.location, _op.operation, a, b, new Result(_op.location));
 		values.Push(op.result);
 		expression.Add(op);
 	}
@@ -108,9 +106,7 @@ class ExpressionParser
 			throw new ParseException();
 		}
 		
-		// var refs = parseTypeReferences();
-		// TypeInfo baseT = Jolly.baseTypes[token.type - TT.I8];
-		values.Push(new Node(NT.BASETYPE, token.location, scope){ /*dType = TypeInfo.getTypeInfo(baseT, refs)*/ });
+		values.Push(new Node(NT.BASETYPE, token.location));
 		return true; 
 	}
 	
@@ -121,11 +117,11 @@ class ExpressionParser
 					
 		Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
-			lit = new Literal(token.location, scope, token._integer){ /*dType = Jolly.baseTypes[TT.I32 - TT.I8]*/ };
+			lit = new Literal(token.location, token._integer);
 		} else if(token.type == TT.FLOAT_LITERAL) {
-			lit = new Literal(token.location, scope, token._float){ /*dType = Jolly.baseTypes[TT.F32 - TT.I8]*/ };
+			lit = new Literal(token.location, token._float);
 		} else {
-			lit = new Literal(token.location, scope, token._string){ /*dType = Jolly.baseTypes[TT.STRING - TT.I8]*/ };
+			lit = new Literal(token.location, token._string);
 		}
 		
 		values.Push(lit);
@@ -137,7 +133,7 @@ class ExpressionParser
 		if(token.type != TT.IDENTIFIER)
 			return false;
 		
-		values.Push(new Symbol(NT.NAME, token.location, scope, token.name, SymbolFlag.none));
+		values.Push(new Name(token.location, token.name));
 		return true;
 	}
 	
@@ -163,27 +159,31 @@ class ExpressionParser
 				while(operators.Count > 0)
 					pushOperator(operators.Pop());
 				
-				var function = new Function(token.location, scope, token.name, null, SymbolFlag.private_members/*, returns*/);
+				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				if(!scope.addSymbol(function)) {
+				TableFolder functionScope = theFunction = new TableFolder(function);
+				
+				if(!scope.addChild(token.name, functionScope)) {
+					// Todo: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
-					throw new ParseException();
+					throw new ParseException();	
 				}
 				
-				var parser = new ExpressionParser(function, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partner.index, variableFlags);
+				var parser = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partner.index);
 				cursor = parser.parseExpression(true)-1;
-				function.arguments = function.symbols.Select(s => (Variable)s).ToArray();
+				// function.arguments = functionScope.Select(s => (Variable)s).ToArray();
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
-				theFunction = function;
 				isFunction = true;
 			}
 			else
 			{ // Variable
 				defining = true;
-				var variable = new Variable(token.location, scope, token.name, values.Pop(), variableFlags); 
-				if(!scope.addSymbol(variable)) {
+				var variable = new Name(token.location, token.name);
+				TableItem variableItem = new TableItem(variable);
+				
+				if(!scope.addChild(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 					throw new ParseException();
 				}
@@ -191,7 +191,7 @@ class ExpressionParser
 			}
 		}
 		else if(prev?.nType != NT.VARIABLE)
-			values.Push(new Symbol(NT.NAME,token.location, scope, token.name, SymbolFlag.none));
+			values.Push(new Name(token.location, token.name));
 		
 		return true;
 	}
@@ -207,7 +207,7 @@ class ExpressionParser
 		{
 			if(token.type == TT.PLUS || token.type == TT.MINUS) {
 				// unary plus and minus 
-				values.Push(new Literal(token.location, scope, 0));
+				values.Push(new Literal(token.location, 0));
 			} else if(!preLookup.TryGetValue(token.type, out op)) {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -304,8 +304,8 @@ class ExpressionParser
 			}
 			Debug.Assert(name.nType == NT.NAME);
 			
-			values.Push(new Result(token.location, scope/*, null*/));
-			expression.Add(new Function_call(token.location, scope, ((Symbol)name).name, arguments));
+			values.Push(new Result(token.location));
+			expression.Add(new Function_call(token.location, ((Name)name).name, arguments));
 		} else {
 			Node list = values.PeekOrDefault();
 			if(list?.nType == NT.LIST)
@@ -339,8 +339,10 @@ class ExpressionParser
 				throw new ParseException();
 			}
 			
-			var variable = new Variable(name.location, scope, name.name, n, variableFlags); 
-			if(!scope.addSymbol(variable)) {
+			var variable = new Name(name.location, name.name); 
+			TableItem variableItem = new TableItem(variable);
+			
+			if(!scope.addChild(name.name, variableItem)) {
 				Jolly.addError(name.location, "Trying to redefine variable");
 				throw new ParseException();
 			}

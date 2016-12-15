@@ -7,15 +7,15 @@ namespace Jolly
 	
     class ScopeParser
 	{
-		protected int cursor, end;
 		protected Token token;
-		protected Scope scope;
 		protected NT scopeHeader;
 		protected Token[] tokens;
+		protected int cursor, end;
+		protected TableFolder scope;
 		protected List<Node> program;
 		protected List<ScopeParser> scopeQueue = new List<ScopeParser>();
 		
-		public ScopeParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
 			this.end = end;
 			this.scope = scope;
@@ -41,9 +41,13 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Scope _struct = new Scope(token.location, NT.STRUCT, scope, name.name, SymbolFlag.none);
-			scopeQueue.Add(new ScructParser(cursor+1, brace.partner.index, _struct, tokens, program));
-			scope.addSymbol(_struct);
+			Symbol _struct = new Symbol(NT.STRUCT, token.location, scope);
+			TableFolder _structScope = new TableFolder(_struct);
+			
+			program.Add(_struct);
+			scope.addChild(name.name, _structScope);
+			scopeQueue.Add(new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program));
+			
 			cursor = brace.partner.index;
 			
 			return true;
@@ -59,6 +63,7 @@ namespace Jolly
 			// return true;
 		}
 		
+		#if false
 		protected bool parseFor()
 		{
 			if(token.type != TT.FOR)
@@ -141,6 +146,7 @@ namespace Jolly
 			
 			// return true;
 		}
+		#endif
 		
 		protected bool parseBraceOpen()
 		{
@@ -164,15 +170,19 @@ namespace Jolly
 				Jolly.unexpected(token);
 				throw new ParseException();
 			}
-			Scope _namespace = new Scope(token.location, NT.BLOCK, scope, name.name, SymbolFlag.global);
-			scope.addSymbol(_namespace);
 			
+			Symbol _namespace = new Symbol(NT.BLOCK, token.location, scope);
+			TableFolder _namespaceScope = new TableFolder(_namespace);
+			
+			program.Add(_namespace);
+			scope.addChild(name.name, _namespaceScope);
+						
 			token = tokens[++cursor];
 			if(token.type == TT.BRACE_OPEN) {
-				scopeQueue.Add(new ScopeParser(cursor+1, token.partner.index, _namespace, tokens, program));
+				scopeQueue.Add(new ScopeParser(cursor+1, token.partner.index, _namespaceScope, tokens, program));
 				cursor = token.partner.index;
 			} else if(token.type == TT.SEMICOLON) {
-				scope = _namespace;
+				scope = _namespaceScope;
 			} else {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -185,50 +195,40 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			var theScope = scope;
-			Function theFunction;
-			var retLoc = token.location;
-			while((theFunction = theScope as Function) == null) {
-				if((theScope = theScope.parentScope) == null) {
-					Jolly.addError(token.location, "Can only use return in function");
-					throw new ParseException();
-				}
+			var iterator = scope;
+			while(scope != null) {
+				if(scope.node.nType == NT.FUNCTION)
+					goto isInFunction;
+				iterator = iterator.parent;
 			}
+			Jolly.addError(token.location, "Can only return from function.");
+			throw new ParseException();
+			isInFunction:
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end, SymbolFlag.none);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end);
 			cursor = parser.parseExpression(false);
 			var expression = parser.getExpression();
 			
 			Node node = parser.getValue();
-			int values = (node as _List)?.list.Count ?? 1;
-			
-			// if(theFunction.returns.Length != values) {
-			// 	Jolly.addError(token.location, "{0} returns {1} values, not {2}".fill(theFunction.name, theFunction.returns.Length, values));
-			// 	throw new ParseException();
-			// }
-			
-			// if( theFunction.returns.Length == 0 && node == null) {
-			// 	program.Add(new Return(token.location, scope, null));
-			// } else {
-				program.Add(new Return(token.location, scope, node));
-			// }
+			program.Add(new Return(token.location, node));
 			
 			return true;
 		}
 		
 		protected void parseExpression()
 		{
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, SymbolFlag.none);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end);
 			cursor = parser.parseExpression(true);
 			
 			if(parser.isFunction)
 			{
-				program.Add(parser.theFunction);
 				Token brace = tokens[cursor+1];
 				if(brace.type != TT.BRACE_OPEN) {
 					Jolly.unexpected(brace);
 					throw new ParseException();
 				}
+				
+				program.Add(parser.theFunction.node);
 				scopeQueue.Add(new FunctionParser(cursor+1, brace.partner.index, parser.theFunction, tokens, program));
 				cursor = brace.partner.index;
 			} else {
@@ -253,9 +253,6 @@ namespace Jolly
 		
 		public void parseBlock()
 		{
-			// if(scopeHeader != NT.UNITIALIZED)
-			// 	program.Add(new Node(scopeHeader, new SourceLocation(), null) { data = this });
-			
 			for (token = tokens[cursor];
 				cursor < end;
 				token = tokens[++cursor])
@@ -270,15 +267,17 @@ namespace Jolly
 	
 	class BlockParser : ScopeParser
 	{
-		public BlockParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program) : base(cursor, end, scope, tokens, program) { }
+		public BlockParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
+			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()
 		{
-			if( parseIf()			||
-				parseFor()			||
+			if(
+				// parseIf()			||
+				// parseFor()			||
 				parseReturn()		||
-				parseForeach()		||
-				parseWhile()		||
+				// parseForeach()		||
+				// parseWhile()		||
 				parseBraceOpen())
 				return;
 			parseExpression();
@@ -287,7 +286,7 @@ namespace Jolly
 	
 	class FunctionParser : BlockParser
 	{
-		public FunctionParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public FunctionParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 			: base(cursor, end, scope, tokens, program)
 		{
 			scopeHeader = NT.FUNCTION;
@@ -296,7 +295,7 @@ namespace Jolly
 	
 	class ScructParser : ScopeParser
 	{
-		public ScructParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public ScructParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()

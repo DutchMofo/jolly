@@ -7,4 +7,6 @@
 !/.vscode/launch.json
 !/.vscode/settings.json
 !/.vscode/tasks.json
+
 project.lock.json
+project.json
