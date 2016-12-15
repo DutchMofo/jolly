@@ -7,15 +7,14 @@ namespace Jolly
 	
 	enum NameFlags
 	{
-		FOLDER = 1<<0,
-		STATIC = 1<<1,
-		READ_ONLY = 1<<2,
-		IS_UNION = 1<<3,
+		FOLDER		= 1<<0,
+		STATIC		= 1<<1,
+		READ_ONLY	= 1<<2,
+		IS_UNION	= 1<<3,
 	}
 
 	class TableItem
 	{
-		public static TableItem[] baseTypes;
 		public int size, align, offset;
 		public TableFolder parent;
 		public NameFlags flags;
@@ -27,7 +26,7 @@ namespace Jolly
 
 	class TableName : TableItem
 	{
-		public TableName(int size, Symbol node)
+		public TableName(Symbol node, int size)
 			: base(node) { this.align = this.size = size; }
 	}
 
@@ -76,18 +75,12 @@ namespace Jolly
 						continue;
 					if(child.align > align)
 						align = child.align;
-					child.offset += (child.align - (offset % child.align)) % child.align;
+					child.offset = ((size-1) / align + 1) * (align-1) - offset;
 					offset = child.offset + child.size; 
 				}
-				size = (offset == 0) ? 0 : ((size-1) / align + 1) * align;
+				size = ((size-1) / align + 1) * align;
 			}
 		}
-	}
-
-	class Symbol : Node
-	{
-		public Symbol(NodeType type, SourceLocation loc, TableFolder parentScope)
-			: base(type, loc) { }
 	}
 	
 	class Node
@@ -139,14 +132,14 @@ namespace Jolly
 			return "{0}:{1} {2}".fill(location.line, location.column, nType);
 		}
 	}
-	
-	class Name : Symbol
+
+	class Symbol : Node
 	{
-		public Name(SourceLocation loc, string name)
-			: base(NodeType.LIST, loc, null) { this.name = name; }
+		public Symbol(NodeType type, SourceLocation loc, TableFolder parentScope, string name)
+			: base(type, loc) { this.name = name; }
 		public string name;
 	}
-	
+		
 	class _List : Node 
 	{
 		public _List(SourceLocation loc)

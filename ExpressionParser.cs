@@ -133,7 +133,7 @@ class ExpressionParser
 		if(token.type != TT.IDENTIFIER)
 			return false;
 		
-		values.Push(new Name(token.location, token.name));
+		values.Push(new Symbol(token.location, scope, token.name));
 		return true;
 	}
 	
@@ -180,7 +180,7 @@ class ExpressionParser
 			else
 			{ // Variable
 				defining = true;
-				var variable = new Name(token.location, token.name);
+				var variable = new Symbol(token.location, scope, token.name);
 				TableItem variableItem = new TableItem(variable);
 				
 				if(!scope.addChild(token.name, variableItem)) {
@@ -191,7 +191,7 @@ class ExpressionParser
 			}
 		}
 		else if(prev?.nType != NT.VARIABLE)
-			values.Push(new Name(token.location, token.name));
+			values.Push(new Symbol(token.location, scope, token.name));
 		
 		return true;
 	}
@@ -295,17 +295,17 @@ class ExpressionParser
 		if(op.isFunctionCall)
 		{
 			Node[] arguments;
-			Node name = values.Pop();
-			if(name.nType != NT.NAME) {
-				arguments = name.nType == NT.LIST ? ((_List)name).list.ToArray() : new Node[] { name };
-				name = values.Pop(); 
+			Node symbol = values.Pop();
+			if(symbol.nType != NT.NAME) {
+				arguments = symbol.nType == NT.LIST ? ((_List)symbol).list.ToArray() : new Node[] { symbol };
+				symbol = values.Pop(); 
 			} else {
 				arguments = new Node[0];
 			}
-			Debug.Assert(name.nType == NT.NAME);
+			Debug.Assert(symbol.nType == NT.NAME);
 			
 			values.Push(new Result(token.location));
-			expression.Add(new Function_call(token.location, ((Name)name).name, arguments));
+			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
 		} else {
 			Node list = values.PeekOrDefault();
 			if(list?.nType == NT.LIST)
@@ -339,7 +339,7 @@ class ExpressionParser
 				throw new ParseException();
 			}
 			
-			var variable = new Name(name.location, name.name); 
+			var variable = new Symbol(name.location, scope, name.name); 
 			TableItem variableItem = new TableItem(variable);
 			
 			if(!scope.addChild(name.name, variableItem)) {

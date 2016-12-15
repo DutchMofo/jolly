@@ -17,12 +17,18 @@ static class Lookup
 			keywords.Add(names[i].ToLower(), values[i]);
 		for (int i = (int)Token.Type.FLAGS; i <= (int)Token.Type.SORT_DESC; ++i)
 			directives.Add(names[i].ToLower(), values[i]);
+			
+		baseTypes = new TableItem[(int)(Token.Type.AUTO - Token.Type.I8)];
+		for (int i = (int)Token.Type.I8; i <= (int)Token.Type.AUTO; i += 1)
+			baseTypes[i] = new TableItem(null);
 	}
+	
+	public static TableItem[] baseTypes;
 	
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
-			{ TT.PLUS_PLUS,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.INCREMENT	}},
-			{ TT.MINUS_MINUS,	new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DECREMENT	}},
+			// { TT.PLUS_PLUS,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.INCREMENT	}},
+			// { TT.MINUS_MINUS,	new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DECREMENT	}},
 			{ TT.ASTERISK,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DEREFERENCE	}},
 			{ TT.AND,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.REFERENCE	}},
 			
@@ -30,8 +36,8 @@ static class Lookup
 		},
 		EXPRESSION_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD,			new Op { precedence = 01, valCount = 2, leftToRight = true,  operation = TT.GET_MEMBER		}},				
-			{ TT.MINUS_MINUS,		new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.DECREMENT		}},
-			{ TT.PLUS_PLUS,			new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.INCREMENT		}},
+			// { TT.MINUS_MINUS,		new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.DECREMENT		}},
+			// { TT.PLUS_PLUS,			new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.INCREMENT		}},
 			{ TT.EXCLAMATION,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.LOGIC_NOT		}},
 			{ TT.TILDE,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.BIT_NOT			}},
 			{ TT.NEW,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.NEW				}},

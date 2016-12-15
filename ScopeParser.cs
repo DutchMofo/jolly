@@ -8,7 +8,6 @@ namespace Jolly
     class ScopeParser
 	{
 		protected Token token;
-		protected NT scopeHeader;
 		protected Token[] tokens;
 		protected int cursor, end;
 		protected TableFolder scope;
@@ -287,9 +286,13 @@ namespace Jolly
 	class FunctionParser : BlockParser
 	{
 		public FunctionParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
-			: base(cursor, end, scope, tokens, program)
+			: base(cursor, end, scope, tokens, program) { }
+			
+		protected override void _parse()
 		{
-			scopeHeader = NT.FUNCTION;
+			base._parse();
+			if(program.Last().nType != NT.RETURN)
+				program.Add(new Return(tokens[end-1].location, null));
 		}
 	}
 	
