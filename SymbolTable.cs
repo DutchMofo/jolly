@@ -24,10 +24,11 @@ namespace Jolly
 	class TableItem
 	{
 		public int size, align, offset;
-		public TableFolder parent;
 		public NameFlags flags;
-		public TableItem type;
 		public string name; // Debug only
+		
+		public TableFolder parent;
+		public TableItem type;
 		
 		static List<TableReference> referenceItems = new List<TableItem>();
 		
@@ -43,6 +44,7 @@ namespace Jolly
 		}
 		
 		public virtual void calculateSize() { }
+		public TableItem(TableItem type) { this.type = type; }
 		public TableItem(int size) { this.size = align = size; }
 		public TableItem(int size, int align) { this.size = size; this.align = align; }
 		
