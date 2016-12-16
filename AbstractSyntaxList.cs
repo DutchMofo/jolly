@@ -10,7 +10,7 @@ namespace Jolly
 		FOLDER		= 1<<0,
 		STATIC		= 1<<1,
 		READ_ONLY	= 1<<2,
-		IS_UNION	= 1<<3,
+		UNION		= 1<<3,
 	}
 
 	class TableItem
@@ -35,7 +35,10 @@ namespace Jolly
 		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
 		
 		public TableFolder(Symbol node)
-			: base(node) { }
+			: base(node) { flags = NameFlags.FOLDER }
+		
+		public TableFolder(Symbol node, NameFlags flags)
+			: base(node) { flags = NameFlags.FOLDER | flags }
 		
 		public bool addChild(string childName, TableItem child)
 		{

@@ -16,6 +16,7 @@ struct Op
 	public SourceLocation location;
 }
 
+// Parses an expression using a modified Shunting-yard algorithm
 class ExpressionParser
 {
 	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end) {
@@ -352,6 +353,8 @@ class ExpressionParser
 		return false;
 	}
 	
+	// Tries to define a function or variable,
+	// stops when it defines a function or it encounters an unknown token
 	void parseDefinition()
 	{
 		for(token = tokens[cursor];
@@ -395,6 +398,7 @@ class ExpressionParser
 				continue;
 			}
 			
+			// Failed to parse token
 			Jolly.unexpected(token);
 			throw new System.Exception();
 		}

@@ -87,7 +87,6 @@ namespace Jolly
 		public static void unexpected(Node node)
 			=> addError(node.location, "Unexpected {0}".fill(node.nType));
 		
-		
 		static void printMessages()
 		{
 			int columnDigits = (int)Math.Log10((double)maxMessageColumn) + 1,

@@ -12,7 +12,6 @@ namespace Jolly
 		protected int cursor, end;
 		protected TableFolder scope;
 		protected List<Node> program;
-		protected List<ScopeParser> scopeQueue = new List<ScopeParser>();
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
@@ -45,7 +44,7 @@ namespace Jolly
 			
 			program.Add(_struct);
 			scope.addChild(name.name, _structScope);
-			scopeQueue.Add(new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program));
+			new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program).parseBlock();
 			
 			cursor = brace.partner.index;
 			
@@ -57,9 +56,28 @@ namespace Jolly
 			if(token.type != TT.UNION)
 				return false;
 			
+			Token name = tokens[++cursor];
+			if(name.type != TT.IDENTIFIER) {
+				Jolly.unexpected(token);
 				throw new ParseException();
+			}
 			
-			// return true;
+			Token brace = tokens[++cursor];
+			if(brace.type != TT.BRACE_OPEN) {
+				Jolly.unexpected(token);
+				throw new ParseException();
+			}
+			
+			Symbol _union = new Symbol(NT.UNION, token.location, scope);
+			TableFolder unionScope = new TableFolder(_union, NameFlags.UNION);
+			
+			program.Add(_union);
+			scope.addChild(name.name, unionScope);
+			new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program).parseBlock();
+			
+			cursor = brace.partner.index;
+			
+			return true;
 		}
 		
 		#if false
@@ -178,7 +196,7 @@ namespace Jolly
 						
 			token = tokens[++cursor];
 			if(token.type == TT.BRACE_OPEN) {
-				scopeQueue.Add(new ScopeParser(cursor+1, token.partner.index, _namespaceScope, tokens, program));
+				new ScopeParser(cursor+1, token.partner.index, _namespaceScope, tokens, program).parseBlock();
 				cursor = token.partner.index;
 			} else if(token.type == TT.SEMICOLON) {
 				scope = _namespaceScope;
@@ -228,7 +246,11 @@ namespace Jolly
 				}
 				
 				program.Add(parser.theFunction.node);
-				scopeQueue.Add(new FunctionParser(cursor+1, brace.partner.index, parser.theFunction, tokens, program));
+				new BlockParser(cursor+1, brace.partner.index, parser.theFunction, tokens, program).parseBlock();
+				
+				if(program.Last().nType != NT.RETURN)
+					program.Add(new Return(brace.partner.location, null));
+				
 				cursor = brace.partner.index;
 			} else {
 				var expression = parser.getExpression();
@@ -258,9 +280,6 @@ namespace Jolly
 			{
 				_parse();
 			}
-			
-			foreach(var scopeParser in scopeQueue)
-				scopeParser.parseBlock();
 		}
 	}
 	
@@ -283,19 +302,6 @@ namespace Jolly
 		}
 	}
 	
-	class FunctionParser : BlockParser
-	{
-		public FunctionParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
-			: base(cursor, end, scope, tokens, program) { }
-			
-		protected override void _parse()
-		{
-			base._parse();
-			if(program.Last().nType != NT.RETURN)
-				program.Add(new Return(tokens[end-1].location, null));
-		}
-	}
-	
 	class ScructParser : ScopeParser
 	{
 		public ScructParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
@@ -303,8 +309,8 @@ namespace Jolly
 		
 		protected override void _parse()
 		{
-			if( parseUnion()	||
-				parseStruct())
+			if( parseStruct() ||
+				parseUnion())
 				return;
 			parseExpression();
 		}
