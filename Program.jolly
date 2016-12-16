@@ -1,18 +1,24 @@
+struct Inner
+{
+	struct InnerInner
+	{
+		int value;
+	}
+	
+	long value;
+	int counter;
+}
+
 struct Example
 {
+	Inner.InnerInner inner;
 	string name;
-	
-	union Inner
-	{
-		long value;
-		int counter;
-	}
 }
 
 string func()
 {
-	Example example;
 	return example.name;
+	Example example;
 }
 
 /*

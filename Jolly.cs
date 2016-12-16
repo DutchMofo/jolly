@@ -114,11 +114,7 @@ namespace Jolly
 			List<Node> program = new List<Node>(tokens.Length / 2);
 			var parser = new ScopeParser(0, tokens.Length-1, symbolTable, tokens, program);
 			parser.parseBlock();
-			
-			// Calculate the size off all types
-			symbolTable.calculateSize();
-			symbolTable.PrintTree(0); // Debug print tree
-			
+						
 			Console.ReadKey();
 		}
 	}

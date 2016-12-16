@@ -15,11 +15,11 @@ namespace Jolly
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
-			this.end = end;
-			this.scope = scope;
-			this.cursor = cursor;
-			this.tokens = tokens;
 			this.program = program;
+			this.tokens = tokens;
+			this.cursor = cursor;
+			this.scope = scope;
+			this.end = end;
 		}
 		
 		protected bool parseStruct()
@@ -40,7 +40,7 @@ namespace Jolly
 			}
 			
 			Symbol _struct = new Symbol(token.location, name.name, NT.STRUCT);
-			TableFolder _structScope = new TableFolder(_struct);
+			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
 			
 			program.Add(_struct);
 			scope.addChild(name.name, _structScope);
@@ -69,7 +69,7 @@ namespace Jolly
 			}
 			
 			Symbol _union = new Symbol(token.location, name.name, NT.UNION);
-			TableFolder unionScope = new TableFolder(_union, NameFlags.UNION);
+			TableFolder unionScope = new TableFolder(NameFlags.UNION);
 			
 			program.Add(_union);
 			scope.addChild(name.name, unionScope);

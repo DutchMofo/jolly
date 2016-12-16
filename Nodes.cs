@@ -1,102 +1,7 @@
-using System.Collections.Generic;
-using System.Linq;
-
 namespace Jolly
 {
-	using NT = Node.NodeType;
-	
-	enum NameFlags
-	{
-		FOLDER		= 1<<0,
-		STATIC		= 1<<1,
-		READ_ONLY	= 1<<2,
-		UNION		= 1<<3,
-	}
-
-	class TableItem
-	{
-		public int size, align, offset;
-		public TableFolder parent;
-		public NameFlags flags;
-		public string name;
-		public Node node;
-		
-		public virtual void calculateSize() { }
-		public TableItem(Node node) { this.node = node; }
-		public TableItem(int size) { this.size = align = size; }
-		public TableItem(int size, int align) { this.size = size; this.align = align; }
-		
-		// Debug print tree
-		string qF(int number) => (number < 10 & number >= 0) ? " " + number.ToString() : number.ToString();
-		protected string info(int indent) => "[{0}:{1}:{2}] ".fill(qF(offset), qF(align), qF(size)) + new string(' ', indent * 2);
-		public virtual void PrintTree(int indent)
-			=> System.Console.WriteLine(info(indent) + name);
-	}
-
-	class TableFolder : TableItem
-	{
-		// Debug print tree
-		public override void PrintTree(int indent) {
-            System.Console.WriteLine(info(indent) + name + '/');
-			foreach(var i in children.Values)
-				i.PrintTree(indent+1);
-		}
-		
-		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
-		
-		public TableFolder(Node node)
-			: base(node) { flags = NameFlags.FOLDER; }
-		
-		public TableFolder(Node node, NameFlags flags)
-			: base(node) { flags = NameFlags.FOLDER | flags; }
-		
-		public bool addChild(string childName, TableItem child)
-		{
-			TableFolder iterator = this;
-			while(iterator != null) {
-				if(iterator.children.ContainsKey(childName))
-					return false;
-				iterator = iterator.parent;
-			}
-			children.Add(childName, child);
-			child.name = childName;
-			child.parent = this;
-			return true;
-		}
-		
-		public override void calculateSize()
-		{
-			// Todo: Validate results, Look into optimization
-			if((flags & NameFlags.UNION) != 0)
-			{
-				foreach(var child in children.Values)
-				{
-					child.calculateSize();
-					// child.offset = 0; // Not nessesary
-					if(child.size > size)
-						size = child.size;
-					if(child.align > align)
-						align = child.align;
-				}
-			}
-			else
-			{
-				int _offset = 0;
-				foreach(var child in children.Values)
-				{
-					child.calculateSize();
-					if(child.size == 0)
-						continue;
-					if(child.align > align)
-						align = child.align;
-					child.offset = _offset / child.align * child.align - _offset;
-					_offset = child.offset + child.size; 
-				}
-				if(align > 0)
-					size = ((_offset-1) / align + 1) * align;
-			}
-		}
-	}
+	using NT = Node.Type;
+	using TT = Token.type;
 	
 	class Node
 	{
@@ -150,7 +55,7 @@ namespace Jolly
 	
 	class BaseType : Node
 	{
-		public BaseType(SourceLocation loc, Token.Type type)
+		public BaseType(SourceLocation loc, TT type)
 			: base(NT.BASETYPE, loc) { baseType = type; }
 		public Token.Type baseType;
 	}
@@ -229,17 +134,17 @@ namespace Jolly
 	
 	class Function : Node
 	{
-		public Symbol[] arguments;
-		public Node returns;
-		
 		public Function(SourceLocation loc, Symbol[] arguments, TableFolder parentScope)
 			: base(NodeType.FUNCTION, loc) { this.arguments = arguments; }
+		
+		public Symbol[] arguments;
+		public Node returns;
 	}
 	
 	class If  : Node
 	{
 		public If(SourceLocation loc, Node[] condition, Node conditionValue)
-			: base(NodeType.IF, loc) // Todo add label and parentScope
+			: base(NodeType.IF, loc)
 		{ 
 			this.conditionValue = conditionValue;
 			this.condition = condition;
@@ -251,6 +156,7 @@ namespace Jolly
 	
 	class For : Node
 	{
+		// Todo add label
 		public For(SourceLocation loc)
 			: base(NodeType.FOR, loc) { }
 		
