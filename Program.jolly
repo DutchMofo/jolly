@@ -2,9 +2,10 @@ struct Example
 {
 	string name;
 	
-	struct Inner
+	union Inner
 	{
-		int i;
+		long value;
+		int counter;
 	}
 }
 
@@ -13,7 +14,6 @@ string func()
 	Example example;
 	return example.name;
 }
-
 
 /*
 

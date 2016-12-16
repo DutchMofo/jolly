@@ -85,7 +85,7 @@ namespace Jolly
 			=> addError(token.location, "Unexpected {0}".fill(token));
 		
 		public static void unexpected(Node node)
-			=> addError(node.location, "Unexpected {0}".fill(node.nType));
+			=> addError(node.location, "Unexpected {0}".fill(node.nodeType));
 		
 		static void printMessages()
 		{
@@ -117,8 +117,7 @@ namespace Jolly
 			
 			// Calculate the size off all types
 			symbolTable.calculateSize();
-			
-			// program = new Analyzer().analyze(program);
+			symbolTable.PrintTree(0); // Debug print tree
 			
 			Console.ReadKey();
 		}

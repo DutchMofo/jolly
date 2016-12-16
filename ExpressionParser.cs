@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Diagnostics;
 
 namespace Jolly
@@ -10,13 +9,14 @@ using NT = Node.NodeType;
 struct Op
 {
 	public TT operation;
-	public byte precedence, valCount;
 	public bool leftToRight;
 	public bool isFunctionCall;
 	public SourceLocation location;
+	public byte precedence, valCount;
 }
 
-// Parses an expression using a modified Shunting-yard algorithm
+// Parses an expression using a modified Shunting-yard algorithm.
+// Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
 	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end) {
@@ -46,10 +46,8 @@ class ExpressionParser
 	
 	void pushOperator(Op _op)
 	{
-		if(_op.valCount == 0) return;
-		
 		Node a, b = null;
-		// TypeInfo dataType;
+		
 		if(_op.valCount == 2)
 		{
 			b = values.PopOrDefault();
@@ -62,8 +60,8 @@ class ExpressionParser
 		
 			if(_op.operation == TT.COMMA)
 			{
-				_List list = a as _List;
-				if(a.nType == NT.LIST) {
+				Tupple list = a as Tupple;
+				if(a.nodeType == NT.TUPPLE) {
 					if(!list.locked) {
 						list.list.Add(b);
 						values.Push(a);
@@ -73,14 +71,13 @@ class ExpressionParser
 						throw new ParseException();
 					}
 				} else {
-					list = new _List(_op.location);
+					list = new Tupple(_op.location);
 					list.list.Add(a);
 					list.list.Add(b);
 					values.Push(list);
 					return;
 				}
-			} 
-			// dataType = b.dType;
+			}
 		}
 		else
 		{
@@ -89,7 +86,6 @@ class ExpressionParser
 				Jolly.addError(_op.location, "Invalid expression term");
 				throw new ParseException();
 			}
-			// dataType = a.dType;
 		}
 		
 		Operator op = new Operator(_op.location, _op.operation, a, b, new Result(_op.location));
@@ -107,7 +103,7 @@ class ExpressionParser
 			throw new ParseException();
 		}
 		
-		values.Push(new Node(NT.BASETYPE, token.location));
+		values.Push(new BaseType(token.location, token.type));
 		return true; 
 	}
 	
@@ -134,7 +130,7 @@ class ExpressionParser
 		if(token.type != TT.IDENTIFIER)
 			return false;
 		
-		values.Push(new Symbol(token.location, scope, token.name));
+		values.Push(new Symbol(token.location, token.name));
 		return true;
 	}
 	
@@ -144,12 +140,12 @@ class ExpressionParser
 			return false;
 		
 		Node prev = values.PeekOrDefault();
-		if(prev != null && !wasOperator & (prev.nType == NT.NAME | prev.nType == NT.BASETYPE))
+		if(prev != null && !wasOperator & (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
 		{
-			if(prev.nType == NT.NAME) {
+			if(prev.nodeType == NT.NAME) {
 				// sigh... c#
 				Node t = values.Pop();
-				t.nType = NT.USERTYPE;
+				t.nodeType = NT.USERTYPE;
 				values.Push(t);
 			}
 			
@@ -173,7 +169,6 @@ class ExpressionParser
 				
 				var parser = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partner.index);
 				cursor = parser.parseExpression(true)-1;
-				// function.arguments = functionScope.Select(s => (Variable)s).ToArray();
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
 				isFunction = true;
@@ -181,8 +176,14 @@ class ExpressionParser
 			else
 			{ // Variable
 				defining = true;
-				var variable = new Symbol(token.location, scope, token.name);
-				TableItem variableItem = new TableItem(variable);
+				var variable = new Symbol(token.location, token.name);
+				TableItem variableItem = new TableItem(variable);;
+				
+				if(prev.nodeType == NT.BASETYPE) {
+					var baseT = Lookup.baseTypes[(prev as BaseType).baseType - TT.I8];
+                    variableItem.align = baseT.align;
+                    variableItem.size = baseT.size;
+				}
 				
 				if(!scope.addChild(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
@@ -191,8 +192,8 @@ class ExpressionParser
 				values.Push(variable);
 			}
 		}
-		else if(prev?.nType != NT.VARIABLE)
-			values.Push(new Symbol(token.location, scope, token.name));
+		else if(prev?.nodeType != NT.VARIABLE)
+			values.Push(new Symbol(token.location, token.name));
 		
 		return true;
 	}
@@ -252,7 +253,7 @@ class ExpressionParser
 		isOperator = true;
 		operators.Push(new Op {
 			operation = TT.PARENTHESIS_OPEN,
-			isFunctionCall = values.PeekOrDefault()?.nType == NT.NAME,
+			isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
 			leftToRight = false,
 			location = token.location,
 			precedence = 255,
@@ -297,20 +298,20 @@ class ExpressionParser
 		{
 			Node[] arguments;
 			Node symbol = values.Pop();
-			if(symbol.nType != NT.NAME) {
-				arguments = symbol.nType == NT.LIST ? ((_List)symbol).list.ToArray() : new Node[] { symbol };
+			if(symbol.nodeType != NT.NAME) {
+				arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).list.ToArray() : new Node[] { symbol };
 				symbol = values.Pop(); 
 			} else {
 				arguments = new Node[0];
 			}
-			Debug.Assert(symbol.nType == NT.NAME);
+			Debug.Assert(symbol.nodeType == NT.NAME);
 			
 			values.Push(new Result(token.location));
 			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
 		} else {
 			Node list = values.PeekOrDefault();
-			if(list?.nType == NT.LIST)
-				((_List)list).locked = true;
+			if(list?.nodeType == NT.TUPPLE)
+				((Tupple)list).locked = true;
 		}
 		
 		return true;
@@ -340,7 +341,7 @@ class ExpressionParser
 				throw new ParseException();
 			}
 			
-			var variable = new Symbol(name.location, scope, name.name); 
+			var variable = new Symbol(name.location, name.name); 
 			TableItem variableItem = new TableItem(variable);
 			
 			if(!scope.addChild(name.name, variableItem)) {

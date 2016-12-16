@@ -39,7 +39,7 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _struct = new Symbol(NT.STRUCT, token.location, scope);
+			Symbol _struct = new Symbol(token.location, name.name, NT.STRUCT);
 			TableFolder _structScope = new TableFolder(_struct);
 			
 			program.Add(_struct);
@@ -68,12 +68,12 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _union = new Symbol(NT.UNION, token.location, scope);
+			Symbol _union = new Symbol(token.location, name.name, NT.UNION);
 			TableFolder unionScope = new TableFolder(_union, NameFlags.UNION);
 			
 			program.Add(_union);
 			scope.addChild(name.name, unionScope);
-			new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program).parseBlock();
+			new ScructParser(cursor+1, brace.partner.index, unionScope, tokens, program).parseBlock();
 			
 			cursor = brace.partner.index;
 			
@@ -188,7 +188,7 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _namespace = new Symbol(NT.BLOCK, token.location, scope);
+			Symbol _namespace = new Symbol(token.location, name.name, NT.BLOCK);
 			TableFolder _namespaceScope = new TableFolder(_namespace);
 			
 			program.Add(_namespace);
@@ -214,7 +214,7 @@ namespace Jolly
 			
 			var iterator = scope;
 			while(scope != null) {
-				if(scope.node.nType == NT.FUNCTION)
+				if(scope.node.nodeType == NT.FUNCTION)
 					goto isInFunction;
 				iterator = iterator.parent;
 			}
@@ -227,7 +227,7 @@ namespace Jolly
 			var expression = parser.getExpression();
 			
 			Node node = parser.getValue();
-			program.Add(new Return(token.location, node));
+			program.Add(new Result(token.location));
 			
 			return true;
 		}
@@ -248,8 +248,8 @@ namespace Jolly
 				program.Add(parser.theFunction.node);
 				new BlockParser(cursor+1, brace.partner.index, parser.theFunction, tokens, program).parseBlock();
 				
-				if(program.Last().nType != NT.RETURN)
-					program.Add(new Return(brace.partner.location, null));
+				if(program[program.Count-1].nodeType != NT.RETURN)
+					program.Add(new Result(brace.partner.location));
 				
 				cursor = brace.partner.index;
 			} else {

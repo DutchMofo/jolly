@@ -10,20 +10,42 @@ static class Lookup
 {
 	static Lookup()
 	{
-		string[] names = Enum.GetNames(typeof(Token.Type));
-		Token.Type[] values = Enum.GetValues(typeof(Token.Type)).Cast<Token.Type>().ToArray();
+		string[] names = Enum.GetNames(typeof(TT));
+		TT[] values = Enum.GetValues(typeof(TT)).Cast<TT>().ToArray();
 
-		for (int i = (int)Token.Type.I8; i <= (int)Token.Type.WHILE; ++i)
+		for (int i = (int)TT.I8; i <= (int)TT.WHILE; i += 1)
 			keywords.Add(names[i].ToLower(), values[i]);
-		for (int i = (int)Token.Type.FLAGS; i <= (int)Token.Type.SORT_DESC; ++i)
+		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
 			directives.Add(names[i].ToLower(), values[i]);
-			
-		baseTypes = new TableItem[(int)(Token.Type.AUTO - Token.Type.I8)];
-		for (int i = (int)Token.Type.I8; i <= (int)Token.Type.AUTO; i += 1)
-			baseTypes[i] = new TableItem(null);
 	}
 	
-	public static TableItem[] baseTypes;
+	public static readonly TableItem[] baseTypes =  new TableItem[] {
+		new TableItem(1),		// I8,
+		new TableItem(1),		// U8,
+		new TableItem(2),		// I16,
+		new TableItem(2),		// U16,
+		new TableItem(4),		// I32,
+		new TableItem(4),		// U32,
+		new TableItem(8),		// I64,
+		new TableItem(8),		// U64,
+		new TableItem(4),		// F32,
+		new TableItem(4),		// F64,
+		new TableItem(1),		// BYTE,
+		new TableItem(1),		// UBYTE,
+		new TableItem(2),		// SHORT,
+		new TableItem(2),		// USHORT,
+		new TableItem(4),		// INT,
+		new TableItem(4),		// UINT,
+		new TableItem(8),		// LONG,
+		new TableItem(8),		// ULONG,
+		new TableItem(4),		// FLOAT,
+		new TableItem(4),		// DOUBLE,
+		new TableItem(0),		// VOID,
+		new TableItem(2),		// RUNE,
+		new TableItem(16, 8),	// STRING,
+		new TableItem(1),		// BOOL,
+		new TableItem(0),		// AUTO,
+	};	
 	
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
@@ -85,38 +107,38 @@ static class Lookup
 	
 	//In ascii order
 	public static readonly Token.Type[] TOKEN = {
-		Token.Type.EXCLAMATION,			// !
-		Token.Type.QUOTE,				// "
-		Token.Type.HASH,				// #
-		Token.Type.DOLLAR,				// $
-		Token.Type.PERCENT,				// %
-		Token.Type.AND,					// &
-		Token.Type.APOSTROPHE,			// '
-		Token.Type.PARENTHESIS_OPEN,	// (
-		Token.Type.PARENTHESIS_CLOSE,	// )
-		Token.Type.ASTERISK,			// *
-		Token.Type.PLUS,				// +
-		Token.Type.COMMA,				// ,
-		Token.Type.MINUS,				// -
-		Token.Type.PERIOD,				// .
-		Token.Type.SLASH,				// /
-		Token.Type.COLON,				// :
-		Token.Type.SEMICOLON,			// ;
-		Token.Type.LESS,				// <
-		Token.Type.EQUAL,				// =
-		Token.Type.GREATER,				// >
-		Token.Type.QUESTION_MARK,		// ?	
-		Token.Type.AT,					// @
-		Token.Type.BRACKET_OPEN,		// [
-		Token.Type.BACKSLASH,			// \
-		Token.Type.BRACKET_CLOSE,		// ]
-		Token.Type.CARET,				// ^
-		Token.Type.UNDEFINED,			// _ (NOT AN OPERATOR)
-		Token.Type.BACK_QUOTE,			// `
-		Token.Type.BRACE_OPEN,			// {
-		Token.Type.PIPE,				// |
-		Token.Type.BRACE_CLOSE,			// }
-		Token.Type.TILDE,				// ~
+		TT.EXCLAMATION,			// !
+		TT.QUOTE,				// "
+		TT.HASH,				// #
+		TT.DOLLAR,				// $
+		TT.PERCENT,				// %
+		TT.AND,					// &
+		TT.APOSTROPHE,			// '
+		TT.PARENTHESIS_OPEN,	// (
+		TT.PARENTHESIS_CLOSE,	// )
+		TT.ASTERISK,			// *
+		TT.PLUS,				// +
+		TT.COMMA,				// ,
+		TT.MINUS,				// -
+		TT.PERIOD,				// .
+		TT.SLASH,				// /
+		TT.COLON,				// :
+		TT.SEMICOLON,			// ;
+		TT.LESS,				// <
+		TT.EQUAL,				// =
+		TT.GREATER,				// >
+		TT.QUESTION_MARK,		// ?	
+		TT.AT,					// @
+		TT.BRACKET_OPEN,		// [
+		TT.BACKSLASH,			// \
+		TT.BRACKET_CLOSE,		// ]
+		TT.CARET,				// ^
+		TT.UNDEFINED,			// _ (NOT AN OPERATOR)
+		TT.BACK_QUOTE,			// `
+		TT.BRACE_OPEN,			// {
+		TT.PIPE,				// |
+		TT.BRACE_CLOSE,			// }
+		TT.TILDE,				// ~
 	};
 
 	public static Dictionary<string, Token.Type>
