@@ -104,21 +104,7 @@ namespace Jolly
 	
 	class Literal : Node
 	{
-		public enum LiteralType
-		{
-			STRING,
-			FLOAT,
-			INTEGER
-		}
-		
-		public Literal(SourceLocation loc, string s)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.STRING; data = (object)s; }
-		public Literal(SourceLocation loc, ulong i)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.INTEGER; data = (object)i; }
-		public Literal(SourceLocation loc, double f)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.FLOAT; data = (object)f; }
-		
-		public LiteralType literalType;
+		public Literal(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
 		public object data;
 	}
 	
@@ -158,7 +144,7 @@ namespace Jolly
 	
 	// class For : Node
 	// {
-	// 	// Todo add label
+	// 	// TODO: add label
 	// 	public For(SourceLocation loc)
 	// 		: base(NodeType.FOR, loc) { }
 		

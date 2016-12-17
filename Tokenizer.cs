@@ -214,13 +214,14 @@ class Token
 	public int index;
 	public Type type;
 	public SourceLocation location;
-
+	
+	object data; // Used to fake union like behaviour
 	// union {
-	public int partnerIndex;
-	public string _string;
-	public double _float;
-	public ulong _integer;
-	public string name;
+	public int partnerIndex	{ get { return (int)data; }		set { data = value; } }
+	public string _string	{ get { return (string)data; }	set { data = value; } }
+	public double _float	{ get { return (double)data; }	set { data = value; } }
+	public ulong _integer	{ get { return (ulong)data; }	set { data = value; } }
+	public string name		{ get { return (string)data; }	set { data = value; } }
 	// };
 };
 
@@ -252,7 +253,7 @@ class Tokenizer
 	{
 		return ch >= '0' && ch <= '9';
 	}
-
+	
 	int incrementCursor()
 	{
 		++cursor;
@@ -463,6 +464,7 @@ class Tokenizer
 			// token.number.minSize = 8;
 		}
 		
+		// TODO: Fix this mess
 		if (chr == 'e' || chr == 'E')
 		{ // Exponent
 			incrementCursor();
@@ -622,10 +624,10 @@ class Tokenizer
 					case ('^' << 8) | '=': token.type = Token.Type.CARET_EQUAL; break;
 					default:
 						size = 1;
-						int index = c - '!' - // ! is strart of range
-							(c > '/' ? 10 : 0) -// Skip 0 to 9
-							(c > '@' ? 26 : 0) -// Skip A to Z
-							(c > '`' ? 26 : 0);// Skip a to z
+						int index = c - '!' -		// ! is strart of range
+							(c > '/' ? 10 : 0) -	// Skip 0 to 9
+							(c > '@' ? 26 : 0) -	// Skip A to Z
+							(c > '`' ? 26 : 0);		// Skip a to z
 						token.type = Lookup.TOKEN[index];
 
 						if (c == '(' || c == '{' || c == '[')
