@@ -18,34 +18,34 @@ static class Lookup
 		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
 			directives.Add(names[i].ToLower(), values[i]);
 	}
-	
-	public static readonly TableItem[] baseTypes =  new TableItem[] {
-		new TableItem(1),		// I8,
-		new TableItem(1),		// U8,
-		new TableItem(2),		// I16,
-		new TableItem(2),		// U16,
-		new TableItem(4),		// I32,
-		new TableItem(4),		// U32,
-		new TableItem(8),		// I64,
-		new TableItem(8),		// U64,
-		new TableItem(4),		// F32,
-		new TableItem(4),		// F64,
-		new TableItem(1),		// BYTE,
-		new TableItem(1),		// UBYTE,
-		new TableItem(2),		// SHORT,
-		new TableItem(2),		// USHORT,
-		new TableItem(4),		// INT,
-		new TableItem(4),		// UINT,
-		new TableItem(8),		// LONG,
-		new TableItem(8),		// ULONG,
-		new TableItem(4),		// FLOAT,
-		new TableItem(4),		// DOUBLE,
-		new TableItem(0),		// VOID,
-		new TableItem(2),		// RUNE,
-		new TableItem(16, 8),	// STRING,
-		new TableItem(1),		// BOOL,
-		new TableItem(0),		// AUTO,
-	};	
+
+	public static readonly DataType[] baseTypes = new DataType[] {
+		new DataType(1, 1),		// I8,
+		new DataType(1, 1),		// U8,
+		new DataType(2, 2),		// I16,
+		new DataType(2, 2),		// U16,
+		new DataType(4, 4),		// I32,
+		new DataType(4, 4),		// U32,
+		new DataType(8, 8),		// I64,
+		new DataType(8, 8),		// U64,
+		new DataType(4, 4),		// F32,
+		new DataType(4, 4),		// F64,
+		new DataType(1, 1),		// BYTE,
+		new DataType(1, 1),		// UBYTE,
+		new DataType(2, 2),		// SHORT,
+		new DataType(2, 2),		// USHORT,
+		new DataType(4, 4),		// INT,
+		new DataType(4, 4),		// UINT,
+		new DataType(8, 8),		// LONG,
+		new DataType(8, 8),		// ULONG,
+		new DataType(4, 4),		// FLOAT,
+		new DataType(4, 4),		// DOUBLE,
+		new DataType(0, 0),		// VOID,
+		new DataType(2, 2),		// RUNE,
+		new DataType(16, 8),	// STRING,
+		new DataType(1, 1),		// BOOL,
+		new DataType(0, 0),		// AUTO,
+	};
 	
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {

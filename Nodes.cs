@@ -1,7 +1,9 @@
+using System.Collections.Generic;
+
 namespace Jolly
 {
-	using NT = Node.Type;
-	using TT = Token.type;
+	using NT = Node.NodeType;
+	using TT = Token.Type;
 	
 	class Node
 	{
@@ -44,7 +46,7 @@ namespace Jolly
 		}
 		
 		public NodeType nodeType;
-		public TableItem dataType;
+		public DataType dataType;
 		public SourceLocation location;
 		
 		public override string ToString()
@@ -102,21 +104,7 @@ namespace Jolly
 	
 	class Literal : Node
 	{
-		public enum LiteralType
-		{
-			STRING,
-			FLOAT,
-			INTEGER
-		}
-		
-		public Literal(SourceLocation loc, string s)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.STRING; data = (object)s; }
-		public Literal(SourceLocation loc, ulong i)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.INTEGER; data = (object)i; }
-		public Literal(SourceLocation loc, double f)
-			: base(NodeType.LITERAL, loc) { literalType = LiteralType.FLOAT; data = (object)f; }
-		
-		public LiteralType literalType;
+		public Literal(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
 		public object data;
 	}
 	
@@ -141,26 +129,26 @@ namespace Jolly
 		public Node returns;
 	}
 	
-	class If  : Node
-	{
-		public If(SourceLocation loc, Node[] condition, Node conditionValue)
-			: base(NodeType.IF, loc)
-		{ 
-			this.conditionValue = conditionValue;
-			this.condition = condition;
-		}
+	// class If  : Node
+	// {
+	// 	public If(SourceLocation loc, Node[] condition, Node conditionValue)
+	// 		: base(NodeType.IF, loc)
+	// 	{ 
+	// 		this.conditionValue = conditionValue;
+	// 		this.condition = condition;
+	// 	}
 		
-		public Node[] condition;
-		public Node conditionValue;
-	}
+	// 	public Node[] condition;
+	// 	public Node conditionValue;
+	// }
 	
-	class For : Node
-	{
-		// Todo add label
-		public For(SourceLocation loc)
-			: base(NodeType.FOR, loc) { }
+	// class For : Node
+	// {
+	// 	// TODO: add label
+	// 	public For(SourceLocation loc)
+	// 		: base(NodeType.FOR, loc) { }
 		
-		public Node[] counter, condition, increment;
-		public Node conditionValue;
-	}
+	// 	public Node[] counter, condition, increment;
+	// 	public Node conditionValue;
+	// }
 }

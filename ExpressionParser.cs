@@ -29,11 +29,17 @@ class ExpressionParser
 	
 	Token token;
 	TableFolder scope;
+	ScopeParser scopeParser;
 	Token[] tokens;
 	int end, cursor;
 	Token.Type terminator;
 	
-	bool wasOperator, isOperator, defining;
+	bool wasOperator,	// Was the previous parsed token an operator
+		isOperator,		// Is the current token being parsed an operator
+		defining;		// Are we defining variables
+	
+	// TODO: check if the intermediate "expression" list is nessesary,
+	// maybe can the node's be directly appended to the scope parsers "program" list
 	List<Node> expression = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
@@ -142,33 +148,28 @@ class ExpressionParser
 		Node prev = values.PeekOrDefault();
 		if(prev != null && !wasOperator & (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
 		{
-			if(prev.nodeType == NT.NAME) {
-				// sigh... c#
-				Node t = values.Pop();
-				t.nodeType = NT.USERTYPE;
-				values.Push(t);
-			}
-			
 			// Define
 			Token next = tokens[cursor+1];
 			if(next.type == TT.PARENTHESIS_OPEN)
 			{ // Function
+			
+				// Pop eventual period and comma operators
 				while(operators.Count > 0)
 					pushOperator(operators.Pop());
 				
 				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				TableFolder functionScope = theFunction = new TableFolder(function);
+				TableFolder functionScope = theFunction = new TableFolder();
 				
 				if(!scope.addChild(token.name, functionScope)) {
-					// Todo: add overloads
+					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 					throw new ParseException();	
 				}
 				
-				var parser = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partner.index);
-				cursor = parser.parseExpression(true)-1;
+				var parser = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partnerIndex);
+				cursor = parser.parseExpression(scopeParser, true)-1;
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
 				isFunction = true;
@@ -177,13 +178,7 @@ class ExpressionParser
 			{ // Variable
 				defining = true;
 				var variable = new Symbol(token.location, token.name);
-				TableItem variableItem = new TableItem(variable);;
-				
-				if(prev.nodeType == NT.BASETYPE) {
-					var baseT = Lookup.baseTypes[(prev as BaseType).baseType - TT.I8];
-                    variableItem.align = baseT.align;
-                    variableItem.size = baseT.size;
-				}
+				TableItem variableItem = new TableItem(prev.dataType);
 				
 				if(!scope.addChild(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
@@ -342,7 +337,7 @@ class ExpressionParser
 			}
 			
 			var variable = new Symbol(name.location, name.name); 
-			TableItem variableItem = new TableItem(variable);
+			TableItem variableItem = new TableItem(null);
 			
 			if(!scope.addChild(name.name, variableItem)) {
 				Jolly.addError(name.location, "Trying to redefine variable");
@@ -351,6 +346,7 @@ class ExpressionParser
 			values.Push(variable);
 		}
 		
+		// Return false to let parseOperator handle other work
 		return false;
 	}
 	
@@ -375,8 +371,10 @@ class ExpressionParser
 		}
 	}
 	
-	public int parseExpression(bool allowDefine)
+	public int parseExpression(ScopeParser scopeParser, bool allowDefine)
 	{
+		this.scopeParser = scopeParser;
+		
 		if(allowDefine)
 			parseDefinition();
 		
