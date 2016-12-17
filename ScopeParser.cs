@@ -42,10 +42,9 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _struct = new Symbol(token.location, name.name, NT.STRUCT);
-			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
+			program.Add(new Symbol(token.location, name.name, NT.STRUCT));
 			
-			program.Add(_struct);
+			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
 			scope.addChild(name.name, _structScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			

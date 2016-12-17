@@ -50,7 +50,6 @@ namespace Jolly
 		public DataType type;
 		public int offset;
 		
-		
 		public virtual void calculateSize() { }
 		public TableItem(DataType type) { this.type = type; }
 	}

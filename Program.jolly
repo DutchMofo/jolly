@@ -1,123 +1,42 @@
-struct Inner
+// TODO: Work out the details
+
+struct IntList
 {
-	struct InnerInner
+	size_t used;
+	int[:] data;
+}
+
+inline int operator[] (this IntList* list, size_t index)
+{
+	return list.data[index];
+}
+
+IntList* init(this IntList* list)
+{
+	list.data = new int[32];
+	return list;
+}
+
+void add(this IntList* list, int value)
+{
+	if(data.length == used)
 	{
-		int value;
+		int[:] newData = new int[data.length * 2];
+		memcopy(data.data, newData.data, data.length * sizeof(int))
+		newData, data = data, newData; // Swap data and newData
+		delete(newData);
 	}
+	data[used] = value;
+	used += 1;
+}
+
+function main()
+{
+	IntList list;
+	list.init();
 	
-	long value;
-	int counter;
-}
-
-struct Example
-{
-	Inner.InnerInner inner;
-	string name;
-}
-
-string func()
-{
-	return example.name;
-	Example example;
-}
-
-/*
-
-#require "c:\\code\\otherFile1.jolly"
-#require @"c:\code\otherFile2.jolly"
-
-#config default {
-	"program_name": "jolly.exe",
-}
-
-auto n1 = 1;		// int
-auto n3 = .0;		// float
-auto n5 = "";		// string
-
-enum flags #flags
-{
-	ONE,		// 1
-	TWO,		// 2
-	THREE,		// 4
-	FOUR,		// 8
-}
-
-
-enum ExampleType : ubyte
-{
-	ONE = 10,
-	TWO,	// 11
-	THREE	// 12
-}
-
-auto  ͡͡° ͜ʖ ͡° = "Lenny Face";
-auto t = ( ͡° ͜ʖ ͡°);
-
-//Extend example
-string getName(this Example example) #inline
-{
-	return example.name;
-}
-
-string[] texts = #sort_asc {
-	"z", "y", "x", "w", "c", "b", "a",
-};
-
-int main()
-{
-	int[10] array = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };	// Static array
-	int[] slice = array[:];								// Dynamic array
-	bool bit = true && !false;
-	string text = "Hello";
-	
+	for(int i = 0..64)
 	{
-		// WRONG
-		// int* arrayPtr = &array;
-		
-		// RIGHT
-		int* arrayPtr = &array[0];
-		arrayPtr = array.data;
-	}
-	
-	Example example = {
-		type: ExampleType.THREE,
-		name: "Example",
-	};
-	
-	// assert(2 == {0, 2, 3}, "");
-	
-	auto type = example.getName();
-	type = getName(example);
-	
-	for(int i = 0..10) {
-		printf("%d, ", i); // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
-	}
-	nSpace.br();
-	br();
-	
-	switch(1)
-	{
-	case 9, 10:
-		// Foo();
-		fall;
-	default:
-		// Bar();
-	}
-	
-	
-	return 0;
+		list.add(i);
+	}	
 }
-
-void br() #inline
-{
-	printf("\n");
-}
-
-namespace nSpace
-{
-	void br()
-	{
-		printf("\n");
-	}
-}
-*/
