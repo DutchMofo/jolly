@@ -216,7 +216,7 @@ class Token
 	public SourceLocation location;
 
 	// union {
-	public Token partner;
+	public int partnerIndex;
 	public string _string;
 	public double _float;
 	public ulong _integer;
@@ -635,16 +635,16 @@ class Tokenizer
 						else if (c == ')' || c == '}' || c == ']')
 						{
 							Token.Type open = (c == ')' ?
-							Token.Type.PARENTHESIS_OPEN :
-							(c == '}' ? Token.Type.BRACE_OPEN : Token.Type.BRACKET_OPEN));
+								Token.Type.PARENTHESIS_OPEN :
+								(c == '}' ? Token.Type.BRACE_OPEN : Token.Type.BRACKET_OPEN));
 
 							Token t;
 							if (closureStack.Count == 0 || (t = closureStack.Pop()).type != open) {
 								Jolly.addError(token.location, "To many " + Jolly.formatEnum(token.type));
 								return null;
 							}
-							token.partner = t;
-							t.partner = token;
+							token.partnerIndex = t.index;
+							t.partnerIndex = token.index;
 						}
 						break;
 				} // Switch

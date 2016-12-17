@@ -1,9 +1,38 @@
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Jolly
 {
-	using NT = Node.NodeType;
+	enum ReferenceType
+	{
+		POINTER	= 1,
+		ARRAY	= 2,
+		SLICE	= 3,
+	}
+	
+	class DataType
+	{
+		public int size, align;
+		
+		public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
+		public DataType(int size, int align) { this.size = size; this.align = align; }
+	}
+	
+	class DataReferenceType : DataType
+	{
+		public DataReferenceType(DataType referenced, ReferenceType reference)
+		{
+			this.referenced = referenced;
+			int pSize = Jolly.SIZE_T_BYTES;
+			switch(reference) {
+				case ReferenceType.POINTER:	size = pSize;		align = pSize; break;
+				case ReferenceType.ARRAY:	size = pSize * 2;	align = pSize; break;
+				case ReferenceType.SLICE:	size = pSize * 2;	align = pSize; break;
+				default: throw new ParseException();
+			}
+		}
+		public ReferenceType reference;
+		public DataType referenced;
+	}
 	
 	enum NameFlags
 	{
@@ -14,60 +43,24 @@ namespace Jolly
 		IS_TYPE		= 1<<4,
 	}
 	
-	enum ReferenceType
-	{
-		POINTER	= 1,
-		ARRAY	= 2,
-		SLICE	= 3,
-	}
-	
 	class TableItem
 	{
-		public int size, align, offset;
-		public NameFlags flags;
-		public string name; // Debug only
-		
 		public TableFolder parent;
-		public TableItem type;
+		public NameFlags flags;
+		public DataType type;
+		public int offset;
 		
-		static List<TableReference> referenceItems = new List<TableItem>();
-		
-		public static TableReference getReference(TableItem baseItem, ReferenceType reference)
-		{
-			foreach(var referenceItem in referenceItems)
-				if(referenceItem.baseItem == baseItem && referenceItem.reference == reference)
-					return reference;
-			
-			var newItem = new TableReference(baseItem, reference);
-			referenceItems.Add(newItem);
-			return newItem;
-		}
 		
 		public virtual void calculateSize() { }
-		public TableItem(TableItem type) { this.type = type; }
-		public TableItem(int size) { this.size = align = size; }
-		public TableItem(int size, int align) { this.size = size; this.align = align; }
-		
-		// Debug print tree
-		string qF(int number) => (number < 10 & number >= 0) ? " " + number.ToString() : number.ToString();
-		protected string info(int indent) => "[{0}:{1}:{2}] ".fill(qF(offset), qF(align), qF(size)) + new string(' ', indent * 2);
-		public virtual void PrintTree(int indent)
-			=> System.Console.WriteLine(info(indent) + name);
+		public TableItem(DataType type) { this.type = type; }
 	}
 	
 	class TableFolder : TableItem
 	{
-		// Debug print tree
-		public override void PrintTree(int indent) {
-            System.Console.WriteLine(info(indent) + name + '/');
-			foreach(var i in children.Values)
-				i.PrintTree(indent+1);
-		}
-		
 		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
 		
-		public TableFolder() { flags = NameFlags.FOLDER; }
-		public TableFolder(NameFlags flags) { flags = NameFlags.FOLDER | flags; }
+		public TableFolder() : base(null) { flags = NameFlags.FOLDER; }
+		public TableFolder(NameFlags flags) : base(null) { flags = NameFlags.FOLDER | flags; }
 		
 		public bool addChild(string childName, TableItem child)
 		{
@@ -78,7 +71,6 @@ namespace Jolly
 				iterator = iterator.parent;
 			}
 			children.Add(childName, child);
-			child.name = childName;
 			child.parent = this;
 			return true;
 		}
@@ -91,10 +83,10 @@ namespace Jolly
 				{
 					child.calculateSize();
 					// child.offset = 0; // Not nessesary
-					if(child.size > size)
-						size = child.size;
-					if(child.align > align)
-						align = child.align;
+					if(child.type.size > type.size)
+						type.size = child.type.size;
+					if(child.type.align > type.align)
+						type.align = child.type.align;
 				}
 			}
 			else
@@ -103,15 +95,15 @@ namespace Jolly
 				foreach(var child in children.Values)
 				{
 					child.calculateSize();
-					if(child.size == 0)
+					if(child.type.size == 0)
 						continue;
-					if(child.align > align)
-						align = child.align;
-					child.offset = _offset / child.align * child.align - _offset;
-					_offset = child.offset + child.size; 
+					if(child.type.align > type.align)
+						type.align = child.type.align;
+					child.offset = _offset / child.type.align * child.type.align - _offset;
+					_offset = child.offset + child.type.size; 
 				}
-				if(align > 0)
-					size = ((_offset-1) / align + 1) * align;
+				if(type.align > 0)
+					type.size = ((_offset-1) / type.align + 1) * type.align;
 			}
 		}
 	}

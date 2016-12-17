@@ -44,9 +44,9 @@ namespace Jolly
 			
 			program.Add(_struct);
 			scope.addChild(name.name, _structScope);
-			new ScructParser(cursor+1, brace.partner.index, _structScope, tokens, program).parseBlock();
+			new ScructParser(cursor+1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
-			cursor = brace.partner.index;
+			cursor = brace.partnerIndex;
 			
 			return true;
 		}
@@ -73,9 +73,9 @@ namespace Jolly
 			
 			program.Add(_union);
 			scope.addChild(name.name, unionScope);
-			new ScructParser(cursor+1, brace.partner.index, unionScope, tokens, program).parseBlock();
+			new ScructParser(cursor+1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
 			
-			cursor = brace.partner.index;
+			cursor = brace.partnerIndex;
 			
 			return true;
 		}
@@ -171,8 +171,8 @@ namespace Jolly
 				return false;
 			
 			// TODO: add new scope for block
-			new BlockParser(cursor+1, token.partner.index, scope, tokens, program).parseBlock();
-			cursor = token.partner.index;
+			new BlockParser(cursor+1, token.partnerIndex, scope, tokens, program).parseBlock();
+			cursor = token.partnerIndex;
 			
 			return true;
 		}
@@ -189,15 +189,15 @@ namespace Jolly
 			}
 			
 			Symbol _namespace = new Symbol(token.location, name.name, NT.BLOCK);
-			TableFolder _namespaceScope = new TableFolder(_namespace);
+			TableFolder _namespaceScope = new TableFolder();
 			
 			program.Add(_namespace);
 			scope.addChild(name.name, _namespaceScope);
 						
 			token = tokens[++cursor];
 			if(token.type == TT.BRACE_OPEN) {
-				new ScopeParser(cursor+1, token.partner.index, _namespaceScope, tokens, program).parseBlock();
-				cursor = token.partner.index;
+				new ScopeParser(cursor+1, token.partnerIndex, _namespaceScope, tokens, program).parseBlock();
+				cursor = token.partnerIndex;
 			} else if(token.type == TT.SEMICOLON) {
 				scope = _namespaceScope;
 			} else {
@@ -212,15 +212,15 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			var iterator = scope;
-			while(scope != null) {
-				if(scope.node.nodeType == NT.FUNCTION)
-					goto isInFunction;
-				iterator = iterator.parent;
-			}
-			Jolly.addError(token.location, "Can only return from function.");
-			throw new ParseException();
-			isInFunction:
+			// var iterator = scope;
+			// while(scope != null) {
+			// 	if(scope.node.nodeType == NT.FUNCTION)
+			// 		goto isInFunction;
+			// 	iterator = iterator.parent;
+			// }
+			// Jolly.addError(token.location, "Can only return from function.");
+			// throw new ParseException();
+			// isInFunction:
 			
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end);
 			cursor = parser.parseExpression(false);
@@ -245,13 +245,13 @@ namespace Jolly
 					throw new ParseException();
 				}
 				
-				program.Add(parser.theFunction.node);
-				new BlockParser(cursor+1, brace.partner.index, parser.theFunction, tokens, program).parseBlock();
+				// program.Add(parser.theFunction.node);
+				new BlockParser(cursor+1, brace.partnerIndex, parser.theFunction, tokens, program).parseBlock();
 				
 				if(program[program.Count-1].nodeType != NT.RETURN)
-					program.Add(new Result(brace.partner.location));
+					program.Add(new Result(tokens[brace.partnerIndex].location));
 				
-				cursor = brace.partner.index;
+				cursor = brace.partnerIndex;
 			} else {
 				var expression = parser.getExpression();
 				program.AddRange(expression);

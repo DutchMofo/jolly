@@ -1,7 +1,9 @@
+using System.Collections.Generic;
+
 namespace Jolly
 {
-	using NT = Node.Type;
-	using TT = Token.type;
+	using NT = Node.NodeType;
+	using TT = Token.Type;
 	
 	class Node
 	{
@@ -44,7 +46,7 @@ namespace Jolly
 		}
 		
 		public NodeType nodeType;
-		public TableItem dataType;
+		public DataType dataType;
 		public SourceLocation location;
 		
 		public override string ToString()
@@ -141,26 +143,26 @@ namespace Jolly
 		public Node returns;
 	}
 	
-	class If  : Node
-	{
-		public If(SourceLocation loc, Node[] condition, Node conditionValue)
-			: base(NodeType.IF, loc)
-		{ 
-			this.conditionValue = conditionValue;
-			this.condition = condition;
-		}
+	// class If  : Node
+	// {
+	// 	public If(SourceLocation loc, Node[] condition, Node conditionValue)
+	// 		: base(NodeType.IF, loc)
+	// 	{ 
+	// 		this.conditionValue = conditionValue;
+	// 		this.condition = condition;
+	// 	}
 		
-		public Node[] condition;
-		public Node conditionValue;
-	}
+	// 	public Node[] condition;
+	// 	public Node conditionValue;
+	// }
 	
-	class For : Node
-	{
-		// Todo add label
-		public For(SourceLocation loc)
-			: base(NodeType.FOR, loc) { }
+	// class For : Node
+	// {
+	// 	// Todo add label
+	// 	public For(SourceLocation loc)
+	// 		: base(NodeType.FOR, loc) { }
 		
-		public Node[] counter, condition, increment;
-		public Node conditionValue;
-	}
+	// 	public Node[] counter, condition, increment;
+	// 	public Node conditionValue;
+	// }
 }
