@@ -1,9 +1,32 @@
+
+Problem.InnerProblem damm;
+
+struct Problem
+{
+	string name;
+	InnerProblem it;
+	
+	struct InnerProblem
+	{
+		int counter;
+	}
+}
+
+int main()
+{
+	
+	
+	
+	return 0;
+}
+
+/*
 // TODO: Work out the details
 
 struct IntList
 {
 	size_t used;
-	int[:] data;
+	int[] data;
 }
 
 inline int operator[] (this IntList* list, size_t index)
@@ -21,8 +44,8 @@ void add(this IntList* list, int value)
 {
 	if(data.length == used)
 	{
-		int[:] newData = new int[data.length * 2];
-		memcopy(data.data, newData.data, data.length * sizeof(int))
+		int[] newData = new int[data.length * 2];
+		memcopy(data.data, newData.data, data.length * sizeof(int));
 		newData, data = data, newData; // Swap data and newData
 		delete(newData);
 	}
@@ -40,3 +63,4 @@ function main()
 		list.add(i);
 	}	
 }
+*/

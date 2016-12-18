@@ -57,9 +57,9 @@ namespace Jolly
 	
 	class BaseType : Node
 	{
-		public BaseType(SourceLocation loc, TT type)
+		public BaseType(SourceLocation loc, DataType type)
 			: base(NT.BASETYPE, loc) { baseType = type; }
-		public Token.Type baseType;
+		public DataType baseType;
 	}
 	
 	class Symbol : Node

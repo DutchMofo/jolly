@@ -42,8 +42,6 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			program.Add(new Symbol(token.location, name.name, NT.STRUCT));
-			
 			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
 			scope.addChild(name.name, _structScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
@@ -238,7 +236,6 @@ namespace Jolly
 		{
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end);
 			cursor = parser.parseExpression(this, true);
-			if(parserStuck) return;
 			
 			if(parser.isFunction)
 			{
@@ -261,12 +258,6 @@ namespace Jolly
 			}
 		}
 		
-		// ENUM IDENTIFIER (COLON [BYTE INT SHORT LONG UBYTE USHORT UINT ULONG])?
-		// STRUCT IDENTIFIER BRACE_OPEN vars... BRACE_CLOSE
-		// UNION IDENTIFIER? BRACE_OPEN vars... BRACE_CLOSE
-		// FOR(expression;expression;expression) [block expression]
-		// IF(expression) [block expression] (ELSE [block expression])?
-		
 		protected virtual void _parse()
 		{
 			if( parseStruct() ||
@@ -275,15 +266,13 @@ namespace Jolly
 			parseExpression();
 		}
 		
-		public bool parseBlock()
+		public void parseBlock()
 		{
 			for (token = tokens[cursor];
 				cursor < end;
 				token = tokens[(cursor += 1)])
 			{
 				_parse();
-				if(parserStuck)
-					return false;
 			}
 			return true;
 		}

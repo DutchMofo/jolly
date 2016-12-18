@@ -36,15 +36,18 @@ namespace Jolly
 	
 	enum NameFlags
 	{
-		FOLDER		= 1<<0,
-		STATIC		= 1<<1,
-		READ_ONLY	= 1<<2,
-		UNION		= 1<<3,
-		IS_TYPE		= 1<<4,
+		FOLDER			= 1<<0,
+		STATIC			= 1<<1,
+		READ_ONLY		= 1<<2,
+		UNION			= 1<<3,
+		IS_TYPE			= 1<<4,
+		IS_PLACEHOLDER	= 1<<5,
 	}
 	
 	class TableItem
 	{
+		public static TableFolder root = new TableFolder();
+		
 		public TableFolder parent;
 		public NameFlags flags;
 		public DataType type;
@@ -52,6 +55,13 @@ namespace Jolly
 		
 		public virtual void calculateSize() { }
 		public TableItem(DataType type) { this.type = type; }
+	}
+	
+	class TabePlaceholder : TableItem
+	{
+		public TabePlaceholder() : base(null) {  }
+		
+		
 	}
 	
 	class TableFolder : TableItem

@@ -28,18 +28,25 @@ class ExpressionParser
 	}
 	
 	Token token;
-	TableFolder scope;
-	ScopeParser scopeParser;
 	Token[] tokens;
 	int end, cursor;
+	TableFolder scope;
+	ScopeParser scopeParser;
 	Token.Type terminator;
 	
-	bool wasOperator,	// Was the previous parsed token an operator
-		isOperator,		// Is the current token being parsed an operator
-		defining;		// Are we defining variables
+	enum TokenKind : byte
+	{
+		NONE, 		// There was no previous token
+		VALUE,		// Previous token was a value
+		OPERATOR,	// Previous token wan an operator
+	}
+	
+	TokenKind	wasOperator,	// Was the previous parsed token an operator
+				isOperator;		// Is the current token being parsed an operator
+	bool defining;		// Are we defining variables
 	
 	// TODO: check if the intermediate "expression" list is nessesary,
-	// maybe can the node's be directly appended to the scope parsers "program" list
+	// maybe the node's can be directly appended to the scope parsers "program" list
 	List<Node> expression = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
@@ -104,12 +111,14 @@ class ExpressionParser
 		if(token.type < TT.I8 | token.type > TT.AUTO)
 			return false;
 		
+		// 
+		
 		if((!wasOperator && values.Count != 0) || operators.Count > 0 && operators.Peek().operation != TT.COMMA) {
 			Jolly.unexpected(token);
 			throw new ParseException();
 		}
 		
-		values.Push(new BaseType(token.location, token.type));
+		values.Push(new BaseType(token.location, Lookup.baseTypes[]));
 		return true; 
 	}
 	
@@ -198,7 +207,7 @@ class ExpressionParser
 		Op op;
 		if(!lookup.TryGetValue(token.type, out op))
 			return false;
-		isOperator = true;
+		isOperator = TokenKind.OPERATOR;
 		
 		if(wasOperator || values.Count == 0)
 		{
@@ -230,7 +239,7 @@ class ExpressionParser
 	{
 		if(token.type != TT.BRACKET_OPEN)
 			return false;
-		isOperator = true;
+		isOperator = TokenKind.OPERATOR;
 		operators.Push(new Op {
 			operation = TT.BRACKET_OPEN,
 			location = token.location,
@@ -245,7 +254,7 @@ class ExpressionParser
 	{
 		if(token.type != TT.PARENTHESIS_OPEN)
 			return false;
-		isOperator = true;
+		isOperator = TokenKind.OPERATOR;
 		operators.Push(new Op {
 			operation = TT.PARENTHESIS_OPEN,
 			isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
@@ -261,7 +270,7 @@ class ExpressionParser
 	{
 		if(token.type != TT.BRACKET_CLOSE)
 			return false;
-		isOperator = true;
+		isOperator = TokenKind.OPERATOR;
 		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != TT.BRACKET_OPEN)
@@ -393,7 +402,7 @@ class ExpressionParser
 				parseParenthesisClose())
 			{
 				wasOperator = isOperator;
-				isOperator = false;
+				isOperator = TokenKind.VALUE;
 				continue;
 			}
 			
