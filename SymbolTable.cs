@@ -41,7 +41,6 @@ namespace Jolly
 		READ_ONLY		= 1<<2,
 		UNION			= 1<<3,
 		IS_TYPE			= 1<<4,
-		IS_PLACEHOLDER	= 1<<5,
 	}
 	
 	class TableItem
@@ -56,14 +55,7 @@ namespace Jolly
 		public virtual void calculateSize() { }
 		public TableItem(DataType type) { this.type = type; }
 	}
-	
-	class TabePlaceholder : TableItem
-	{
-		public TabePlaceholder() : base(null) {  }
 		
-		
-	}
-	
 	class TableFolder : TableItem
 	{
 		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
