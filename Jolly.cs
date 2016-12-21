@@ -61,24 +61,12 @@ namespace Jolly
 		public static void addError(SourceLocation location, string message)
 		{
 			++errorCount;
-			if (location.column > maxMessageColumn) maxMessageColumn = location.column;
-			if (location.line > maxMessageLine) maxMessageLine = location.line;
-			messages.Add(new Message {
-				location = location,
-				text = message,
-				type = Message.MessageType.ERROR,
-			});
+			messages.Add(new Message { location = location, text = message, type = Message.MessageType.ERROR });
 		}
 		
 		public static void addWarning(SourceLocation location, string message)
 		{
-			if (location.column > maxMessageColumn) maxMessageColumn = location.column;
-			if (location.line > maxMessageLine) maxMessageLine = location.line;
-			messages.Add(new Message {
-				location = location,
-				text = message,
-				type = Message.MessageType.WARNING,
-			});
+			messages.Add(new Message { 	location = location, text = message, type = Message.MessageType.WARNING });
 		}
 		
 		public static void unexpected(Token token)
@@ -89,16 +77,11 @@ namespace Jolly
 		
 		static void printMessages()
 		{
-			int columnDigits = (int)Math.Log10((double)maxMessageColumn) + 1,
-				lineDigits = (int)Math.Log10((double)maxMessageLine) + 1;
-			
 			foreach (var m in messages)
 				Console.WriteLine(
-					m.location.line.ToString().PadLeft(lineDigits, '0') + ':' +
-					m.location.column.ToString().PadLeft(columnDigits, '0') + ": " +
+					m.location.line.ToString() + ':' +
+					m.location.column.ToString() + ": " +
 					m.type.ToString().ToLower() + ": " + m.text);
-			
-			Console.ReadKey();
 		}
 		
 		public static void Main(string[] args)
@@ -112,7 +95,7 @@ namespace Jolly
 			}
 			
 			List<Node> program = new List<Node>(tokens.Length / 2);
-			var parser = new ScopeParser(0, tokens.Length-1, symbolTable, tokens, program);
+			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program);
 			parser.parseBlock();
 						
 			Console.ReadKey();

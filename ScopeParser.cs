@@ -12,10 +12,14 @@ namespace Jolly
 		protected int cursor, end;
 		protected TableFolder scope;
 		protected List<Node> program;
+<<<<<<< HEAD
 		
 		// Is the parser stuck on a dependency that hasn't been parsed yet
 		public bool parserStuck;
 		
+=======
+				
+>>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
 			this.program = program;
@@ -42,10 +46,7 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _struct = new Symbol(token.location, name.name, NT.STRUCT);
 			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
-			
-			program.Add(_struct);
 			scope.addChild(name.name, _structScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
@@ -239,7 +240,10 @@ namespace Jolly
 		{
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end);
 			cursor = parser.parseExpression(this, true);
+<<<<<<< HEAD
 			if(parserStuck) return;
+=======
+>>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 			
 			if(parser.isFunction)
 			{
@@ -261,12 +265,6 @@ namespace Jolly
 				program.AddRange(expression);
 			}
 		}
-		
-		// ENUM IDENTIFIER (COLON [BYTE INT SHORT LONG UBYTE USHORT UINT ULONG])?
-		// STRUCT IDENTIFIER BRACE_OPEN vars... BRACE_CLOSE
-		// UNION IDENTIFIER? BRACE_OPEN vars... BRACE_CLOSE
-		// FOR(expression;expression;expression) [block expression]
-		// IF(expression) [block expression] (ELSE [block expression])?
 		
 		protected virtual void _parse()
 		{
