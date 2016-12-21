@@ -12,10 +12,7 @@ namespace Jolly
 		protected int cursor, end;
 		protected TableFolder scope;
 		protected List<Node> program;
-		
-		// Is the parser stuck on a dependency that hasn't been parsed yet
-		public bool parserStuck;
-		
+				
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
 			this.program = program;
