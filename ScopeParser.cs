@@ -12,14 +12,7 @@ namespace Jolly
 		protected int cursor, end;
 		protected TableFolder scope;
 		protected List<Node> program;
-<<<<<<< HEAD
 		
-		// Is the parser stuck on a dependency that hasn't been parsed yet
-		public bool parserStuck;
-		
-=======
-				
->>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
 			this.program = program;
@@ -46,7 +39,7 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			TableFolder _structScope = new TableFolder(NameFlags.IS_TYPE);
+			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER };
 			scope.addChild(name.name, _structScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
@@ -73,7 +66,7 @@ namespace Jolly
 			}
 			
 			Symbol _union = new Symbol(token.location, name.name, NT.UNION);
-			TableFolder unionScope = new TableFolder(NameFlags.UNION);
+			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
 			
 			program.Add(_union);
 			scope.addChild(name.name, unionScope);
@@ -193,7 +186,7 @@ namespace Jolly
 			}
 			
 			Symbol _namespace = new Symbol(token.location, name.name, NT.BLOCK);
-			TableFolder _namespaceScope = new TableFolder();
+			TableFolder _namespaceScope = new TableFolder() { flags = NameFlags.FOLDER };
 			
 			program.Add(_namespace);
 			scope.addChild(name.name, _namespaceScope);
@@ -226,24 +219,20 @@ namespace Jolly
 			// throw new ParseException();
 			// isInFunction:
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end, program);
 			cursor = parser.parseExpression(this, false);
 			var expression = parser.getExpression();
 			
 			Node node = parser.getValue();
-			program.Add(new Result(token.location));
+			program.Add(new Result(token.location, NT.RETURN));
 			
 			return true;
 		}
 		
 		protected void parseExpression()
 		{
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
 			cursor = parser.parseExpression(this, true);
-<<<<<<< HEAD
-			if(parserStuck) return;
-=======
->>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 			
 			if(parser.isFunction)
 			{
@@ -257,12 +246,9 @@ namespace Jolly
 				new BlockParser(cursor+1, brace.partnerIndex, parser.theFunction, tokens, program).parseBlock();
 				
 				if(program[program.Count-1].nodeType != NT.RETURN)
-					program.Add(new Result(tokens[brace.partnerIndex].location));
+					program.Add(new Result(tokens[brace.partnerIndex].location, NT.RETURN));
 				
 				cursor = brace.partnerIndex;
-			} else {
-				var expression = parser.getExpression();
-				program.AddRange(expression);
 			}
 		}
 		
@@ -281,8 +267,6 @@ namespace Jolly
 				token = tokens[(cursor += 1)])
 			{
 				_parse();
-				if(parserStuck)
-					return false;
 			}
 			return true;
 		}

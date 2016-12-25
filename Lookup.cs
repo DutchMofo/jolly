@@ -18,35 +18,40 @@ static class Lookup
 		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
 			directives.Add(names[i].ToLower(), values[i]);
 	}
-
-	public static readonly DataType[] baseTypes = new DataType[] {
-		new DataType(1, 1),		// I8,
-		new DataType(1, 1),		// U8,
-		new DataType(2, 2),		// I16,
-		new DataType(2, 2),		// U16,
-		new DataType(4, 4),		// I32,
-		new DataType(4, 4),		// U32,
-		new DataType(8, 8),		// I64,
-		new DataType(8, 8),		// U64,
-		new DataType(4, 4),		// F32,
-		new DataType(4, 4),		// F64,
-		new DataType(1, 1),		// BYTE,
-		new DataType(1, 1),		// UBYTE,
-		new DataType(2, 2),		// SHORT,
-		new DataType(2, 2),		// USHORT,
-		new DataType(4, 4),		// INT,
-		new DataType(4, 4),		// UINT,
-		new DataType(8, 8),		// LONG,
-		new DataType(8, 8),		// ULONG,
-		new DataType(4, 4),		// FLOAT,
-		new DataType(4, 4),		// DOUBLE,
-		new DataType(0, 0),		// VOID,
-		new DataType(2, 2),		// RUNE,
-		new DataType(16, 8),	// STRING,
-		new DataType(1, 1),		// BOOL,
-		new DataType(0, 0),		// AUTO,
-	};
 	
+	static readonly DataType[] baseTypes = new DataType[] {
+		new DataType(1, 1){ is_baseType = true },	// I8,
+		new DataType(1, 1){ is_baseType = true },	// U8,
+		new DataType(2, 2){ is_baseType = true },	// I16,
+		new DataType(2, 2){ is_baseType = true },	// U16,
+		new DataType(4, 4){ is_baseType = true },	// I32,
+		new DataType(4, 4){ is_baseType = true },	// U32,
+		new DataType(8, 8){ is_baseType = true },	// I64,
+		new DataType(8, 8){ is_baseType = true },	// U64,
+		new DataType(4, 4){ is_baseType = true },	// F32,
+		new DataType(4, 4){ is_baseType = true },	// F64,
+		new DataType(1, 1){ is_baseType = true },	// BYTE,
+		new DataType(1, 1){ is_baseType = true },	// UBYTE,
+		new DataType(2, 2){ is_baseType = true },	// SHORT,
+		new DataType(2, 2){ is_baseType = true },	// USHORT,
+		new DataType(4, 4){ is_baseType = true },	// INT,
+		new DataType(4, 4){ is_baseType = true },	// UINT,
+		new DataType(8, 8){ is_baseType = true },	// LONG,
+		new DataType(8, 8){ is_baseType = true },	// ULONG,
+		new DataType(4, 4){ is_baseType = true },	// FLOAT,
+		new DataType(4, 4){ is_baseType = true },	// DOUBLE,
+		new DataType(0, 0){ is_baseType = true },	// VOID,
+		new DataType(2, 2){ is_baseType = true },	// RUNE,
+		new DataType(16, 8){ is_baseType = true },	// STRING,
+		new DataType(1, 1){ is_baseType = true },	// BOOL,
+		new DataType(0, 0){ is_baseType = true },	// AUTO,
+	};
+
+	public static DataType getBaseType(TT type)
+	{
+		return baseTypes[type - TT.I8];
+	}
+
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
 			// { TT.PLUS_PLUS,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.INCREMENT	}},
@@ -99,7 +104,8 @@ static class Lookup
 			// { TT.COLON,				new Op { precedence = 14, valCount = 2, leftToRight = true,  operation = TT.SLICE			}},
 		},
 		DEFINE_OP = new Dictionary<TT, Op>() {
-			{ TT.COMMA, EXPRESSION_OP[TT.COMMA] }
+			{ TT.PERIOD, EXPRESSION_OP[TT.PERIOD] },
+			{ TT.COMMA, EXPRESSION_OP[TT.COMMA] },
 		},
 		DEFINE_PRE_OP = new Dictionary<TT, Op>() {
 			// { TT.COMMA, EXPRESSION_OP[TT.COMMA] }

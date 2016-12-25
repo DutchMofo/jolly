@@ -50,9 +50,8 @@ namespace Jolly
 	
 	class Jolly
 	{
-		static int maxMessageLine = 0, maxMessageColumn = 0, errorCount = 0;
+		static int /*maxMessageLine = 0, maxMessageColumn = 0,*/ errorCount = 0;
 		static List<Message> messages = new List<Message>();
-		public static TableFolder symbolTable = new TableFolder();
 		public static int SIZE_T_BYTES = 8;
 		
 		public static string formatEnum<T>(T val)

@@ -19,8 +19,9 @@ struct Op
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
-	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end) {
+	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program) {
 		this.terminator = terminator;
+		this.expression = program;
 		this.cursor = cursor;
 		this.tokens = tokens;
 		this.scope = scope;
@@ -28,11 +29,6 @@ class ExpressionParser
 	}
 	
 	Token token;
-<<<<<<< HEAD
-	TableFolder scope;
-	ScopeParser scopeParser;
-=======
->>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 	Token[] tokens;
 	int end, cursor;
 	TableFolder scope;
@@ -40,23 +36,14 @@ class ExpressionParser
 	Token.Type terminator;
 		
 	const byte VALUE_KIND = 1, OPERATOR_KIND = 2;
-	
-<<<<<<< HEAD
-	bool wasOperator,	// Was the previous parsed token an operator
-		isOperator,		// Is the current token being parsed an operator
-		defining;		// Are we defining variables
-	
-	// TODO: check if the intermediate "expression" list is nessesary,
-	// maybe can the node's be directly appended to the scope parsers "program" list
-=======
-	byte prevTokenKind = 0,		// Was the previous parsed token an operator
-		 currentTokenKind = 0;	// Is the current token being parsed an operator
+
+	byte prevTokenKind = 0,		// Was the previous parsed token an operator or a value
+		 currentTokenKind = 0;	// Is the current token being parsed an operator or a value
 	bool defining;				// Are we defining variables
 	
 	// TODO: check if the intermediate "expression" list is nessesary,
 	// maybe the node's can be directly appended to the scope parsers "program" list
->>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
-	List<Node> expression = new List<Node>();
+	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
 	
@@ -126,7 +113,7 @@ class ExpressionParser
 			throw new ParseException();
 		}
 		
-		values.Push(new BaseType(token.location, Lookup.baseTypes[]));
+		values.Push(new BaseType(token.location, Lookup.baseType[token.type]));
 		return true; 
 	}
 	
@@ -161,31 +148,31 @@ class ExpressionParser
 	{
 		if(token.type != TT.IDENTIFIER)
 			return false;
-		
+				
 		Node prev = values.PeekOrDefault();
-		if(prevTokenKind == OPERATOR_KIND & (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
+		if(prevTokenKind == VALUE_KIND && (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
 		{
+			// Pop eventual period and comma operators
+			while(operators.Count > 0)
+				pushOperator(operators.Pop());
+			
 			// Define
 			Token next = tokens[cursor+1];
 			if(next.type == TT.PARENTHESIS_OPEN)
 			{ // Function
-			
-				// Pop eventual period and comma operators
-				while(operators.Count > 0)
-					pushOperator(operators.Pop());
-				
 				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				TableFolder functionScope = theFunction = new TableFolder();
+				theFunction = new TableFolder(){ type = prev.dataType };
+				expression.Add(new Symbol(token.location, token.name, NT.FUNCTION));
 				
-				if(!scope.addChild(token.name, functionScope)) {
+				if(!scope.addChild(token.name, theFunction)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 					throw new ParseException();	
 				}
 				
-				var parser = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partnerIndex);
+				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partnerIndex, expression);
 				cursor = parser.parseExpression(scopeParser, true)-1;
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
@@ -220,7 +207,7 @@ class ExpressionParser
 		if(prevTokenKind != VALUE_KIND)
 		{
 			if(token.type == TT.PLUS || token.type == TT.MINUS) {
-				// unary plus and minus 
+				// unary plus and minus
 				values.Push(new Literal(token.location, 0));
 			} else if(!preLookup.TryGetValue(token.type, out op)) {
 				Jolly.unexpected(token);
@@ -281,8 +268,7 @@ class ExpressionParser
 		currentTokenKind = OPERATOR_KIND;
 		
 		Op op;
-		// TODO: Potential infinite loop, assumes theres a brace open on the operator stack
-		while((op = operators.Pop()).operation != TT.BRACKET_OPEN)
+		while((op = operators.PopOrDefault()).operation != TT.BRACKET_OPEN)
 			pushOperator(op);
 			
 		if(op.operation == TT.UNDEFINED) {
@@ -299,8 +285,7 @@ class ExpressionParser
 			return false;
 		
 		Op op;
-		// TODO: Potential infinite loop, assumes theres a parenthesis open on the operator stack
-		while((op = operators.Pop()).operation != TT.PARENTHESIS_OPEN)
+		while((op = operators.PopOrDefault()).operation != TT.PARENTHESIS_OPEN)
 			pushOperator(op);
 		
 		if(op.operation == TT.UNDEFINED) {
@@ -335,7 +320,7 @@ class ExpressionParser
 	{
 		if(token.type != TT.COMMA)
 			return false;
-		
+				
 		if(prevTokenKind == OPERATOR_KIND) {
 			Jolly.unexpected(token);
 			throw new ParseException();
@@ -375,7 +360,7 @@ class ExpressionParser
 	{
 		for(token = tokens[cursor];
 			token.type != terminator & cursor < end;
-			token = tokens[++cursor])
+			token = tokens[cursor += 1])
 		{
 			if( parseBasetype()			||
 				parseComma()			||
@@ -393,13 +378,14 @@ class ExpressionParser
 	public int parseExpression(ScopeParser scopeParser, bool allowDefine)
 	{
 		this.scopeParser = scopeParser;
+		currentTokenKind = VALUE_KIND;
 		
 		if(allowDefine)
 			parseDefinition();
 		
 		for(token = tokens[cursor];
 			token.type != terminator & cursor < end;
-			token = tokens[++cursor])
+			token = tokens[cursor += 1])
 		{
 			if(	parseLiteral()			||
 				parseBasetype()			||

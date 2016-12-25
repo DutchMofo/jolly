@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Jolly
@@ -10,9 +11,9 @@ namespace Jolly
 	}
 	
 	class DataType
-<<<<<<< HEAD
 	{
 		public int size, align;
+		public bool is_baseType;
 		
 		public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
 		public DataType(int size, int align) { this.size = size; this.align = align; }
@@ -35,6 +36,7 @@ namespace Jolly
 		public DataType referenced;
 	}
 	
+	[Flags]
 	enum NameFlags
 	{
 		FOLDER		= 1<<0,
@@ -42,6 +44,8 @@ namespace Jolly
 		READ_ONLY	= 1<<2,
 		UNION		= 1<<3,
 		IS_TYPE		= 1<<4,
+		IS_BASETYPE = 1<<5,
+		IS_PURE		= 1<<6,
 	}
 	
 	class TableItem
@@ -51,51 +55,6 @@ namespace Jolly
 		public DataType type;
 		public int offset;
 		
-		
-=======
-	{
-		public int size, align;
-		
-		public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
-		public DataType(int size, int align) { this.size = size; this.align = align; }
-	}
-	
-	class DataReferenceType : DataType
-	{
-		public DataReferenceType(DataType referenced, ReferenceType reference)
-		{
-			this.referenced = referenced;
-			int pSize = Jolly.SIZE_T_BYTES;
-			switch(reference) {
-				case ReferenceType.POINTER:	size = pSize;		align = pSize; break;
-				case ReferenceType.ARRAY:	size = pSize * 2;	align = pSize; break;
-				case ReferenceType.SLICE:	size = pSize * 2;	align = pSize; break;
-				default: throw new ParseException();
-			}
-		}
-		public ReferenceType reference;
-		public DataType referenced;
-	}
-	
-	enum NameFlags
-	{
-		FOLDER			= 1<<0,
-		STATIC			= 1<<1,
-		READ_ONLY		= 1<<2,
-		UNION			= 1<<3,
-		IS_TYPE			= 1<<4,
-	}
-	
-	class TableItem
-	{
-		public static TableFolder root = new TableFolder();
-		
-		public TableFolder parent;
-		public NameFlags flags;
-		public DataType type;
-		public int offset;
-		
->>>>>>> e123141351ed04e5997b9f6cf2ed89f4e2bfaf0c
 		public virtual void calculateSize() { }
 		public TableItem(DataType type) { this.type = type; }
 	}
@@ -103,18 +62,22 @@ namespace Jolly
 	class TableFolder : TableItem
 	{
 		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
+		public static TableFolder root = new TableFolder();
 		
-		public TableFolder() : base(null) { flags = NameFlags.FOLDER; }
-		public TableFolder(NameFlags flags) : base(null) { flags = NameFlags.FOLDER | flags; }
+		public TableFolder() : base(null) { }
 		
 		public bool addChild(string childName, TableItem child)
 		{
 			TableFolder iterator = this;
-			while(iterator != null) {
+			do {
 				if(iterator.children.ContainsKey(childName))
 					return false;
 				iterator = iterator.parent;
-			}
+			} while(iterator != null);
+			
+			if(child.type == null || child.type.is_baseType == false)
+				flags &= ~NameFlags.IS_PURE;
+			
 			children.Add(childName, child);
 			child.parent = this;
 			return true;

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Jolly
 {
@@ -217,10 +218,15 @@ class Token
 	
 	object data; // Used to fake union like behaviour
 	// union {
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public int partnerIndex	{ get { return (int)data; }		set { data = value; } }
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string _string	{ get { return (string)data; }	set { data = value; } }
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public double _float	{ get { return (double)data; }	set { data = value; } }
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public ulong _integer	{ get { return (ulong)data; }	set { data = value; } }
+	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string name		{ get { return (string)data; }	set { data = value; } }
 	// };
 };

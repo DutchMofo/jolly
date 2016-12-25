@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Jolly
 {
 	using NT = Node.NodeType;
-	using TT = Token.Type;
+	// using TT = Token.Type;
 	
 	class Node
 	{
@@ -58,8 +58,7 @@ namespace Jolly
 	class BaseType : Node
 	{
 		public BaseType(SourceLocation loc, DataType type)
-			: base(NT.BASETYPE, loc) { baseType = type; }
-		public DataType baseType;
+			: base(NT.BASETYPE, loc) { dataType = type; }
 	}
 	
 	class Symbol : Node
@@ -80,8 +79,8 @@ namespace Jolly
 	
 	class Result : Node
 	{
-		public Result(SourceLocation loc)
-			: base(NodeType.RESULT, loc) {  }
+		public Result(SourceLocation loc, NT type = NT.RESULT)
+			: base(type, loc) {  }
 		public Node resultData;
 	}
 		
@@ -128,27 +127,4 @@ namespace Jolly
 		public Symbol[] arguments;
 		public Node returns;
 	}
-	
-	// class If  : Node
-	// {
-	// 	public If(SourceLocation loc, Node[] condition, Node conditionValue)
-	// 		: base(NodeType.IF, loc)
-	// 	{ 
-	// 		this.conditionValue = conditionValue;
-	// 		this.condition = condition;
-	// 	}
-		
-	// 	public Node[] condition;
-	// 	public Node conditionValue;
-	// }
-	
-	// class For : Node
-	// {
-	// 	// TODO: add label
-	// 	public For(SourceLocation loc)
-	// 		: base(NodeType.FOR, loc) { }
-		
-	// 	public Node[] counter, condition, increment;
-	// 	public Node conditionValue;
-	// }
 }

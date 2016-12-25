@@ -5,11 +5,11 @@ struct Problem
 {
 	string name;
 	InnerProblem it;
-	
-	struct InnerProblem
-	{
-		int counter;
-	}
+}
+
+struct InnerProblem
+{
+	int counter;
 }
 
 int main()
