@@ -55,7 +55,7 @@ namespace Jolly
 		public DataType type;
 		public int offset;
 		
-		public virtual void calculateSize() { }
+		public virtual void calculateSize(Stack<TableFolder> typeStack) { }
 		public TableItem(DataType type) { this.type = type; }
 	}
 		
@@ -83,13 +83,19 @@ namespace Jolly
 			return true;
 		}
 		
-		public override void calculateSize()
+		public override void calculateSize(Stack<TableFolder> typeStack)
 		{
+			if(typeStack.Contains(this)) {
+				Jolly.addError(new SourceLocation(), "Recursive type");
+				throw new ParseException();
+			}
+			typeStack.Push(this);
+			
 			if((flags & NameFlags.UNION) != 0)
 			{
 				foreach(var child in children.Values)
 				{
-					child.calculateSize();
+					child.calculateSize(typeStack);
 					// child.offset = 0; // Not nessesary
 					if(child.type.size > type.size)
 						type.size = child.type.size;
@@ -102,7 +108,7 @@ namespace Jolly
 				int _offset = 0;
 				foreach(var child in children.Values)
 				{
-					child.calculateSize();
+					child.calculateSize(typeStack);	
 					if(child.type.size == 0)
 						continue;
 					if(child.type.align > type.align)
@@ -113,6 +119,7 @@ namespace Jolly
 				if(type.align > 0)
 					type.size = ((_offset-1) / type.align + 1) * type.align;
 			}
+            System.Diagnostics.Debug.Assert(typeStack.Pop() == this);
 		}
 	}
 }

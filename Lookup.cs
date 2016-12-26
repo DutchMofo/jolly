@@ -54,17 +54,11 @@ static class Lookup
 
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
-			// { TT.PLUS_PLUS,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.INCREMENT	}},
-			// { TT.MINUS_MINUS,	new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DECREMENT	}},
 			{ TT.ASTERISK,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DEREFERENCE	}},
 			{ TT.AND,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.REFERENCE	}},
-			
-			// { TT.COMMA,			new Op { precedence = 13, valCount = 2, leftToRight = true , operation = TT.COMMA		}},
 		},
 		EXPRESSION_OP = new Dictionary<TT, Op>() {
-			{ TT.PERIOD,			new Op { precedence = 01, valCount = 2, leftToRight = true,  operation = TT.GET_MEMBER		}},				
-			// { TT.MINUS_MINUS,		new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.DECREMENT		}},
-			// { TT.PLUS_PLUS,			new Op { precedence = 01, valCount = 1, leftToRight = true,  operation = TT.INCREMENT		}},
+			{ TT.PERIOD,			new Op { precedence = 01, valCount = 2, leftToRight = true,  operation = TT.GET_MEMBER		}},
 			{ TT.EXCLAMATION,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.LOGIC_NOT		}},
 			{ TT.TILDE,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.BIT_NOT			}},
 			{ TT.NEW,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.NEW				}},
@@ -89,6 +83,8 @@ static class Lookup
 			{ TT.AND_AND,			new Op { precedence = 11, valCount = 2, leftToRight = true,  operation = TT.LOGIC_AND		}},
 			{ TT.OR_OR,				new Op { precedence = 12, valCount = 2, leftToRight = true,  operation = TT.LOGIC_OR		}},
 			
+			{ TT.COMMA,				new Op { precedence = 13, valCount = 2, leftToRight = true , operation = TT.COMMA			}},
+			
 			{ TT.AND_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.AND_EQUAL		}},
 			{ TT.EQUAL,				new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.ASSIGN			}},
 			{ TT.SLASH_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.SLASH_EQUAL		}},
@@ -98,10 +94,6 @@ static class Lookup
 			{ TT.OR_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.OR_EQUAL		}},
 			{ TT.PLUS_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.PLUS_EQUAL		}},
 			{ TT.CARET_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.CARET_EQUAL		}},
-			
-			{ TT.COMMA,				new Op { precedence = 13, valCount = 2, leftToRight = true , operation = TT.COMMA			}},
-			
-			// { TT.COLON,				new Op { precedence = 14, valCount = 2, leftToRight = true,  operation = TT.SLICE			}},
 		},
 		DEFINE_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD, EXPRESSION_OP[TT.PERIOD] },

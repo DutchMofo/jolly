@@ -96,7 +96,9 @@ namespace Jolly
 			List<Node> program = new List<Node>(tokens.Length / 2);
 			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program);
 			parser.parseBlock();
-						
+			
+			Analyser.analyse(program);
+					
 			Console.ReadKey();
 		}
 	}
