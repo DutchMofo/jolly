@@ -17,7 +17,7 @@ static class Analyser
 			if(analysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
 			} else {
-				Jolly.addError(new SourceLocation(), "");
+				Jolly.unexpected(node);
 				throw new ParseException();
 			}
 		}
@@ -38,9 +38,7 @@ static class Analyser
 		{ NT.TUPPLE, node => { } },
 		{ NT.LITERAL, node => { } },
 		{ NT.LOOP_CONTROL, node => { } },
-		{ NT.NAME, node => {
-			Debug.Assert(false);
-		} },
+		{ NT.NAME, node => { Debug.Assert(false); } },
 		{ NT.OPERATOR, node => {
 			Operator o = (Operator)node;
 			operatorAnalysers[o.operation](o);
@@ -73,18 +71,25 @@ static class Analyser
 		{ TT.DIVIDE, op => { } },
 		{ TT.MULTIPLY, op => { } },
 		{ TT.GET_MEMBER,op => {
-			if(op.a.dataType == null)
-				getTypeFromName(op.a);
-			
-			if(op.a.dataType == null) {
-				Jolly.addError(new SourceLocation(), "");
+			Symbol bName = op.b as Symbol;
+			if(bName == null) {
+				Jolly.addError(op.b.location, "Must be symbol");
 				throw new ParseException();
 			}
 			
-			DataType type = op.a.dataType;
-			// type.
+			if(op.a.dataType == null)
+				getTypeFromName(op.a);
+				
+			if(op.a.dataType == null) {
+				Jolly.addError(op.a.location, "");
+				throw new ParseException();
+			}
 			
-			
+			op.b.dataType = op.a.dataType.definedInScope.getChild(bName.name).type;
+			if(op.b.dataType == null) {
+				Jolly.addError(op.b.location, "The type {0} does not contain a member {1}".fill(op.b, bName.name));
+				throw new ParseException();
+			}
 		} },
 		{ TT.SUBSCRIPT, op => { } },
 		{ TT.READ, op => { } },
@@ -106,7 +111,7 @@ static class Analyser
 			var item = name.definitionScope.searchItem(name.name);
 			
 			if(item == null) {
-				Jolly.addError(new SourceLocation(), "Undefined symbol \"{0}\"".fill(name.name));
+				Jolly.addError(name.location, "Undefined symbol \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
 			

@@ -14,6 +14,7 @@ namespace Jolly
 	{
 		public int size, align;
 		public bool is_baseType;
+		public TableFolder definedInScope;
 		
 		public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
 		public DataType(int size, int align) { this.size = size; this.align = align; }
@@ -69,13 +70,20 @@ namespace Jolly
 		public TableItem searchItem(string name)
 		{
 			TableFolder iterator = this;
-			TableItem item = null;
+			TableItem item;
 			do {
 				if(iterator.children.TryGetValue(name, out item))
 					return item;
 				iterator = iterator.parent;
 			} while(iterator != null);
 			return null;
+		}
+		
+		public TableItem getChild(string name)
+		{
+			TableItem item;
+			children.TryGetValue(name, out item);
+			return item;
 		}
 		
 		public bool addChild(string childName, TableItem child)
