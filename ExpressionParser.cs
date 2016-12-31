@@ -19,7 +19,8 @@ struct Op
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
-	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program) {
+	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program)
+	{
 		this.terminator = terminator;
 		this.expression = program;
 		this.cursor = cursor;
@@ -77,6 +78,7 @@ class ExpressionParser
 						return;
 					} else {
 						// Can't add to locked list
+						Jolly.addError(new SourceLocation(), "");
 						throw new ParseException();
 					}
 				} else {
@@ -107,13 +109,12 @@ class ExpressionParser
 		if(token.type < TT.I8 | token.type > TT.AUTO)
 			return false;
 		
-		
 		if(prevTokenKind == VALUE_KIND || operators.Count > 0 && operators.Peek().operation != TT.COMMA) {
 			Jolly.unexpected(token);
 			throw new ParseException();
 		}
 		
-		values.Push(new BaseType(token.location, Lookup.baseType[token.type]));
+		values.Push(new BaseType(token.location, Lookup.getBaseType(token.type)));
 		return true; 
 	}
 	
@@ -157,14 +158,14 @@ class ExpressionParser
 				pushOperator(operators.Pop());
 			
 			// Define
-			Token next = tokens[cursor+1];
+			Token next = tokens[cursor + 1];
 			if(next.type == TT.PARENTHESIS_OPEN)
 			{ // Function
 				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				theFunction = new TableFolder(){ type = prev.dataType };
 				expression.Add(new Symbol(token.location, token.name, NT.FUNCTION));
+				theFunction = new TableFolder(){ type = prev.dataType };
 				
 				if(!scope.addChild(token.name, theFunction)) {
 					// TODO: add overloads
@@ -172,7 +173,7 @@ class ExpressionParser
 					throw new ParseException();	
 				}
 				
-				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor+2, next.partnerIndex, expression);
+				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, next.partnerIndex, expression);
 				cursor = parser.parseExpression(scopeParser, true)-1;
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
@@ -191,8 +192,9 @@ class ExpressionParser
 				values.Push(variable);
 			}
 		}
-		else if(prev?.nodeType != NT.VARIABLE)
-			values.Push(new Symbol(token.location, token.name));
+		// TODO: What did this do again?
+		// else if(prev?.nodeType != NT.VARIABLE_DEFINITION)
+		// 	values.Push(new Symbol(token.location, token.name));
 		
 		return true;
 	}
@@ -332,7 +334,7 @@ class ExpressionParser
 		if(defining)
 		{
 			Node n = values.Peek();
-			Token name = tokens[cursor+1];
+			Token name = tokens[cursor + 1];
 			prevTokenKind = currentTokenKind = VALUE_KIND;
 			
 			if(name.type != TT.IDENTIFIER) {

@@ -27,17 +27,19 @@ namespace Jolly
 			if(token.type != TT.STRUCT)
 				return false;
 			
-			Token name = tokens[(cursor += 1)];
+			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
 				Jolly.unexpected(token);
 				throw new ParseException();
 			}
 			
-			Token brace = tokens[(cursor += 1)];
+			Token brace = tokens[cursor += 1];
 			if(brace.type != TT.BRACE_OPEN) {
 				Jolly.unexpected(token);
 				throw new ParseException();
 			}
+			
+			program.Add(new Symbol(name.location, name.name, NT.STRUCT));
 			
 			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER };
 			scope.addChild(name.name, _structScope);
@@ -53,13 +55,13 @@ namespace Jolly
 			if(token.type != TT.UNION)
 				return false;
 			
-			Token name = tokens[(cursor += 1)];
+			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
 				Jolly.unexpected(token);
 				throw new ParseException();
 			}
 			
-			Token brace = tokens[(cursor += 1)];
+			Token brace = tokens[cursor += 1];
 			if(brace.type != TT.BRACE_OPEN) {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -83,7 +85,7 @@ namespace Jolly
 			if(token.type != TT.FOR)
 				return false;
 			
-			Token parenthesis = tokens[(cursor += 1)];
+			Token parenthesis = tokens[cursor += 1];
 			if(parenthesis.type != TT.PARENTHESIS_OPEN) {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -105,7 +107,7 @@ namespace Jolly
 			cursor = parser.parseExpression(false);
 			_for.increment = parser.getExpression().ToArray();
 			
-			Token brace = tokens[(cursor += 1)];
+			Token brace = tokens[cursor += 1];
 			if(brace.type == TT.BRACE_OPEN) {
 				var blockParser = new BlockParser(cursor + 1, brace.partner.index, _for, tokens, program);
 				blockParser.parseBlock();
@@ -143,7 +145,7 @@ namespace Jolly
 			if(token.type != TT.IF)
 				return false;
 			
-			Token parenthesis = tokens[(cursor += 1)];
+			Token parenthesis = tokens[cursor += 1];
 			if(parenthesis.type != TT.PARENTHESIS_OPEN) {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -179,7 +181,7 @@ namespace Jolly
 			if(token.type != TT.NAMESPACE)
 				return false;
 			
-			Token name = tokens[(cursor += 1)];
+			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
 				Jolly.unexpected(token);
 				throw new ParseException();
@@ -191,7 +193,7 @@ namespace Jolly
 			program.Add(_namespace);
 			scope.addChild(name.name, _namespaceScope);
 						
-			token = tokens[(cursor += 1)];
+			token = tokens[cursor += 1];
 			if(token.type == TT.BRACE_OPEN) {
 				new ScopeParser(cursor + 1, token.partnerIndex, _namespaceScope, tokens, program).parseBlock();
 				cursor = token.partnerIndex;
@@ -219,7 +221,7 @@ namespace Jolly
 			// throw new ParseException();
 			// isInFunction:
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor+1, end, program);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
 			cursor = parser.parseExpression(this, false);
 			var expression = parser.getExpression();
 			
@@ -243,9 +245,9 @@ namespace Jolly
 				}
 				
 				// program.Add(parser.theFunction.node);
-				new BlockParser(cursor+1, brace.partnerIndex, parser.theFunction, tokens, program).parseBlock();
+				new BlockParser(cursor + 1, brace.partnerIndex, parser.theFunction, tokens, program).parseBlock();
 				
-				if(program[program.Count-1].nodeType != NT.RETURN)
+				if(program[program.Count - 1].nodeType != NT.RETURN)
 					program.Add(new Result(tokens[brace.partnerIndex].location, NT.RETURN));
 				
 				cursor = brace.partnerIndex;
@@ -264,7 +266,7 @@ namespace Jolly
 		{
 			for (token = tokens[cursor];
 				cursor < end;
-				token = tokens[(cursor += 1)])
+				token = tokens[cursor += 1])
 			{
 				_parse();
 			}

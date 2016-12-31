@@ -38,7 +38,7 @@ namespace Jolly
 			RETURN,
 			STATEMENT,
 			USING,
-			VARIABLE,
+			VARIABLE_DEFINITION,
 			VARIABLE_RW,
 			WHILE,
 			
