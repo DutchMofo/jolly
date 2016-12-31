@@ -63,9 +63,10 @@ namespace Jolly
 	
 	class Symbol : Node
 	{
-		public Symbol(SourceLocation loc, string name, NT type = NT.NAME)
-			: base(type, loc) { this.name = name; }
+		public Symbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
+			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
 		public string name;
+		public TableFolder definitionScope;
 	}
 		
 	class Tupple : Node 

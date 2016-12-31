@@ -141,7 +141,7 @@ class ExpressionParser
 		if(token.type != TT.IDENTIFIER)
 			return false;
 		
-		values.Push(new Symbol(token.location, token.name));
+		values.Push(new Symbol(token.location, token.name, scope));
 		return true;
 	}
 	
@@ -164,7 +164,7 @@ class ExpressionParser
 				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				expression.Add(new Symbol(token.location, token.name, NT.FUNCTION));
+				expression.Add(new Symbol(token.location, token.name, scope, NT.FUNCTION));
 				theFunction = new TableFolder(){ type = prev.dataType };
 				
 				if(!scope.addChild(token.name, theFunction)) {
@@ -182,7 +182,7 @@ class ExpressionParser
 			else
 			{ // Variable
 				defining = true;
-				var variable = new Symbol(token.location, token.name);
+				var variable = new Symbol(token.location, token.name, scope);
 				TableItem variableItem = new TableItem(prev.dataType);
 				
 				if(!scope.addChild(token.name, variableItem)) {
@@ -192,9 +192,8 @@ class ExpressionParser
 				values.Push(variable);
 			}
 		}
-		// TODO: What did this do again?
-		// else if(prev?.nodeType != NT.VARIABLE_DEFINITION)
-		// 	values.Push(new Symbol(token.location, token.name));
+		else if(prev?.nodeType != NT.VARIABLE_DEFINITION)
+			values.Push(new Symbol(token.location, token.name, scope));
 		
 		return true;
 	}
@@ -342,7 +341,7 @@ class ExpressionParser
 				throw new ParseException();
 			}
 			
-			var variable = new Symbol(name.location, name.name); 
+			var variable = new Symbol(name.location, name.name, scope); 
 			TableItem variableItem = new TableItem(null);
 			
 			if(!scope.addChild(name.name, variableItem)) {

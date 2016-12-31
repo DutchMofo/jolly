@@ -39,9 +39,10 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			program.Add(new Symbol(name.location, name.name, NT.STRUCT));
+			program.Add(new Symbol(name.location, name.name, scope, NT.STRUCT));
 			
 			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER };
+			// TODO: Check if succesfully added
 			scope.addChild(name.name, _structScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
@@ -67,10 +68,11 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _union = new Symbol(token.location, name.name, NT.UNION);
+			Symbol _union = new Symbol(token.location, name.name, scope, NT.UNION);
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
 			
 			program.Add(_union);
+			// TODO: Check if succesfully added
 			scope.addChild(name.name, unionScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
 			
@@ -187,10 +189,11 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _namespace = new Symbol(token.location, name.name, NT.BLOCK);
+			Symbol _namespace = new Symbol(token.location, name.name, scope, NT.BLOCK);
 			TableFolder _namespaceScope = new TableFolder() { flags = NameFlags.FOLDER };
 			
 			program.Add(_namespace);
+			// TODO: Check if succesfully added
 			scope.addChild(name.name, _namespaceScope);
 						
 			token = tokens[cursor += 1];

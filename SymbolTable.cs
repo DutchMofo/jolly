@@ -66,6 +66,18 @@ namespace Jolly
 		
 		public TableFolder() : base(null) { }
 		
+		public TableItem searchItem(string name)
+		{
+			TableFolder iterator = this;
+			TableItem item = null;
+			do {
+				if(iterator.children.TryGetValue(name, out item))
+					return item;
+				iterator = iterator.parent;
+			} while(iterator != null);
+			return null;
+		}
+		
 		public bool addChild(string childName, TableItem child)
 		{
 			TableFolder iterator = this;
