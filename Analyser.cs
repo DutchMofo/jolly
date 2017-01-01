@@ -86,7 +86,7 @@ static class Analyser
 				getTypeFromName(op.a);
 			Debug.Assert(op.a.nodeType == NT.NAME);
 			
-			op.b.dataType = op.a.dataType.definedInScope.getChild(bName.name).type;
+			op.b.dataType = (op.a.dataType as TableFolder).getChild(bName.name).type;
 			if(op.b.dataType == null) {
 				Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(op.b, bName.name));
 				throw new ParseException();

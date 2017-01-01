@@ -46,7 +46,7 @@ namespace Jolly
 		}
 		
 		public NodeType nodeType;
-		public DataType dataType;
+		public TableItem dataType;
 		public SourceLocation location;
 		
 		public override string ToString()
@@ -57,7 +57,7 @@ namespace Jolly
 	
 	class BaseType : Node
 	{
-		public BaseType(SourceLocation loc, DataType type)
+		public BaseType(SourceLocation loc, TableItem type)
 			: base(NT.BASETYPE, loc) { dataType = type; }
 	}
 	

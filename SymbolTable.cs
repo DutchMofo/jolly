@@ -10,32 +10,32 @@ namespace Jolly
 		SLICE	= 3,
 	}
 	
-	class DataType
-	{
-		public int size, align;
-		public bool is_baseType;
-		public TableFolder definedInScope;
+	// class DataType
+	// {
+	// 	public int size, align;
+	// 	public bool is_baseType;
+	// 	public TableFolder definedInScope;
 		
-		public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
-		public DataType(int size, int align) { this.size = size; this.align = align; }
-	}
+	// 	public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
+	// 	public DataType(int size, int align) { this.size = size; this.align = align; }
+	// }
 	
-	class DataReferenceType : DataType
-	{
-		public DataReferenceType(DataType referenced, ReferenceType reference)
-		{
-			this.referenced = referenced;
-			int pSize = Jolly.SIZE_T_BYTES;
-			switch(reference) {
-				case ReferenceType.POINTER:	size = pSize;		align = pSize; break;
-				case ReferenceType.ARRAY:	size = pSize * 2;	align = pSize; break;
-				case ReferenceType.SLICE:	size = pSize * 2;	align = pSize; break;
-				default: throw new ParseException();
-			}
-		}
-		public ReferenceType reference;
-		public DataType referenced;
-	}
+	// class DataReferenceType : DataType
+	// {
+	// 	public DataReferenceType(DataType referenced, ReferenceType reference)
+	// 	{
+	// 		this.referenced = referenced;
+	// 		int pSize = Jolly.SIZE_T_BYTES;
+	// 		switch(reference) {
+	// 			case ReferenceType.POINTER:	size = pSize;		align = pSize; break;
+	// 			case ReferenceType.ARRAY:	size = pSize * 2;	align = pSize; break;
+	// 			case ReferenceType.SLICE:	size = pSize * 2;	align = pSize; break;
+	// 			default: throw new ParseException();
+	// 		}
+	// 	}
+	// 	public ReferenceType reference;
+	// 	public DataType referenced;
+	// }
 	
 	[Flags]
 	enum NameFlags
@@ -53,11 +53,11 @@ namespace Jolly
 	{
 		public TableFolder parent;
 		public NameFlags flags;
-		public DataType type;
-		public int offset;
+		public TableItem type;
+		public int offset, size, align;
 		
 		public virtual void calculateSize(Stack<TableFolder> typeStack) { }
-		public TableItem(DataType type) { this.type = type; }
+		public TableItem(TableItem type) { this.type = type; }
 	}
 		
 	class TableFolder : TableItem
@@ -95,7 +95,7 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			if(child.type == null || child.type.is_baseType == false)
+			if((child.flags & NameFlags.IS_BASETYPE) != 0)
 				flags &= ~NameFlags.IS_PURE;
 			
 			children.Add(childName, child);

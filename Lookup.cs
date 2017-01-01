@@ -19,35 +19,35 @@ static class Lookup
 			directives.Add(names[i].ToLower(), values[i]);
 	}
 	
-	static readonly DataType[] baseTypes = new DataType[] {
-		new DataType(1, 1){ is_baseType = true },	// I8,
-		new DataType(1, 1){ is_baseType = true },	// U8,
-		new DataType(2, 2){ is_baseType = true },	// I16,
-		new DataType(2, 2){ is_baseType = true },	// U16,
-		new DataType(4, 4){ is_baseType = true },	// I32,
-		new DataType(4, 4){ is_baseType = true },	// U32,
-		new DataType(8, 8){ is_baseType = true },	// I64,
-		new DataType(8, 8){ is_baseType = true },	// U64,
-		new DataType(4, 4){ is_baseType = true },	// F32,
-		new DataType(4, 4){ is_baseType = true },	// F64,
-		new DataType(1, 1){ is_baseType = true },	// BYTE,
-		new DataType(1, 1){ is_baseType = true },	// UBYTE,
-		new DataType(2, 2){ is_baseType = true },	// SHORT,
-		new DataType(2, 2){ is_baseType = true },	// USHORT,
-		new DataType(4, 4){ is_baseType = true },	// INT,
-		new DataType(4, 4){ is_baseType = true },	// UINT,
-		new DataType(8, 8){ is_baseType = true },	// LONG,
-		new DataType(8, 8){ is_baseType = true },	// ULONG,
-		new DataType(4, 4){ is_baseType = true },	// FLOAT,
-		new DataType(4, 4){ is_baseType = true },	// DOUBLE,
-		new DataType(0, 0){ is_baseType = true },	// VOID,
-		new DataType(2, 2){ is_baseType = true },	// RUNE,
-		new DataType(16, 8){ is_baseType = true },	// STRING,
-		new DataType(1, 1){ is_baseType = true },	// BOOL,
-		new DataType(0, 0){ is_baseType = true },	// AUTO,
+	static readonly TableItem[] baseTypes = new TableItem[] {
+		new TableItem(null) {  }, //1, 1){ is_baseType = true },	// I8,
+		new TableItem(null) {  }, //1, 1){ is_baseType = true },	// U8,
+		new TableItem(null) {  }, //2, 2){ is_baseType = true },	// I16,
+		new TableItem(null) {  }, //2, 2){ is_baseType = true },	// U16,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// I32,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// U32,
+		new TableItem(null) {  }, //8, 8){ is_baseType = true },	// I64,
+		new TableItem(null) {  }, //8, 8){ is_baseType = true },	// U64,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// F32,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// F64,
+		new TableItem(null) {  }, //1, 1){ is_baseType = true },	// BYTE,
+		new TableItem(null) {  }, //1, 1){ is_baseType = true },	// UBYTE,
+		new TableItem(null) {  }, //2, 2){ is_baseType = true },	// SHORT,
+		new TableItem(null) {  }, //2, 2){ is_baseType = true },	// USHORT,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// INT,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// UINT,
+		new TableItem(null) {  }, //8, 8){ is_baseType = true },	// LONG,
+		new TableItem(null) {  }, //8, 8){ is_baseType = true },	// ULONG,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// FLOAT,
+		new TableItem(null) {  }, //4, 4){ is_baseType = true },	// DOUBLE,
+		new TableItem(null) {  }, //0, 0){ is_baseType = true },	// VOID,
+		new TableItem(null) {  }, //2, 2){ is_baseType = true },	// RUNE,
+		new TableItem(null) {  }, //16, 8){ is_baseType = true },	// STRING,
+		new TableItem(null) {  }, //1, 1){ is_baseType = true },	// BOOL,
+		new TableItem(null) {  }, //0, 0){ is_baseType = true },	// AUTO,
 	};
 
-	public static DataType getBaseType(TT type)
+	public static TableItem getBaseType(TT type)
 	{
 		return baseTypes[type - TT.I8];
 	}
