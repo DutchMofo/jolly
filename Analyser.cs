@@ -9,6 +9,8 @@ using TT = Token.Type;
 
 static class Analyser
 {
+	static List<Node> instructions = new List<Node>();
+	
 	public static void analyse(List<Node> program)
 	{
 		Action<Node> action;
@@ -55,7 +57,10 @@ static class Analyser
 	static readonly Dictionary<TT, Action<Operator>> operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
 		{ TT.REFERENCE, op => { } },
 		{ TT.DEREFERENCE, op => { } },
-		{ TT.PLUS, op => { } },
+		{ TT.PLUS, op => {
+			getTypesAndLoadNames(op);
+			
+		} },
 		{ TT.MINUS, op => { } },
 		{ TT.INCREMENT, op => { } },
 		{ TT.DECREMENT,	op => { } },
@@ -73,21 +78,17 @@ static class Analyser
 		{ TT.GET_MEMBER,op => {
 			Symbol bName = op.b as Symbol;
 			if(bName == null) {
-				Jolly.addError(op.b.location, "Must be symbol");
+				Jolly.addError(op.b.location, "The right-hand side of the dot operator must be a name");
 				throw new ParseException();
 			}
 			
 			if(op.a.dataType == null)
 				getTypeFromName(op.a);
-				
-			if(op.a.dataType == null) {
-				Jolly.addError(op.a.location, "");
-				throw new ParseException();
-			}
+			Debug.Assert(op.a.nodeType == NT.NAME);
 			
 			op.b.dataType = op.a.dataType.definedInScope.getChild(bName.name).type;
 			if(op.b.dataType == null) {
-				Jolly.addError(op.b.location, "The type {0} does not contain a member {1}".fill(op.b, bName.name));
+				Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(op.b, bName.name));
 				throw new ParseException();
 			}
 		} },
@@ -102,7 +103,13 @@ static class Analyser
 		{ TT.CAST, op => { } },
 	};
 	
-	static void getTypeFromName(Node node)
+	static void getTypesAndLoadNames(Operator op)
+	{
+		getTypeFromName(op.a, true);
+		getTypeFromName(op.b, true);
+	}
+	
+	static void getTypeFromName(Node node, bool load = false)
 	{
 		if(node.nodeType == NT.NAME)
 		{
@@ -111,7 +118,7 @@ static class Analyser
 			var item = name.definitionScope.searchItem(name.name);
 			
 			if(item == null) {
-				Jolly.addError(name.location, "Undefined symbol \"{0}\"".fill(name.name));
+				Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.name));
 				throw new ParseException();
 			}
 			

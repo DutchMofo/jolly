@@ -55,7 +55,7 @@ namespace Jolly
 		public static int SIZE_T_BYTES = 8;
 		
 		public static string formatEnum<T>(T val)
-			=>  val.ToString().ToLower().Replace('_', ' ');
+			=> val.ToString().ToLower().Replace('_', ' ');
 		
 		public static void addError(SourceLocation location, string message)
 		{
@@ -64,9 +64,7 @@ namespace Jolly
 		}
 		
 		public static void addWarning(SourceLocation location, string message)
-		{
-			messages.Add(new Message { 	location = location, text = message, type = Message.MessageType.WARNING });
-		}
+			=> messages.Add(new Message { location = location, text = message, type = Message.MessageType.WARNING });
 		
 		public static void unexpected(Token token)
 			=> addError(token.location, "Unexpected {0}".fill(token));
@@ -88,17 +86,15 @@ namespace Jolly
 			string source = File.ReadAllText(args[0]);
 			var tokens = new Tokenizer().tokenize(source, args[0]);
 			
-			if(errorCount > 0) {
-				printMessages();
-				return;
-			}
+			printMessages();
 			
 			List<Node> program = new List<Node>(tokens.Length / 2);
 			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program);
 			parser.parseBlock();
 			
 			Analyser.analyse(program);
-					
+			
+			printMessages();
 			Console.ReadKey();
 		}
 	}
