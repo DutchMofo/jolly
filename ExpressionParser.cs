@@ -49,7 +49,6 @@ class ExpressionParser
 	public bool isFunction;
 	public TableFolder theFunction;
 	
-	public List<Node> getExpression() { return expression; }
 	public Node getValue() { return values.PeekOrDefault(); }
 	
 	void pushOperator(Op _op)
@@ -162,7 +161,7 @@ class ExpressionParser
 				var function = new Function(token.location, null, scope);
 				function.returns = values.Pop();
 				
-				expression.Add(new Symbol(token.location, token.name, scope, NT.FUNCTION));
+				values.Push(new Symbol(token.location, token.name, scope, NT.FUNCTION));
 				theFunction = new TableFolder(){ type = prev.dataType };
 				
 				if(!scope.addChild(token.name, theFunction)) {
@@ -180,13 +179,14 @@ class ExpressionParser
 			else
 			{ // Variable
 				defining = true;
-				var variable = new Symbol(token.location, token.name, scope);
 				TableItem variableItem = new TableItem(prev.dataType);
 				
 				if(!scope.addChild(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 					throw new ParseException();
 				}
+				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
+				expression.Add(variable);
 				values.Push(variable);
 			}
 		}

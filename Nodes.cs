@@ -50,9 +50,7 @@ namespace Jolly
 		public SourceLocation location;
 		
 		public override string ToString()
-		{
-			return "{0}:{1} {2}".fill(location.line, location.column, nodeType);
-		}
+			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
 	
 	class BaseType : Node
@@ -65,6 +63,9 @@ namespace Jolly
 	{
 		public Symbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
+		
+		public override string ToString()
+			=> base.ToString() + ' ' + childNodeCount;
 		
 		public TableFolder definitionScope;
 		public int childNodeCount;

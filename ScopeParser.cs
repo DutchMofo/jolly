@@ -4,7 +4,8 @@ namespace Jolly
 {
     using TT = Token.Type;
     using NT = Node.NodeType;
-	
+    using System;
+
     class ScopeParser
 	{
 		protected Token token;
@@ -13,7 +14,7 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
-		protected Node scopeHead;
+		protected Symbol scopeHead;
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
@@ -47,9 +48,11 @@ namespace Jolly
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			scopeHead = new Symbol(name.location, name.name, scope, NT.STRUCT);
-			program.Add(scopeHead);
-			new StructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
+			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT);
+			program.Add(structNode);
+			new StructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program)
+				{ scopeHead = structNode } // Hacky
+				.parseBlock();
 			
 			cursor = brace.partnerIndex;
 			
@@ -79,9 +82,11 @@ namespace Jolly
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			scopeHead = new Symbol(token.location, name.name, scope, NT.UNION);
-			program.Add(scopeHead);
-			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
+			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION);
+			program.Add(unionNode);
+			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program)
+				{ scopeHead = unionNode } // Hacky
+				.parseBlock();
 			
 			cursor = brace.partnerIndex;
 			
@@ -221,19 +226,8 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			// var iterator = scope;
-			// while(scope != null) {
-			// 	if(scope.node.nodeType == NT.FUNCTION)
-			// 		goto isInFunction;
-			// 	iterator = iterator.parent;
-			// }
-			// Jolly.addError(token.location, "Can only return from function.");
-			// throw new ParseException();
-			// isInFunction:
-			
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
 			cursor = parser.parseExpression(this, false);
-			var expression = parser.getExpression();
 			
 			Node node = parser.getValue();
 			program.Add(new Result(token.location, NT.RETURN));
@@ -248,19 +242,17 @@ namespace Jolly
 			
 			if(parser.isFunction)
 			{
-				Token brace = tokens[cursor + 1];
-				if(brace.type != TT.BRACE_OPEN) {
-					Jolly.unexpected(brace);
-					throw new ParseException();
-				}
+				var functionNode = parser.getValue() as Symbol;
+				program.Add(functionNode);
 				
-				// program.Add(parser.theFunction.node);
-				new BlockParser(cursor + 1, brace.partnerIndex, parser.theFunction, tokens, program).parseBlock();
+				Token brace = tokens[cursor + 1];
+				new BlockParser(cursor + 1, brace.partnerIndex, parser.theFunction, tokens, program)
+					{ scopeHead = functionNode } // Hacky
+					.parseBlock();
+				cursor = brace.partnerIndex;
 				
 				if(program[program.Count - 1].nodeType != NT.RETURN)
 					program.Add(new Result(tokens[brace.partnerIndex].location, NT.RETURN));
-				
-				cursor = brace.partnerIndex;
 			}
 		}
 		
@@ -272,7 +264,7 @@ namespace Jolly
 			parseExpression();
 		}
 		
-		public bool parseBlock()
+		public void parseBlock()
 		{
 			int startNodeCount = program.Count;
 			for (token = tokens[cursor];
@@ -282,9 +274,7 @@ namespace Jolly
 				_parse();
 			}
 			if(scopeHead != null)
-				(scopeHead as Symbol).childNodeCount = program.Count - startNodeCount - 1;
-			
-			return true;
+				scopeHead.childNodeCount = program.Count - startNodeCount;
 		}
 	}
 	

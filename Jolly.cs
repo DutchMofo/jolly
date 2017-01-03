@@ -22,6 +22,9 @@ namespace Jolly
 			
 		public static T PeekOrDefault<T>(this Stack<T> stack)
 			=> (stack.Count == 0) ? default(T) : stack.Peek();
+		
+		public static void forEach<T>(this IEnumerable<T> list, Action<T> action)
+			{ foreach(T i in list) action(i); }
 	}
 	
 	struct SourceLocation
@@ -83,16 +86,23 @@ namespace Jolly
 		
 		public static void Main(string[] args)
 		{
-			string source = File.ReadAllText(args[0]);
-			var tokens = new Tokenizer().tokenize(source, args[0]);
+			try {
+			string source = File.ReadAllText("Program.jolly");
+			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
+			
+			Console.WriteLine("Tokens:");
+			tokens.forEach(Console.WriteLine);
 			
 			List<Node> program = new List<Node>(tokens.Length / 2);
-			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
+			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
+			
+			Console.WriteLine("\nNodes:");
+			program.forEach(Console.WriteLine);
 			
 			Analyser.analyse(program);
 			
+			} catch(ParseException ex) { ex.ToString(); }
 			printMessages();
-			Console.ReadKey();
 		}
 	}
 }

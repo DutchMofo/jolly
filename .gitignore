@@ -8,5 +8,5 @@
 !/.vscode/settings.json
 !/.vscode/tasks.json
 
-project.lock.json
-project.json
+/project.lock.json
+/project.json
