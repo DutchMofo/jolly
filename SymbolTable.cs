@@ -62,11 +62,11 @@ namespace Jolly
 		
 	class TableFolder : TableItem
 	{
-		Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
+		public Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
 		public static TableFolder root = new TableFolder();
 		
 		public TableFolder() : base(null) { }
-		
+				
 		public TableItem searchItem(string name)
 		{
 			TableFolder iterator = this;

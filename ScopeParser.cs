@@ -39,11 +39,13 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			program.Add(new Symbol(name.location, name.name, scope, NT.STRUCT));
+			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
 			
-			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER };
-			// TODO: Check if succesfully added
-			scope.addChild(name.name, _structScope);
+			if(!scope.addChild(name.name, _structScope)) {
+				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
+				throw new ParseException();
+			}
+			program.Add(new Symbol(name.location, name.name, scope, NT.STRUCT));
 			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
 			cursor = brace.partnerIndex;
@@ -71,9 +73,11 @@ namespace Jolly
 			Symbol _union = new Symbol(token.location, name.name, scope, NT.UNION);
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
 			
+			if(!scope.addChild(name.name, unionScope)) {
+				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
+				throw new ParseException();
+			}
 			program.Add(_union);
-			// TODO: Check if succesfully added
-			scope.addChild(name.name, unionScope);
 			new ScructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
 			
 			cursor = brace.partnerIndex;

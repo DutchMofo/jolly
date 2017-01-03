@@ -86,11 +86,8 @@ namespace Jolly
 			string source = File.ReadAllText(args[0]);
 			var tokens = new Tokenizer().tokenize(source, args[0]);
 			
-			printMessages();
-			
 			List<Node> program = new List<Node>(tokens.Length / 2);
-			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program);
-			parser.parseBlock();
+			var parser = new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
 			
 			Analyser.analyse(program);
 			
