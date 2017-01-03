@@ -65,11 +65,13 @@ namespace Jolly
 	{
 		public Symbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
-		public string name;
+		
 		public TableFolder definitionScope;
+		public int childNodeCount;
+		public string name;
 	}
 		
-	class Tupple : Node 
+	class Tupple : Node
 	{
 		public Tupple(SourceLocation loc)
 			: base(NodeType.TUPPLE, loc) { }

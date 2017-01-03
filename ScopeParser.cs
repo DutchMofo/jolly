@@ -13,6 +13,8 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
+		protected Node scopeHead;
+		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
 			this.program = program;
@@ -45,8 +47,9 @@ namespace Jolly
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			program.Add(new Symbol(name.location, name.name, scope, NT.STRUCT));
-			new ScructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
+			scopeHead = new Symbol(name.location, name.name, scope, NT.STRUCT);
+			program.Add(scopeHead);
+			new StructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program).parseBlock();
 			
 			cursor = brace.partnerIndex;
 			
@@ -70,15 +73,15 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			Symbol _union = new Symbol(token.location, name.name, scope, NT.UNION);
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
 			
 			if(!scope.addChild(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			program.Add(_union);
-			new ScructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
+			scopeHead = new Symbol(token.location, name.name, scope, NT.UNION);
+			program.Add(scopeHead);
+			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program).parseBlock();
 			
 			cursor = brace.partnerIndex;
 			
@@ -271,12 +274,16 @@ namespace Jolly
 		
 		public bool parseBlock()
 		{
+			int startNodeCount = program.Count;
 			for (token = tokens[cursor];
 				cursor < end;
 				token = tokens[cursor += 1])
 			{
 				_parse();
 			}
+			if(scopeHead != null)
+				(scopeHead as Symbol).childNodeCount = program.Count - startNodeCount - 1;
+			
 			return true;
 		}
 	}
@@ -300,9 +307,9 @@ namespace Jolly
 		}
 	}
 	
-	class ScructParser : ScopeParser
+	class StructParser : ScopeParser
 	{
-		public ScructParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
+		public StructParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()

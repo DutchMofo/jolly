@@ -42,8 +42,6 @@ class ExpressionParser
 		 currentTokenKind = 0;	// Is the current token being parsed an operator or a value
 	bool defining;				// Are we defining variables
 	
-	// TODO: check if the intermediate "expression" list is nessesary,
-	// maybe the node's can be directly appended to the scope parsers "program" list
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
