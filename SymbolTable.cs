@@ -103,6 +103,7 @@ namespace Jolly
 			return true;
 		}
 		
+		/*
 		public override void calculateSize(Stack<TableFolder> typeStack)
 		{
 			if(typeStack.Contains(this)) {
@@ -141,5 +142,6 @@ namespace Jolly
 			}
             System.Diagnostics.Debug.Assert(typeStack.Pop() == this);
 		}
+		*/
 	}
 }

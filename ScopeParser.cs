@@ -4,7 +4,6 @@ namespace Jolly
 {
     using TT = Token.Type;
     using NT = Node.NodeType;
-    using System;
 
     class ScopeParser
 	{

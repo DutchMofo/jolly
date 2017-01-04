@@ -328,6 +328,7 @@ class ExpressionParser
 		while(operators.Count > 0)
 			pushOperator(operators.Pop());
 		
+		// TODO: This probably has other side-effects
 		if(defining)
 		{
 			Node n = values.Peek();

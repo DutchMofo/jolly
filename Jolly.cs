@@ -49,6 +49,9 @@ namespace Jolly
 		public string text;
 		public MessageType type;
 		public SourceLocation location;
+		
+		public override string ToString()
+			=> "{0}:{1}: {2}: {3}".fill(location.line, location.column, type.ToString().ToLower(), text);
 	}
 	
 	class Jolly
@@ -77,11 +80,8 @@ namespace Jolly
 		
 		static void printMessages()
 		{
-			foreach (var m in messages)
-				Console.WriteLine(
-					m.location.line.ToString() + ':' +
-					m.location.column.ToString() + ": " +
-					m.type.ToString().ToLower() + ": " + m.text);
+			Console.WriteLine();
+			messages.forEach(m => Console.WriteLine(m));
 		}
 		
 		public static void Main(string[] args)
@@ -90,18 +90,19 @@ namespace Jolly
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 			
-			Console.WriteLine("Tokens:");
-			tokens.forEach(Console.WriteLine);
+			// Console.WriteLine("Tokens:");
+			// tokens.forEach(Console.WriteLine);
 			
 			List<Node> program = new List<Node>(tokens.Length / 2);
 			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
 			
-			Console.WriteLine("\nNodes:");
-			program.forEach(Console.WriteLine);
+			// Console.WriteLine("Nodes:");
+			// program.forEach(Console.WriteLine);
+			// Console.WriteLine("");
 			
 			Analyser.analyse(program);
 			
-			} catch(ParseException ex) { ex.ToString(); }
+			} catch(ParseException ex) { Console.WriteLine(ex.StackTrace); }
 			printMessages();
 		}
 	}

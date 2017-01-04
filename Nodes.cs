@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 
+//Fuckoff c# (never assigned warning)
+#pragma warning disable 0649
+
 namespace Jolly
 {
 	using NT = Node.NodeType;
@@ -116,7 +119,8 @@ namespace Jolly
 		public Function_call(SourceLocation loc, string f, Node[] a)
 			: base(NodeType.FUNCTION_CALL, loc)
 		{
-			functionName = f; arguments = a;
+			functionName = f;
+			arguments = a;
 		}
 		
 		public string functionName;
