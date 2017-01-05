@@ -21,6 +21,7 @@ class ExpressionParser
 {
 	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program)
 	{
+		startNodeCount = program.Count;
 		this.terminator = terminator;
 		this.expression = program;
 		this.cursor = cursor;
@@ -31,7 +32,7 @@ class ExpressionParser
 	
 	Token token;
 	Token[] tokens;
-	int end, cursor;
+	int end, cursor, startNodeCount;
 	TableFolder scope;
 	ScopeParser scopeParser;
 	Token.Type terminator;
@@ -179,7 +180,15 @@ class ExpressionParser
 					throw new ParseException();
 				}
 				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
-				expression.Add(variable);
+				variable.childNodeCount = expression.Count - startNodeCount;
+				
+				if(variable.childNodeCount == 0) {
+					variable.childNodeCount = 1;
+					expression.Add(variable);
+					expression.Add(prev);
+				} else {
+					expression.Insert(startNodeCount, variable);	
+				}
 				values.Push(variable);
 			}
 		}
@@ -222,90 +231,87 @@ class ExpressionParser
 		return true;
 	}
 	
-	bool parseBracketOpen()
+	bool parseBracket()
 	{
-		if(token.type != TT.BRACKET_OPEN)
-			return false;
-		currentTokenKind = OPERATOR_KIND;
-		operators.Push(new Op {
-			operation = TT.BRACKET_OPEN,
-			location = token.location,
-			leftToRight = false,
-			precedence = 255,
-			valCount = 0,
-		});
-		return true;
-	}
-	
-	bool parseParenthesisOpen()
-	{
-		if(token.type != TT.PARENTHESIS_OPEN)
-			return false;
-		currentTokenKind = OPERATOR_KIND;
-		operators.Push(new Op {
-			operation = TT.PARENTHESIS_OPEN,
-			isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
-			leftToRight = false,
-			location = token.location,
-			precedence = 255,
-			valCount = 0,
-		});
-		return true;
-	}
-	
-	bool parseBracketClose()
-	{
-		if(token.type != TT.BRACKET_CLOSE)
-			return false;
-		currentTokenKind = OPERATOR_KIND;
-		
-		Op op;
-		while((op = operators.PopOrDefault()).operation != TT.BRACKET_OPEN)
-			pushOperator(op);
-			
-		if(op.operation == TT.UNDEFINED) {
-			Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
-			throw new ParseException();
-		}
-		
-		return true;
-	}
-	
-	bool parseParenthesisClose()
-	{
-		if(token.type != TT.PARENTHESIS_CLOSE)
-			return false;
-		
-		Op op;
-		while((op = operators.PopOrDefault()).operation != TT.PARENTHESIS_OPEN)
-			pushOperator(op);
-		
-		if(op.operation == TT.UNDEFINED) {
-			Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
-			throw new ParseException();
-		}
-		
-		if(op.isFunctionCall)
+		if(token.type == TT.BRACKET_OPEN)
 		{
-			Node[] arguments;
-			Node symbol = values.Pop();
-			if(symbol.nodeType != NT.NAME) {
-				arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).list.ToArray() : new Node[] { symbol };
-				symbol = values.Pop(); 
-			} else {
-				arguments = new Node[0];
-			}
-			Debug.Assert(symbol.nodeType == NT.NAME);
-			
-			values.Push(new Result(token.location));
-			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
-		} else {
-			Node list = values.PeekOrDefault();
-			if(list?.nodeType == NT.TUPPLE)
-				((Tupple)list).locked = true;
+			currentTokenKind = OPERATOR_KIND;
+			operators.Push(new Op {
+				operation = TT.BRACKET_OPEN,
+				location = token.location,
+				leftToRight = false,
+				precedence = 255,
+				valCount = 0,
+			});
+			return true;
 		}
-		
-		return true;
+		else if(token.type == TT.BRACKET_CLOSE)
+		{
+			currentTokenKind = OPERATOR_KIND;
+			
+			Op op;
+			while((op = operators.PopOrDefault()).operation != TT.BRACKET_OPEN)
+				pushOperator(op);
+				
+			if(op.operation == TT.UNDEFINED) {
+				Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
+				throw new ParseException();
+			}
+			
+			return true;
+		}
+		return false;
+	}
+	
+	
+	bool parseParenthesis()
+	{
+		if(token.type == TT.PARENTHESIS_OPEN)
+		{
+			currentTokenKind = OPERATOR_KIND;
+			operators.Push(new Op {
+				operation = TT.PARENTHESIS_OPEN,
+				isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
+				leftToRight = false,
+				location = token.location,
+				precedence = 255,
+				valCount = 0,
+			});
+			return true;
+		}
+		else if(token.type == TT.PARENTHESIS_CLOSE)
+		{
+			Op op;
+			while((op = operators.PopOrDefault()).operation != TT.PARENTHESIS_OPEN)
+				pushOperator(op);
+			
+			if(op.operation == TT.UNDEFINED) {
+				Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
+				throw new ParseException();
+			}
+			
+			if(op.isFunctionCall)
+			{
+				Node[] arguments;
+				Node symbol = values.Pop();
+				if(symbol.nodeType != NT.NAME) {
+					arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).list.ToArray() : new Node[] { symbol };
+					symbol = values.Pop(); 
+				} else {
+					arguments = new Node[0];
+				}
+				Debug.Assert(symbol.nodeType == NT.NAME);
+				
+				values.Push(new Result(token.location));
+				expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
+			} else {
+				Node list = values.PeekOrDefault();
+				if(list?.nodeType == NT.TUPPLE)
+					((Tupple)list).locked = true;
+			}
+			return true;
+		}
+		return false;
 	}
 	
 	bool parseComma()
@@ -321,7 +327,7 @@ class ExpressionParser
 		while(operators.Count > 0)
 			pushOperator(operators.Pop());
 		
-		// TODO: This probably has other side-effects
+		// TODO: This probably has other side-effects but it works for now
 		if(defining)
 		{
 			Node n = values.Peek();
@@ -380,15 +386,13 @@ class ExpressionParser
 			token.type != terminator & cursor < end;
 			token = tokens[cursor += 1])
 		{
-			if(	parseLiteral()			||
-				parseBasetype()			||
-				parseIdentifier()		||
-				parseComma()			||
+			if(	parseLiteral()		||
+				parseBasetype()		||
+				parseIdentifier()	||
+				parseComma()		||
 				parseOperator(Lookup.EXPRESSION_OP, Lookup.EXPRESSION_PRE_OP) ||
-				parseBracketOpen()		||
-				parseBracketClose()		||
-				parseParenthesisOpen()	||
-				parseParenthesisClose())
+				parseBracket()		||
+				parseParenthesis())
 			{
 				prevTokenKind = currentTokenKind;
 				currentTokenKind = VALUE_KIND;
