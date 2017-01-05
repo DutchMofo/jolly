@@ -68,23 +68,16 @@ class ExpressionParser
 			if(_op.operation == TT.COMMA)
 			{
 				Tupple list = a as Tupple;
-				if(a.nodeType == NT.TUPPLE) {
-					if(!list.locked) {
-						list.list.Add(b);
-						values.Push(a);
-						return;
-					} else {
-						// Can't add to locked list
-						Jolly.addError(new SourceLocation(), "");
-						throw new ParseException();
-					}
+				if(a.nodeType == NT.TUPPLE && !list.locked) {
+					list.list.Add(b);
+					values.Push(a);
 				} else {
 					list = new Tupple(_op.location);
 					list.list.Add(a);
 					list.list.Add(b);
 					values.Push(list);
-					return;
 				}
+				return;
 			}
 		}
 		else
