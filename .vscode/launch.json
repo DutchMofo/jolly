@@ -10,7 +10,7 @@
 			"args": ["Program.jolly"],
 			"cwd": "${workspaceRoot}",
 			"stopAtEntry": false,
-			"externalConsole": false
+			"externalConsole": true
 		},
 		{
 			"name": ".NET Core Attach",

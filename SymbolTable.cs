@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+#pragma warning disable 0649
+
 namespace Jolly
 {
 	enum ReferenceType
@@ -40,6 +42,7 @@ namespace Jolly
 	[Flags]
 	enum NameFlags
 	{
+		NONE		= 0,
 		FOLDER		= 1<<0,
 		STATIC		= 1<<1,
 		READ_ONLY	= 1<<2,
@@ -66,7 +69,22 @@ namespace Jolly
 		public static TableFolder root = new TableFolder();
 		
 		public TableFolder() : base(null) { }
-				
+		
+		public void PrintTree(string path, int space)
+		{
+			foreach(var child in children)
+			{
+				TableFolder folder = child.Value as TableFolder;
+				if(folder != null) {
+					string tPath = path + '/' + child.Key;
+					Console.WriteLine("{0} [{1}]".fill(tPath, folder.flags));
+					folder.PrintTree(tPath, path.Length + 1);
+				} else {
+					Console.WriteLine("{0}{1} [{2}]".fill(new string(' ', space), child.Key, child.Value.flags));
+				}
+			}
+		}
+		
 		public TableItem searchItem(string name)
 		{
 			TableFolder iterator = this;

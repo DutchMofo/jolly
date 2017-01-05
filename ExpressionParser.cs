@@ -63,7 +63,6 @@ class ExpressionParser
 			
 			if(a == null || b == null) {
 				Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null?"left":"right"));
-				throw new ParseException();
 			}
 		
 			if(_op.operation == TT.COMMA)
@@ -86,7 +85,6 @@ class ExpressionParser
 			a = values.PopOrDefault();
 			if(a == null) {
 				Jolly.addError(_op.location, "Invalid expression term");
-				throw new ParseException();
 			}
 		}
 		
@@ -101,8 +99,7 @@ class ExpressionParser
 			return false;
 		
 		if(prevTokenKind == VALUE_KIND || operators.Count > 0 && operators.Peek().operation != TT.COMMA) {
-			Jolly.unexpected(token);
-			throw new ParseException();
+			throw Jolly.unexpected(token);
 		}
 		
 		values.Push(new BaseType(token.location, Lookup.getBaseType(token.type)));
@@ -161,7 +158,6 @@ class ExpressionParser
 				if(!scope.addChild(token.name, theFunction)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
-					throw new ParseException();	
 				}
 				
 				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, next.partnerIndex, expression);
@@ -177,7 +173,6 @@ class ExpressionParser
 				
 				if(!scope.addChild(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
-					throw new ParseException();
 				}
 				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
 				variable.childNodeCount = expression.Count - startNodeCount;
@@ -211,8 +206,7 @@ class ExpressionParser
 				// unary plus and minus
 				values.Push(new Literal(token.location, 0));
 			} else if(!preLookup.TryGetValue(token.type, out op)) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 		}
 		
@@ -254,8 +248,7 @@ class ExpressionParser
 				pushOperator(op);
 				
 			if(op.operation == TT.UNDEFINED) {
-				Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
-				throw new ParseException();
+				throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
 			}
 			
 			return true;
@@ -286,8 +279,7 @@ class ExpressionParser
 				pushOperator(op);
 			
 			if(op.operation == TT.UNDEFINED) {
-				Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
-				throw new ParseException();
+				throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
 			}
 			
 			if(op.isFunctionCall)
@@ -320,8 +312,7 @@ class ExpressionParser
 			return false;
 				
 		if(prevTokenKind == OPERATOR_KIND) {
-			Jolly.unexpected(token);
-			throw new ParseException();
+			throw Jolly.unexpected(token);
 		}
 		
 		while(operators.Count > 0)
@@ -335,8 +326,7 @@ class ExpressionParser
 			prevTokenKind = currentTokenKind = VALUE_KIND;
 			
 			if(name.type != TT.IDENTIFIER) {
-				Jolly.unexpected(name);
-				throw new ParseException();
+				throw Jolly.unexpected(name);
 			}
 			
 			var variable = new Symbol(name.location, name.name, scope); 
@@ -344,7 +334,6 @@ class ExpressionParser
 			
 			if(!scope.addChild(name.name, variableItem)) {
 				Jolly.addError(name.location, "Trying to redefine variable");
-				throw new ParseException();
 			}
 			values.Push(variable);
 		}
@@ -358,7 +347,7 @@ class ExpressionParser
 	void parseDefinition()
 	{
 		for(token = tokens[cursor];
-			token.type != terminator & cursor < end;
+			token.type != terminator/* & cursor < end*/;
 			token = tokens[cursor += 1])
 		{
 			if( parseBasetype()			||
@@ -383,7 +372,7 @@ class ExpressionParser
 			parseDefinition();
 		
 		for(token = tokens[cursor];
-			token.type != terminator & cursor < end;
+			token.type != terminator/* & cursor < end*/;
 			token = tokens[cursor += 1])
 		{
 			if(	parseLiteral()		||
@@ -400,13 +389,11 @@ class ExpressionParser
 			}
 			
 			// Failed to parse token
-			Jolly.unexpected(token);
-			throw new System.Exception();
+			throw Jolly.unexpected(token);
 		}
 		
 		if(token.type != terminator) {
-			Jolly.unexpected(token);
-			throw new System.Exception();
+			throw Jolly.unexpected(token);
 		}
 		
 		while(operators.Count > 0)

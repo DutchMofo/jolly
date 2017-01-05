@@ -31,23 +31,21 @@ namespace Jolly
 			
 			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			
 			Token brace = tokens[cursor += 1];
 			if(brace.type != TT.BRACE_OPEN) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			
 			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
+			structScope.type = structScope;
 			
 			if(!scope.addChild(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
-				throw new ParseException();
 			}
-			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT) { dataType = structScope };
+			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
 				{ scopeHead = structNode } // Hacky
@@ -65,23 +63,21 @@ namespace Jolly
 			
 			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			
 			Token brace = tokens[cursor += 1];
 			if(brace.type != TT.BRACE_OPEN) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
+			unionScope.type = unionScope;
 			
 			if(!scope.addChild(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
-				throw new ParseException();
 			}
-			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION) { dataType = unionScope };
+			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION) /*{ dataType = unionScope }*/;
 			program.Add(unionNode);
 			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program)
 				{ scopeHead = unionNode } // Hacky
@@ -101,7 +97,6 @@ namespace Jolly
 			Token parenthesis = tokens[cursor += 1];
 			if(parenthesis.type != TT.PARENTHESIS_OPEN) {
 				Jolly.unexpected(token);
-				throw new ParseException();
 			}
 			
 			For _for = new For(token.location, null, SymbolFlag.private_members);
@@ -161,7 +156,6 @@ namespace Jolly
 			Token parenthesis = tokens[cursor += 1];
 			if(parenthesis.type != TT.PARENTHESIS_OPEN) {
 				Jolly.unexpected(token);
-				throw new ParseException();
 			}
 			
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, SymbolFlag.none);
@@ -196,8 +190,7 @@ namespace Jolly
 			
 			Token name = tokens[cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			
 			Symbol _namespace = new Symbol(token.location, name.name, scope, NT.BLOCK);
@@ -214,8 +207,7 @@ namespace Jolly
 			} else if(token.type == TT.SEMICOLON) {
 				scope = _namespaceScope;
 			} else {
-				Jolly.unexpected(token);
-				throw new ParseException();
+				throw Jolly.unexpected(token);
 			}
 			return true;
 		}
@@ -243,7 +235,8 @@ namespace Jolly
 			if(parser.isFunction)
 			{
 				var functionNode = (Symbol)parser.getValue();
-				functionNode.dataType = parser.theFunction;
+				parser.theFunction.type = parser.theFunction;
+				// functionNode.dataType = parser.theFunction;
 				program.Add(functionNode);
 				
 				Token brace = tokens[cursor + 1];

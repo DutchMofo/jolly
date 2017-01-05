@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System;
 
 namespace Jolly
@@ -9,7 +10,7 @@ using TT = Token.Type;
 
 static class Analyser
 {
-	static List<Node> instructions, program;
+	static List<Node> instructions, program, staticInstructions = new List<Node>();
 	
 	static int cursor = 0;
 	public static void analyse(List<Node> program)
@@ -17,15 +18,12 @@ static class Analyser
 		Analyser.program = program;
 		instructions = new List<Node>(program.Count);
 		
-		Action<Node> action;
 		for(Node node = program[cursor]; cursor < program.Count; cursor += 1)
 		{
 			node = program[cursor];
+			Action<Node> action;
 			if(staticAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
-			} else {
-				Jolly.unexpected(node);
-				throw new ParseException();
 			}
 		}
 	}
@@ -48,21 +46,33 @@ static class Analyser
 			{ NT.RETURN, node => {
 				
 			} },
+		},
+		staticAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.VARIABLE_DEFINITION, node => {
 				int i = 1;
 				Symbol symbol = (Symbol)node;
-				for(; i <= symbol.childNodeCount; i += 1) {
-					Operator op = (Operator)program[cursor + i];
-					staticOperatorAnalysers[op.operation](op);
+				for(; i <= symbol.childNodeCount; i += 1)
+				{
+					node = program[cursor + i];
+					Action<Node> action;
+					if(staticAnalysers.TryGetValue(node.nodeType, out action)) {
+						action(node);
+					} else {
+						throw Jolly.unexpected(node);
+					}
 				}
 				cursor += i;
 			} },
-		},
-		staticAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
-				staticOperatorAnalysers[o.operation](o);
+				Action<Operator> action;
+				staticOperatorAnalysers.TryGetValue(o.operation, out action);
+				if(action == null) {
+					throw Jolly.unexpected(node);
+				}
+				action(o);
 			} },
+			{ NT.BASETYPE, node => { } },
 		};
 	
 	static readonly Dictionary<TT, Action<Operator>>
@@ -82,16 +92,13 @@ static class Analyser
 			} },
 		},
 		staticOperatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-			{ TT.GET_MEMBER, op => { 
-				operatorGetMember(op);
-			} },
+			{ TT.GET_MEMBER, operatorGetMember },
 		};
 	
 	static void operatorGetMember(Operator op) {
 		Symbol bName = op.b as Symbol;
 		if(bName == null) {
-			Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
-			throw new ParseException();
+			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
 		if(op.a.dataType == null)
@@ -99,15 +106,14 @@ static class Analyser
 		
 		TableFolder type = op.a.dataType as TableFolder;
 		if(type == null) {
-			Jolly.addError(op.b.location, "The type \"{0}\" has no members".fill(type));
-			throw new ParseException();
+			throw Jolly.addError(op.b.location, "The type \"{0}\" has no members".fill(type));
 		}
 		
-		op.b.dataType = type.getChild(bName.name).type;
+		op.b.dataType = type.getChild(bName.name)?.type;
 		
 		if(op.b.dataType == null) {
-			Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(op.b, bName.name));
-			throw new ParseException();
+			string typeName = type?.parent.children.First(p => p.Value == type).Key;
+			throw Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(typeName, bName.name));
 		}
 	}
 	
@@ -133,10 +139,8 @@ static class Analyser
 			var item = name.definitionScope.searchItem(name.name);
 			
 			if(item == null) {
-				Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.name));
-				throw new ParseException();
+				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.name));
 			}
-			
 			name.dataType = item.type;
 			return true;
 		}

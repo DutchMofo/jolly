@@ -63,19 +63,21 @@ namespace Jolly
 		public static string formatEnum<T>(T val)
 			=> val.ToString().ToLower().Replace('_', ' ');
 		
-		public static void addError(SourceLocation location, string message)
+		public static ParseException addError(SourceLocation location, string message)
 		{
 			++errorCount;
 			messages.Add(new Message { location = location, text = message, type = Message.MessageType.ERROR });
+			return new ParseException();
 		}
 		
 		public static void addWarning(SourceLocation location, string message)
 			=> messages.Add(new Message { location = location, text = message, type = Message.MessageType.WARNING });
+			
 		
-		public static void unexpected(Token token)
+		public static ParseException unexpected(Token token)
 			=> addError(token.location, "Unexpected {0}".fill(token));
 		
-		public static void unexpected(Node node)
+		public static ParseException unexpected(Node node)
 			=> addError(node.location, "Unexpected {0}".fill(node.nodeType));
 		
 		static void printMessages()
@@ -98,6 +100,9 @@ namespace Jolly
 			// Console.WriteLine("Nodes:");
 			// program.forEach(Console.WriteLine);
 			// Console.WriteLine("");
+			
+			Console.WriteLine("/");
+			TableFolder.root.PrintTree("", 0);
 			
 			Analyser.analyse(program);
 			
