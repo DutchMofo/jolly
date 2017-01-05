@@ -41,15 +41,15 @@ namespace Jolly
 				throw new ParseException();
 			}
 			
-			TableFolder _structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
+			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
 			
-			if(!scope.addChild(name.name, _structScope)) {
+			if(!scope.addChild(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT);
+			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT) { dataType = structScope };
 			program.Add(structNode);
-			new StructParser(cursor + 1, brace.partnerIndex, _structScope, tokens, program)
+			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
 				{ scopeHead = structNode } // Hacky
 				.parseBlock();
 			
@@ -81,7 +81,7 @@ namespace Jolly
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 				throw new ParseException();
 			}
-			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION);
+			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION) { dataType = unionScope };
 			program.Add(unionNode);
 			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program)
 				{ scopeHead = unionNode } // Hacky
@@ -239,9 +239,11 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
 			cursor = parser.parseExpression(this, true);
 			
+			// TODO: Not sure why I don't just do this in the expression parser
 			if(parser.isFunction)
 			{
-				var functionNode = parser.getValue() as Symbol;
+				var functionNode = (Symbol)parser.getValue();
+				functionNode.dataType = parser.theFunction;
 				program.Add(functionNode);
 				
 				Token brace = tokens[cursor + 1];

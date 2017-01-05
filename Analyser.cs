@@ -9,18 +9,19 @@ using TT = Token.Type;
 
 static class Analyser
 {
-	static List<Node> instructions;
+	static List<Node> instructions, program;
 	
 	static int cursor = 0;
 	public static void analyse(List<Node> program)
 	{
+		Analyser.program = program;
 		instructions = new List<Node>(program.Count);
 		
 		Action<Node> action;
 		for(Node node = program[cursor]; cursor < program.Count; cursor += 1)
 		{
 			node = program[cursor];
-			if(analysers.TryGetValue(node.nodeType, out action)) {
+			if(staticAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
 			} else {
 				Jolly.unexpected(node);
@@ -29,170 +30,86 @@ static class Analyser
 		}
 	}
 	
-	static Dictionary<NT, Action<Node>> analysers = new Dictionary<NT, Action<Node>>() {
-		{ NT.ALIAS, node => {
-			
-		} },
-		{ NT.BLOCK, node => {
-			
-		} },
-		{ NT.BREAK, node => {
-			
-		} },
-		{ NT.CAST, node => {
-			
-		} },
-		{ NT.FOR, node => {
-			
-		} },
-		{ NT.STRUCT, node => {
-			Console.WriteLine(node);
-		} },
-		{ NT.FUNCTION, node => {
-			cursor += (node as Symbol).childNodeCount;
-		} },
-		{ NT.FUNCTION_CALL, node => {
-			
-		} },
-		{ NT.GOTO, node => {
-			
-		} },
-		{ NT.IF, node => {
-			
-		} },
-		{ NT.IF_ELSE, node => {
-			
-		} },
-		{ NT.LABEL, node => {
-			
-		} },
-		{ NT.LOOP_CONTROL, node => {
-			
-		} },
-		{ NT.OPERATOR, node => {
-			// Operator o = (Operator)node;
-			// operatorAnalysers[o.operation](o);
-		} },
-		{ NT.RETURN, node => {
-			
-		} },
-		{ NT.USING, node => {
-			
-		} },
-		{ NT.VARIABLE_DEFINITION, node => {
-			
-			Console.WriteLine(node);
-			
-		} },
-		{ NT.WHILE, node => {
-			
-		} },
-	};
+	static readonly Dictionary<NT, Action<Node>>
+		analysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.STRUCT, node => {
+				Console.WriteLine(node);
+			} },
+			{ NT.FUNCTION, node => {
+				cursor += (node as Symbol).childNodeCount;
+			} },
+			{ NT.FUNCTION_CALL, node => {
+				
+			} },
+			{ NT.OPERATOR, node => {
+				Operator o = (Operator)node;
+				operatorAnalysers[o.operation](o);
+			} },
+			{ NT.RETURN, node => {
+				
+			} },
+			{ NT.VARIABLE_DEFINITION, node => {
+				int i = 1;
+				Symbol symbol = (Symbol)node;
+				for(; i <= symbol.childNodeCount; i += 1) {
+					Operator op = (Operator)program[cursor + i];
+					staticOperatorAnalysers[op.operation](op);
+				}
+				cursor += i;
+			} },
+		},
+		staticAnalysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.OPERATOR, node => {
+				Operator o = (Operator)node;
+				staticOperatorAnalysers[o.operation](o);
+			} },
+		};
 	
-	static readonly Dictionary<TT, Action<Operator>> operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-		{ TT.REFERENCE, op => {
-			
-		} },
-		{ TT.DEREFERENCE, op => {
-			
-		} },
-		{ TT.PLUS, op => {
-			getTypesAndLoadNames(op);
-			
-		} },
-		{ TT.MINUS, op => {
-			
-		} },
-		{ TT.INCREMENT, op => {
-			
-		} },
-		{ TT.DECREMENT,	op => {
-			
-		} },
-		{ TT.LOGIC_AND,	op => {
-			
-		} },
-		{ TT.EQUAL_TO, op => {
-			
-		} },
-		{ TT.LOGIC_OR, op => {
-			
-		} },
-		{ TT.LOGIC_NOT, op => {
-			
-		} },
-		{ TT.BIT_NOT, op => {
-			
-		} },
-		{ TT.BIT_AND, op => {
-			
-		} },
-		{ TT.BIT_OR, op => {
-			
-		} },
-		{ TT.BIT_XOR, op => {
-			
-		} },
-		{ TT.MODULO, op => {
-			
-		} },
-		{ TT.DIVIDE, op => {
-			
-		} },
-		{ TT.MULTIPLY, op => {
-			
-		} },
-		{ TT.GET_MEMBER, op => {
-			Symbol bName = op.b as Symbol;
-			if(bName == null) {
-				Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
-				throw new ParseException();
-			}
-			
-			if(op.a.dataType == null)
-				getTypeFromName(op.a);
-			
-			TableFolder type = op.a.dataType as TableFolder;
-			if(type == null) {
-				Jolly.addError(op.b.location, "The type \"{0}\" has no members".fill(type));
-				throw new ParseException();
-			}
-			
-			op.b.dataType = type.getChild(bName.name).type;
-			
-			if(op.b.dataType == null) {
-				Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(op.b, bName.name));
-				throw new ParseException();
-			}
-		} },
-		{ TT.SUBSCRIPT, op => {
-			
-		} },
-		{ TT.READ, op => {
-			
-		} },
-		{ TT.ASSIGN, op => {
-			
-		} },
-		{ TT.SHIFT_LEFT, op => {
-			
-		} },
-		{ TT.SHIFT_RIGHT, op => {
-			
-		} },
-		{ TT.LESS_EQUAL, op => {
-			
-		} },
-		{ TT.GREATER_EQUAL, op => {
-			
-		} },
-		{ TT.SLICE, op => {
-			
-		} },
-		{ TT.CAST, op => {
-			
-		} },
-	};
+	static readonly Dictionary<TT, Action<Operator>>
+		operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
+			{ TT.PLUS, op => {
+				getTypesAndLoadNames(op);
+				
+			} },
+			{ TT.GET_MEMBER, op => {
+				
+			} },
+			{ TT.READ, op => {
+				
+			} },
+			{ TT.ASSIGN, op => {
+				
+			} },
+		},
+		staticOperatorAnalysers = new Dictionary<TT, Action<Operator>>() {
+			{ TT.GET_MEMBER, op => { 
+				operatorGetMember(op);
+			} },
+		};
+	
+	static void operatorGetMember(Operator op) {
+		Symbol bName = op.b as Symbol;
+		if(bName == null) {
+			Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
+			throw new ParseException();
+		}
+		
+		if(op.a.dataType == null)
+			getTypeFromName(op.a);
+		
+		TableFolder type = op.a.dataType as TableFolder;
+		if(type == null) {
+			Jolly.addError(op.b.location, "The type \"{0}\" has no members".fill(type));
+			throw new ParseException();
+		}
+		
+		op.b.dataType = type.getChild(bName.name).type;
+		
+		if(op.b.dataType == null) {
+			Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(op.b, bName.name));
+			throw new ParseException();
+		}
+	}
 	
 	static void getTypesAndLoadNames(Operator op)
 	{

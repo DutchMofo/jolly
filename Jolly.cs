@@ -86,7 +86,6 @@ namespace Jolly
 		
 		public static void Main(string[] args)
 		{
-			try {
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 			
@@ -102,7 +101,6 @@ namespace Jolly
 			
 			Analyser.analyse(program);
 			
-			} catch(ParseException ex) { Console.WriteLine(ex.StackTrace); }
 			printMessages();
 		}
 	}
