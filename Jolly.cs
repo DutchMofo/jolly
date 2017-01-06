@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+// using System.Net;
+// using System.Net.Sockets;
+// using Mono.Unix;
 
 namespace Jolly
 {
@@ -26,6 +30,21 @@ namespace Jolly
 		public static void forEach<T>(this IEnumerable<T> list, Action<T> action)
 			{ foreach(T i in list) action(i); }
 	}
+	
+	// static class DebugLog
+	// {
+	// 	static Socket _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
+		
+	// 	static DebugLog()
+	// 	{
+	// 		_socket.Connect(new UnixEndPoint("/tmp/jolly"));
+	// 	}
+		
+	// 	public static void Log(object item)
+	// 	{
+	// 		_socket.Send(System.Text.Encoding.UTF8.GetBytes(item.ToString()));
+	// 	}
+	// }
 	
 	struct SourceLocation
 	{
@@ -93,7 +112,7 @@ namespace Jolly
 			
 			// Console.WriteLine("Tokens:");
 			// tokens.forEach(Console.WriteLine);
-			
+						
 			List<Node> program = new List<Node>(tokens.Length / 2);
 			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
 			
@@ -101,12 +120,13 @@ namespace Jolly
 			// program.forEach(Console.WriteLine);
 			// Console.WriteLine("");
 			
+			Analyser.analyse(program);
+			
 			Console.WriteLine("/");
 			TableFolder.root.PrintTree("", 0);
 			
-			Analyser.analyse(program);
-			
 			printMessages();
+			Debugger.Break();
 		}
 	}
 }

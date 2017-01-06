@@ -1,13 +1,16 @@
 {
     "version": "0.1.0",
-    "command": "dotnet",
+    "command": "mcs",
     "isShellCommand": true,
     "args": [],
     "tasks": [
         {
-            "taskName": "build",
+			"taskName": "build",
+            "suppressTaskName": true,
             "args": [
-                "${workspaceRoot}/project.json"
+				"-debug",
+                "-out:${workspaceRoot}/bin/Jolly.exe",
+				"*.cs"
             ],
             "isBuildCommand": true,
             "problemMatcher": "$msCompile"

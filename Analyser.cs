@@ -10,10 +10,11 @@ using TT = Token.Type;
 
 static class Analyser
 {
-	static List<Node> instructions, program, staticInstructions = new List<Node>();
+	static List<Node> instructions, program;
+	static Node definitionInstruction;
 	
 	static int cursor = 0;
-	public static void analyse(List<Node> program)
+	public static List<Node> analyse(List<Node> program)
 	{
 		Analyser.program = program;
 		instructions = new List<Node>(program.Count);
@@ -26,18 +27,17 @@ static class Analyser
 				action(node);
 			}
 		}
+		
+		return instructions;
 	}
 	
 	static readonly Dictionary<NT, Action<Node>>
 		analysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.STRUCT, node => {
-				Console.WriteLine(node);
+				
 			} },
 			{ NT.FUNCTION, node => {
 				cursor += (node as Symbol).childNodeCount;
-			} },
-			{ NT.FUNCTION_CALL, node => {
-				
 			} },
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
@@ -49,30 +49,46 @@ static class Analyser
 		},
 		staticAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.VARIABLE_DEFINITION, node => {
-				int i = 1;
 				Symbol symbol = (Symbol)node;
-				for(; i <= symbol.childNodeCount; i += 1)
+				for(int i = 1; i <= symbol.childNodeCount; i += 1)
 				{
 					node = program[cursor + i];
 					Action<Node> action;
-					if(staticAnalysers.TryGetValue(node.nodeType, out action)) {
+					if(definitionAnalysers.TryGetValue(node.nodeType, out action)) {
 						action(node);
 					} else {
 						throw Jolly.unexpected(node);
 					}
 				}
-				cursor += i;
+				cursor += symbol.childNodeCount;
+				
+				Debug.Assert(definitionInstruction.dataType != null);
+				node.dataType = symbol.definitionScope.children[symbol.name].type = definitionInstruction.dataType;
+				instructions.Add(node);
 			} },
+			{ NT.FUNCTION, node => {
+				cursor += (node as Symbol).childNodeCount;
+			} },
+		},
+		definitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
 				Action<Operator> action;
-				staticOperatorAnalysers.TryGetValue(o.operation, out action);
-				if(action == null) {
+				if(definitionOperatorAnalysers.TryGetValue(o.operation, out action)) {
+					action(o);
+				} else {
 					throw Jolly.unexpected(node);
 				}
-				action(o);
 			} },
-			{ NT.BASETYPE, node => { } },
+			{ NT.BASETYPE, node => {
+				definitionInstruction = node;
+			} },
+			{ NT.NAME, node => {
+				if(!getTypeFromName(node)) {
+					throw Jolly.addError(node.location, "Does not exist in the current context");
+				}
+				definitionInstruction = node;
+			} },
 		};
 	
 	static readonly Dictionary<TT, Action<Operator>>
@@ -91,29 +107,38 @@ static class Analyser
 				
 			} },
 		},
-		staticOperatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-			{ TT.GET_MEMBER, operatorGetMember },
+		definitionOperatorAnalysers = new Dictionary<TT, Action<Operator>>() {
+			{ TT.GET_MEMBER, op => operatorGetMember(op, true) },
 		};
 	
-	static void operatorGetMember(Operator op) {
+	static void operatorGetMember(Operator op, bool isDifinition) {
 		Symbol bName = op.b as Symbol;
 		if(bName == null) {
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		if(op.a.dataType == null)
-			getTypeFromName(op.a);
+		if(op.a.dataType == null) {
+			if(!getTypeFromName(op.a)) {
+				throw Jolly.addError(op.a.location, "Does not exist in the current context");
+			}
+		}
 		
 		TableFolder type = op.a.dataType as TableFolder;
 		if(type == null) {
-			throw Jolly.addError(op.b.location, "The type \"{0}\" has no members".fill(type));
+			throw Jolly.addError(bName.location, "The type \"{0}\" has no members".fill(type));
 		}
 		
-		op.b.dataType = type.getChild(bName.name)?.type;
+		bName.dataType = type.getChild(bName.name)?.type;
 		
-		if(op.b.dataType == null) {
+		if(bName.dataType == null) {
 			string typeName = type?.parent.children.First(p => p.Value == type).Key;
-			throw Jolly.addError(op.b.location, "The type {0} does not contain a member \"{1}\"".fill(typeName, bName.name));
+			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(typeName, bName.name));
+		}
+		
+		if(isDifinition) {
+			definitionInstruction = bName;
+		} else {
+			// TODO: add load instruction
 		}
 	}
 	

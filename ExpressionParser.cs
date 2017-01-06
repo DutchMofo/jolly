@@ -68,7 +68,7 @@ class ExpressionParser
 			if(_op.operation == TT.COMMA)
 			{
 				Tupple list = a as Tupple;
-				if(a.nodeType == NT.TUPPLE && !list.locked) {
+				if(a.nodeType == NT.TUPPLE && !list.closed) {
 					list.list.Add(b);
 					values.Push(a);
 				} else {
@@ -155,7 +155,7 @@ class ExpressionParser
 				values.Push(new Symbol(token.location, token.name, scope, NT.FUNCTION));
 				theFunction = new TableFolder(){ type = prev.dataType };
 				
-				if(!scope.addChild(token.name, theFunction)) {
+				if(!scope.Add(token.name, theFunction)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
@@ -171,7 +171,7 @@ class ExpressionParser
 				defining = true;
 				TableItem variableItem = new TableItem(prev.dataType);
 				
-				if(!scope.addChild(token.name, variableItem)) {
+				if(!scope.Add(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
 				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
@@ -299,7 +299,7 @@ class ExpressionParser
 			} else {
 				Node list = values.PeekOrDefault();
 				if(list?.nodeType == NT.TUPPLE)
-					((Tupple)list).locked = true;
+					((Tupple)list).closed = true;
 			}
 			return true;
 		}
@@ -321,7 +321,6 @@ class ExpressionParser
 		// TODO: This probably has other side-effects but it works for now
 		if(defining)
 		{
-			Node n = values.Peek();
 			Token name = tokens[cursor + 1];
 			prevTokenKind = currentTokenKind = VALUE_KIND;
 			
@@ -332,7 +331,7 @@ class ExpressionParser
 			var variable = new Symbol(name.location, name.name, scope); 
 			TableItem variableItem = new TableItem(null);
 			
-			if(!scope.addChild(name.name, variableItem)) {
+			if(!scope.Add(name.name, variableItem)) {
 				Jolly.addError(name.location, "Trying to redefine variable");
 			}
 			values.Push(variable);

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-
-#pragma warning disable 0649
+using System.Linq;
 
 namespace Jolly
 {
@@ -80,7 +79,8 @@ namespace Jolly
 					Console.WriteLine("{0} [{1}]".fill(tPath, folder.flags));
 					folder.PrintTree(tPath, path.Length + 1);
 				} else {
-					Console.WriteLine("{0}{1} [{2}]".fill(new string(' ', space), child.Key, child.Value.flags));
+					string typeName = child.Value.type?.parent.children.First(p => p.Value == child.Value.type).Key;
+					Console.WriteLine("{0}{1} ({2})[{3}]".fill(new string(' ', space), child.Key, typeName, child.Value.flags));
 				}
 			}
 		}
@@ -104,7 +104,7 @@ namespace Jolly
 			return item;
 		}
 		
-		public bool addChild(string childName, TableItem child)
+		public bool Add(string childName, TableItem child)
 		{
 			TableFolder iterator = this;
 			do {

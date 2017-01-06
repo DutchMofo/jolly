@@ -42,7 +42,7 @@ namespace Jolly
 			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
 			structScope.type = structScope;
 			
-			if(!scope.addChild(name.name, structScope)) {
+			if(!scope.Add(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
 			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
@@ -74,7 +74,7 @@ namespace Jolly
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
 			unionScope.type = unionScope;
 			
-			if(!scope.addChild(name.name, unionScope)) {
+			if(!scope.Add(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
 			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION) /*{ dataType = unionScope }*/;
@@ -196,9 +196,10 @@ namespace Jolly
 			Symbol _namespace = new Symbol(token.location, name.name, scope, NT.BLOCK);
 			TableFolder _namespaceScope = new TableFolder() { flags = NameFlags.FOLDER };
 			
-			program.Add(_namespace);
-			// TODO: Check if succesfully added
-			scope.addChild(name.name, _namespaceScope);
+			program.Add(_namespace); 
+			if(!scope.Add(name.name, _namespaceScope)) {
+				throw Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
+			}
 						
 			token = tokens[cursor += 1];
 			if(token.type == TT.BRACE_OPEN) {
@@ -220,8 +221,7 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
 			cursor = parser.parseExpression(this, false);
 			
-			Node node = parser.getValue();
-			program.Add(new Result(token.location, NT.RETURN));
+			program.Add(new Result(token.location, NT.RETURN){ resultData = parser.getValue() });
 			
 			return true;
 		}

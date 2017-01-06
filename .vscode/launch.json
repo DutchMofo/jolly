@@ -2,21 +2,11 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": ".NET Core Launch (console)",
-			"type": "coreclr",
-			"request": "launch",
-			"preLaunchTask": "build",
-			"program": "${workspaceRoot}/bin/Debug/netcoreapp1.0/jolly.dll",
-			"args": ["Program.jolly"],
-			"cwd": "${workspaceRoot}",
-			"stopAtEntry": false,
-			"externalConsole": true
-		},
-		{
-			"name": ".NET Core Attach",
-			"type": "coreclr",
-			"request": "attach",
-			"processId": "${command.pickProcess}"
-		}
+            "name": "Attach to Mono",
+            "request": "attach",
+            "type": "mono",
+            "address": "localhost",
+            "port": 55555
+        }
 	]
 }

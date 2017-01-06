@@ -16,37 +16,57 @@ static class Lookup
 		for (int i = (int)TT.I8; i <= (int)TT.WHILE; i += 1)
 			keywords.Add(names[i].ToLower(), values[i]);
 		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
-			directives.Add(names[i].ToLower(), values[i]);
+			directives.Add(names[i].ToLower(), values[i]);	
+		for(int i = 0; i < baseTypes.Length; i += 1)
+			baseTypeScope.Add(baseTypeText[i], baseTypes[i]);
 	}
 	
 	static readonly NameFlags tFlag = NameFlags.IS_BASETYPE | NameFlags.IS_TYPE;
 	
+	static TableFolder baseTypeScope = new TableFolder();
+	
+	static readonly string[] baseTypeText = new string[] {
+		"i8", "u8",
+		"i16", "u16",
+		"i32", "u32",
+		"i64", "u64",
+		"f32", "f64",
+		"byte", "ubyte",
+		"short", "ushort",
+		"int", "uint",
+		"long", "ulong",
+		"float", "double",
+		"void", "rune",
+		"string", "bool",
+		"auto",
+	};
+	
 	static readonly TableItem[] baseTypes = new TableItem[] {
-		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, // I8,
-		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, // U8,
-		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, // I16,
-		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, // U16,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // I32,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // U32,
-		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, // I64,
-		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, // U64,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // F32,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // F64,
-		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, // BYTE,
-		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, // UBYTE,
-		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, // SHORT,
-		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, // USHORT,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // INT,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // UINT,
-		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, // LONG,
-		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, // ULONG,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // FLOAT,
-		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, // DOUBLE,
-		new TableItem(null) { flags = tFlag, size = 0,	align = 0 }, // VOID,
-		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, // RUNE,
-		new TableItem(null) { flags = tFlag, size = 16,	align = 8 }, // STRING,
-		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, // BOOL,
-		new TableItem(null) { flags = tFlag, size = 0,	align = 0 }, // AUTO,
+		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, //I8
+		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, //U8
+		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, //I16
+		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, //U16
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //I32
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //U32
+		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, //I64
+		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, //U64
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //F32
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //F64
+		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, //BYTE
+		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, //UBYTE
+		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, //SHORT
+		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, //USHORT
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //INT
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //UINT
+		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, //LONG
+		new TableItem(null) { flags = tFlag, size = 8,	align = 8 }, //ULONG
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //FLOAT
+		new TableItem(null) { flags = tFlag, size = 4,	align = 4 }, //DOUBLE
+		new TableItem(null) { flags = tFlag, size = 0,	align = 0 }, //VOID
+		new TableItem(null) { flags = tFlag, size = 2,	align = 2 }, //RUNE
+		new TableItem(null) { flags = tFlag, size = 16,	align = 8 }, //STRING
+		new TableItem(null) { flags = tFlag, size = 1,	align = 1 }, //BOOL
+		new TableItem(null) { flags = tFlag, size = 0,	align = 0 }, //AUTO
 	};
 
 	public static TableItem getBaseType(TT type)

@@ -1,8 +1,5 @@
 using System.Collections.Generic;
 
-//Fuckoff c# (never assigned warning)
-#pragma warning disable 0649
-
 namespace Jolly
 {
 	using NT = Node.NodeType;
@@ -81,7 +78,7 @@ namespace Jolly
 			: base(NodeType.TUPPLE, loc) { }
 		
 		public List<Node> list = new List<Node>();
-		public bool locked;
+		public bool closed;
 	}
 	
 	class Result : Node
