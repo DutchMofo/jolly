@@ -23,8 +23,21 @@ static class Analyser
 		{
 			node = program[cursor];
 			Action<Node> action;
-			if(staticAnalysers.TryGetValue(node.nodeType, out action)) {
+			if(typeDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
+			}
+		}
+		
+		cursor = 0;
+		for(Node node = program[cursor]; cursor < program.Count; cursor += 1)
+		{
+			node = program[cursor];
+			Action<Node> action;
+			if(analysers.TryGetValue(node.nodeType, out action)) {
+				if(action != null) // Null means skip
+					action(node);
+			} else {
+				throw Jolly.unexpected(node);
 			}
 		}
 		
@@ -32,50 +45,19 @@ static class Analyser
 	}
 	
 	static readonly Dictionary<NT, Action<Node>>
-		analysers = new Dictionary<NT, Action<Node>>() {
-			{ NT.STRUCT, node => {
-				
-			} },
-			{ NT.FUNCTION, node => {
-				cursor += (node as Symbol).childNodeCount;
-			} },
+		// Used for the first pass to define all the struct members
+		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
+			{ NT.MEMBER_DEFINITION, defineMemberOrVariable },
+			{ NT.FUNCTION, skipSymbol },
+		},
+		// Used to load the type before defining a variable
+		variableDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
-				operatorAnalysers[o.operation](o);
-			} },
-			{ NT.RETURN, node => {
-				
-			} },
-		},
-		staticAnalysers = new Dictionary<NT, Action<Node>>() {
-			{ NT.VARIABLE_DEFINITION, node => {
-				Symbol symbol = (Symbol)node;
-				for(int i = 1; i <= symbol.childNodeCount; i += 1)
-				{
-					node = program[cursor + i];
-					Action<Node> action;
-					if(definitionAnalysers.TryGetValue(node.nodeType, out action)) {
-						action(node);
-					} else {
-						throw Jolly.unexpected(node);
-					}
-				}
-				cursor += symbol.childNodeCount;
-				
-				Debug.Assert(definitionInstruction.dataType != null);
-				node.dataType = symbol.definitionScope.children[symbol.name].type = definitionInstruction.dataType;
-				instructions.Add(node);
-			} },
-			{ NT.FUNCTION, node => {
-				cursor += (node as Symbol).childNodeCount;
-			} },
-		},
-		definitionAnalysers = new Dictionary<NT, Action<Node>>() {
-			{ NT.OPERATOR, node => {
-				Operator o = (Operator)node;
-				Action<Operator> action;
-				if(definitionOperatorAnalysers.TryGetValue(o.operation, out action)) {
-					action(o);
+				if(o.operation == TT.GET_MEMBER) {
+					operatorGetMember(o);
+					definitionInstruction = o.b;
 				} else {
 					throw Jolly.unexpected(node);
 				}
@@ -89,29 +71,63 @@ static class Analyser
 				}
 				definitionInstruction = node;
 			} },
+		},
+		analysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
+			{ NT.MEMBER_DEFINITION, skipSymbol },
+			{ NT.STRUCT, skipSymbol },
+			{ NT.FUNCTION, null },
+			{ NT.OPERATOR, node => {
+				Operator o = (Operator)node;
+				operatorAnalysers[o.operation](o);
+			} },
+			{ NT.RETURN, node => {
+				
+			} },
 		};
+	
+	static void skipSymbol(Node node)
+		=> cursor += (node as Symbol).childNodeCount;
+	
+	static void defineMemberOrVariable(Node node)
+	{
+		Symbol symbol = (Symbol)node;
+		for(int i = 1; i <= symbol.childNodeCount; i += 1)
+		{
+			node = program[cursor + i];
+			Action<Node> action;
+			if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
+				action(node);
+			} else {
+				throw Jolly.unexpected(node);
+			}
+		}
+		cursor += symbol.childNodeCount;
+		
+		Debug.Assert(definitionInstruction.dataType != null);
+		symbol.dataType = symbol.definitionScope.children[symbol.name].type = definitionInstruction.dataType;
+		instructions.Add(symbol);
+		definitionInstruction = null;
+	}
 	
 	static readonly Dictionary<TT, Action<Operator>>
 		operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
 			{ TT.PLUS, op => {
 				getTypesAndLoadNames(op);
 				
+				"".ToString();
 			} },
-			{ TT.GET_MEMBER, op => {
-				
-			} },
+			{ TT.GET_MEMBER, operatorGetMember },
 			{ TT.READ, op => {
 				
 			} },
 			{ TT.ASSIGN, op => {
 				
 			} },
-		},
-		definitionOperatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-			{ TT.GET_MEMBER, op => operatorGetMember(op, true) },
 		};
 	
-	static void operatorGetMember(Operator op, bool isDifinition) {
+	static void operatorGetMember(Operator op)
+	{
 		Symbol bName = op.b as Symbol;
 		if(bName == null) {
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
@@ -133,12 +149,6 @@ static class Analyser
 		if(bName.dataType == null) {
 			string typeName = type?.parent.children.First(p => p.Value == type).Key;
 			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(typeName, bName.name));
-		}
-		
-		if(isDifinition) {
-			definitionInstruction = bName;
-		} else {
-			// TODO: add load instruction
 		}
 	}
 	

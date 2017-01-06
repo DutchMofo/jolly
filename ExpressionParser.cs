@@ -174,7 +174,8 @@ class ExpressionParser
 				if(!scope.Add(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
+				var variable = new Symbol(token.location, token.name, scope, 
+					(scope.flags & (NameFlags.IS_TYPE | NameFlags.UNION)) != 0 ? NT.MEMBER_DEFINITION : NT.VARIABLE_DEFINITION);
 				variable.childNodeCount = expression.Count - startNodeCount;
 				
 				if(variable.childNodeCount == 0) {
@@ -187,7 +188,7 @@ class ExpressionParser
 				values.Push(variable);
 			}
 		}
-		else if(prev?.nodeType != NT.VARIABLE_DEFINITION)
+		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION & prev.nodeType != NT.MEMBER_DEFINITION)
 			values.Push(new Symbol(token.location, token.name, scope));
 		
 		return true;

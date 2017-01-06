@@ -39,6 +39,7 @@ namespace Jolly
 			STATEMENT,
 			USING,
 			VARIABLE_DEFINITION,
+			MEMBER_DEFINITION,
 			VARIABLE_RW,
 			WHILE,
 			

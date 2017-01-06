@@ -105,6 +105,7 @@ namespace Jolly
 			messages.forEach(m => Console.WriteLine(m));
 		}
 		
+		static List<Node> program;
 		public static void Main(string[] args)
 		{
 			string source = File.ReadAllText("Program.jolly");
@@ -113,14 +114,14 @@ namespace Jolly
 			// Console.WriteLine("Tokens:");
 			// tokens.forEach(Console.WriteLine);
 						
-			List<Node> program = new List<Node>(tokens.Length / 2);
+			program = new List<Node>(tokens.Length / 2);
 			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
 			
-			// Console.WriteLine("Nodes:");
-			// program.forEach(Console.WriteLine);
-			// Console.WriteLine("");
+			program = Analyser.analyse(program);
 			
-			Analyser.analyse(program);
+			Console.WriteLine("Nodes:");
+			program.forEach(Console.WriteLine);
+			Console.WriteLine("");
 			
 			Console.WriteLine("/");
 			TableFolder.root.PrintTree("", 0);
