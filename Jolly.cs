@@ -105,9 +105,9 @@ namespace Jolly
 			messages.forEach(m => Console.WriteLine(m));
 		}
 		
-		static List<Node> program;
 		public static void Main(string[] args)
 		{
+			List<Node> program;
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 			

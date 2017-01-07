@@ -1,6 +1,7 @@
 # Ignore bin and obj
 /bin
 /obj
+/debug
 
 # Include only settings, launch and tasks
 /.vscode/*

@@ -48,19 +48,15 @@ static class Analyser
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
-			{ NT.MEMBER_DEFINITION, defineMemberOrVariable },
 			{ NT.FUNCTION, skipSymbol },
 		},
 		// Used to load the type before defining a variable
 		variableDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
-				if(o.operation == TT.GET_MEMBER) {
-					operatorGetMember(o);
-					definitionInstruction = o.b;
-				} else {
-					throw Jolly.unexpected(node);
-				}
+				Debug.Assert(o.operation == TT.GET_MEMBER);
+				operatorGetMember(o);
+				definitionInstruction = o.b;
 			} },
 			{ NT.BASETYPE, node => {
 				definitionInstruction = node;
@@ -74,9 +70,8 @@ static class Analyser
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
-			{ NT.MEMBER_DEFINITION, skipSymbol },
 			{ NT.STRUCT, skipSymbol },
-			{ NT.FUNCTION, null },
+			{ NT.FUNCTION, node => instructions.Add(node) },
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
 				operatorAnalysers[o.operation](o);
@@ -92,6 +87,11 @@ static class Analyser
 	static void defineMemberOrVariable(Node node)
 	{
 		Symbol symbol = (Symbol)node;
+		if(symbol.dataType != null) {
+			cursor += symbol.childNodeCount;
+			return;
+		}
+		
 		for(int i = 1; i <= symbol.childNodeCount; i += 1)
 		{
 			node = program[cursor + i];
@@ -112,17 +112,23 @@ static class Analyser
 	
 	static readonly Dictionary<TT, Action<Operator>>
 		operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-			{ TT.PLUS, op => {
-				getTypesAndLoadNames(op);
-				
-				"".ToString();
-			} },
 			{ TT.GET_MEMBER, operatorGetMember },
-			{ TT.READ, op => {
-				
-			} },
+			{ TT.MINUS, basicOperator },
+			{ TT.PLUS, basicOperator },
+			{ TT.MULTIPLY, basicOperator },
+			{ TT.DIVIDE, basicOperator },
 			{ TT.ASSIGN, op => {
-				
+				Node a = op.a, b = op.b;
+				if(getTypeFromName(a)) {
+					instructions.Add(a = new Operator(op.a.location, TT.READ, op.a, null, new Result(op.a.location)));
+				} else {
+					// TODO: assign to other than variable
+					throw new Exception();
+				}
+				if(getTypeFromName(b)) {
+					instructions.Add(b = new Operator(op.b.location, TT.READ, op.b, null, new Result(op.b.location)));
+				}
+				instructions.Add(op);
 			} },
 		};
 	
@@ -152,17 +158,20 @@ static class Analyser
 		}
 	}
 	
-	static void getTypesAndLoadNames(Operator op)
+	static void basicOperator(Operator op)
 	{
-		Operator cache;
-		if(getTypeFromName(op.a)) {
-			instructions.Add(cache = new Operator(op.a.location, TT.READ, op.a, null, new Result(op.a.location)));
-			op.a = cache;
+		Node a = op.a, b = op.b;
+		if(getTypeFromName(a)) {
+			instructions.Add(a = new Operator(op.a.location, TT.READ, op.a, null, new Result(op.a.location)));
 		}
-		if(getTypeFromName(op.b)) {
-			instructions.Add(cache = new Operator(op.b.location, TT.READ, op.b, null, new Result(op.b.location)));
-			op.b = cache;
+		if(getTypeFromName(b)) {
+			instructions.Add(b = new Operator(op.b.location, TT.READ, op.b, null, new Result(op.b.location)));
 		}
+		if(a.dataType != b.dataType) {
+			throw Jolly.addError(op.location, "Types not the same");
+		}
+		op.result.dataType = op.a.dataType;
+		instructions.Add(op);
 	}
 	
 	static bool getTypeFromName(Node node)

@@ -114,10 +114,13 @@ class ExpressionParser
 		Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new Literal(token.location, token._integer);
+			lit.dataType = Lookup.getBaseType(TT.I32);
 		} else if(token.type == TT.FLOAT_LITERAL) {
 			lit = new Literal(token.location, token._float);
+			lit.dataType = Lookup.getBaseType(TT.F32);
 		} else {
 			lit = new Literal(token.location, token._string);
+			lit.dataType = Lookup.getBaseType(TT.STRING);
 		}
 		
 		values.Push(lit);
@@ -174,8 +177,7 @@ class ExpressionParser
 				if(!scope.Add(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				var variable = new Symbol(token.location, token.name, scope, 
-					(scope.flags & (NameFlags.IS_TYPE | NameFlags.UNION)) != 0 ? NT.MEMBER_DEFINITION : NT.VARIABLE_DEFINITION);
+				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
 				variable.childNodeCount = expression.Count - startNodeCount;
 				
 				if(variable.childNodeCount == 0) {
@@ -188,7 +190,7 @@ class ExpressionParser
 				values.Push(variable);
 			}
 		}
-		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION & prev.nodeType != NT.MEMBER_DEFINITION)
+		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION)
 			values.Push(new Symbol(token.location, token.name, scope));
 		
 		return true;

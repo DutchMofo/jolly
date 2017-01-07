@@ -36,11 +36,8 @@ namespace Jolly
 			OPERATOR,
 			RESULT,
 			RETURN,
-			STATEMENT,
 			USING,
 			VARIABLE_DEFINITION,
-			MEMBER_DEFINITION,
-			VARIABLE_RW,
 			WHILE,
 			
 			COUNT // Must be last
@@ -64,9 +61,6 @@ namespace Jolly
 	{
 		public Symbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
-		
-		public override string ToString()
-			=> base.ToString() + ' ' + childNodeCount;
 		
 		public TableFolder definitionScope;
 		public int childNodeCount;
