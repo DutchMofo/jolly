@@ -4,7 +4,7 @@ namespace Jolly
 {
 	using NT = Node.NodeType;
 	// using TT = Token.Type;
-	
+		
 	class Node
 	{
 		public Node(NodeType nT, SourceLocation l) { nodeType = nT; location = l; }
@@ -85,7 +85,7 @@ namespace Jolly
 		
 	class Operator : Node
 	{
-		public Operator(SourceLocation loc, Token.Type operation, Node a, Node b, Node result)
+		public Operator(SourceLocation loc, OperatorType operation, Node a, Node b, Node result)
 			: base(NodeType.OPERATOR, loc)
 		{
 			this.operation = operation;
@@ -96,7 +96,7 @@ namespace Jolly
 		
 		public override string ToString() { return base.ToString() + " " + operation.ToString(); }
 		
-		public Token.Type operation;
+		public OperatorType operation;
 		public Node a, b, result;
 	}
 	

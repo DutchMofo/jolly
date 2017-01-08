@@ -5,10 +5,74 @@ namespace Jolly
 {
 using TT = Token.Type;
 using NT = Node.NodeType;
+using OT = OperatorType;
+
+enum OperatorType
+{
+	UNDEFINED = 0,
+	/*##############
+		Operators
+	##############*/
+	REFERENCE,
+	DEREFERENCE,
+	PLUS,
+	MINUS,
+	INCREMENT,
+	DECREMENT,
+	LOGIC_AND,
+	EQUAL_TO,
+	LOGIC_OR,
+	LOGIC_NOT,
+	BIT_NOT,
+	BIT_AND,
+	BIT_OR,
+	BIT_XOR,
+	MODULO,
+	DIVIDE,
+	MULTIPLY,
+	GET_MEMBER,
+	SUBSCRIPT,
+	READ,
+	ASSIGN,
+	SHIFT_LEFT,
+	SHIFT_RIGHT,
+	SLICE,
+	CAST,
+	LESS,
+	GREATER,
+	NEW,
+	DELETE,
+	/*############
+		Assign
+	############*/
+	AND_EQUAL,			// &=
+	OR_EQUAL,			// |=
+	ASTERISK_EQUAL,		// *=
+	MINUS_EQUAL,		// -=
+	PLUS_EQUAL,			// +=
+	SLASH_EQUAL,		// /=
+	PERCENT_EQUAL,		// %=
+	CARET_EQUAL,		// ^=
+	/*#############
+		Compare
+	#############*/
+	NOT_EQUAL,			// !=
+	LESS_EQUAL,			// <=
+	GREATER_EQUAL,		// >=
+	EQUAL_GREATER,		// =>
+	/*########################
+		Not really operators
+	########################*/
+	BRACKET_OPEN,
+	BRACKET_CLOSE,
+	PARENTHESIS_OPEN,
+	PARENTHESIS_CLOSE,
+	COMMA,
+}
 
 struct Op
 {
-	public TT operation;
+	public OT operation;
 	public bool leftToRight;
 	public bool isFunctionCall;
 	public SourceLocation location;
@@ -65,7 +129,7 @@ class ExpressionParser
 				Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null?"left":"right"));
 			}
 		
-			if(_op.operation == TT.COMMA)
+			if(_op.operation == OT.COMMA)
 			{
 				Tupple list = a as Tupple;
 				if(a.nodeType == NT.TUPPLE && !list.closed) {
@@ -98,7 +162,7 @@ class ExpressionParser
 		if(token.type < TT.I8 | token.type > TT.AUTO)
 			return false;
 		
-		if(prevTokenKind == VALUE_KIND || operators.Count > 0 && operators.Peek().operation != TT.COMMA) {
+		if(prevTokenKind == VALUE_KIND || operators.Count > 0 && operators.Peek().operation != OT.COMMA) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -234,7 +298,7 @@ class ExpressionParser
 		{
 			currentTokenKind = OPERATOR_KIND;
 			operators.Push(new Op {
-				operation = TT.BRACKET_OPEN,
+				operation = OT.BRACKET_OPEN,
 				location = token.location,
 				leftToRight = false,
 				precedence = 255,
@@ -247,10 +311,10 @@ class ExpressionParser
 			currentTokenKind = OPERATOR_KIND;
 			
 			Op op;
-			while((op = operators.PopOrDefault()).operation != TT.BRACKET_OPEN)
+			while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN)
 				pushOperator(op);
 				
-			if(op.operation == TT.UNDEFINED) {
+			if(op.operation == OT.UNDEFINED) {
 				throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
 			}
 			
@@ -266,7 +330,7 @@ class ExpressionParser
 		{
 			currentTokenKind = OPERATOR_KIND;
 			operators.Push(new Op {
-				operation = TT.PARENTHESIS_OPEN,
+				operation = OT.PARENTHESIS_OPEN,
 				isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
 				leftToRight = false,
 				location = token.location,
@@ -278,10 +342,10 @@ class ExpressionParser
 		else if(token.type == TT.PARENTHESIS_CLOSE)
 		{
 			Op op;
-			while((op = operators.PopOrDefault()).operation != TT.PARENTHESIS_OPEN)
+			while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN)
 				pushOperator(op);
 			
-			if(op.operation == TT.UNDEFINED) {
+			if(op.operation == OT.UNDEFINED) {
 				throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
 			}
 			

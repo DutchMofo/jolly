@@ -5,7 +5,8 @@ using System.Collections.Generic;
 namespace Jolly
 {
 using TT = Token.Type;
-	
+using OT = OperatorType;
+
 static class Lookup 
 {
 	static Lookup()
@@ -76,46 +77,46 @@ static class Lookup
 
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
-			{ TT.ASTERISK,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DEREFERENCE	}},
-			{ TT.AND,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.REFERENCE	}},
+			{ TT.ASTERISK,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.DEREFERENCE	}},
+			{ TT.AND,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.REFERENCE	}},
 		},
 		EXPRESSION_OP = new Dictionary<TT, Op>() {
-			{ TT.PERIOD,			new Op { precedence = 01, valCount = 2, leftToRight = true,  operation = TT.GET_MEMBER		}},
-			{ TT.EXCLAMATION,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.LOGIC_NOT		}},
-			{ TT.TILDE,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.BIT_NOT			}},
-			{ TT.NEW,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.NEW				}},
-			{ TT.DELETE,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = TT.DELETE			}},
-			{ TT.AS,				new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = TT.CAST			}},
-			{ TT.PERCENT,			new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = TT.MODULO			}},
-			{ TT.ASTERISK,			new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = TT.MULTIPLY		}},
-			{ TT.SLASH,				new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = TT.DIVIDE			}},
-			{ TT.MINUS,				new Op { precedence = 04, valCount = 2, leftToRight = true,  operation = TT.MINUS			}},
-			{ TT.PLUS,				new Op { precedence = 04, valCount = 2, leftToRight = true,  operation = TT.PLUS			}},
-			{ TT.GREATER_GREATER,	new Op { precedence = 05, valCount = 2, leftToRight = true,  operation = TT.SHIFT_RIGHT		}},
-			{ TT.LESS_LESS,			new Op { precedence = 05, valCount = 2, leftToRight = true,  operation = TT.SHIFT_LEFT		}},
-			{ TT.LESS_EQUAL,		new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = TT.LESS_EQUAL		}},
-			{ TT.LESS,				new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = TT.LESS			}},
-			{ TT.GREATER_EQUAL,		new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = TT.GREATER_EQUAL	}},
-			{ TT.GREATER,			new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = TT.GREATER			}},
-			{ TT.NOT_EQUAL,			new Op { precedence = 07, valCount = 2, leftToRight = true,  operation = TT.NOT_EQUAL		}},
-			{ TT.EQUAL_EQUAL,		new Op { precedence = 07, valCount = 2, leftToRight = true,  operation = TT.EQUAL_TO		}},
-			{ TT.AND,				new Op { precedence = 08, valCount = 2, leftToRight = true,  operation = TT.BIT_AND			}},
-			{ TT.CARET,				new Op { precedence = 09, valCount = 2, leftToRight = true,  operation = TT.BIT_XOR			}},
-			{ TT.PIPE,				new Op { precedence = 10, valCount = 2, leftToRight = true,  operation = TT.BIT_OR			}},
-			{ TT.AND_AND,			new Op { precedence = 11, valCount = 2, leftToRight = true,  operation = TT.LOGIC_AND		}},
-			{ TT.OR_OR,				new Op { precedence = 12, valCount = 2, leftToRight = true,  operation = TT.LOGIC_OR		}},
+			{ TT.PERIOD,			new Op { precedence = 01, valCount = 2, leftToRight = true,  operation = OT.GET_MEMBER		}},
+			{ TT.EXCLAMATION,		new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.LOGIC_NOT		}},
+			{ TT.TILDE,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.BIT_NOT			}},
+			{ TT.NEW,				new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.NEW				}},
+			{ TT.DELETE,			new Op { precedence = 02, valCount = 1, leftToRight = false, operation = OT.DELETE			}},
+			{ TT.AS,				new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = OT.CAST			}},
+			{ TT.PERCENT,			new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = OT.MODULO			}},
+			{ TT.ASTERISK,			new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = OT.MULTIPLY		}},
+			{ TT.SLASH,				new Op { precedence = 03, valCount = 2, leftToRight = true,  operation = OT.DIVIDE			}},
+			{ TT.MINUS,				new Op { precedence = 04, valCount = 2, leftToRight = true,  operation = OT.MINUS			}},
+			{ TT.PLUS,				new Op { precedence = 04, valCount = 2, leftToRight = true,  operation = OT.PLUS			}},
+			{ TT.GREATER_GREATER,	new Op { precedence = 05, valCount = 2, leftToRight = true,  operation = OT.SHIFT_RIGHT		}},
+			{ TT.LESS_LESS,			new Op { precedence = 05, valCount = 2, leftToRight = true,  operation = OT.SHIFT_LEFT		}},
+			{ TT.LESS_EQUAL,		new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = OT.LESS_EQUAL		}},
+			{ TT.LESS,				new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = OT.LESS			}},
+			{ TT.GREATER_EQUAL,		new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = OT.GREATER_EQUAL	}},
+			{ TT.GREATER,			new Op { precedence = 06, valCount = 2, leftToRight = true,  operation = OT.GREATER			}},
+			{ TT.NOT_EQUAL,			new Op { precedence = 07, valCount = 2, leftToRight = true,  operation = OT.NOT_EQUAL		}},
+			{ TT.EQUAL_EQUAL,		new Op { precedence = 07, valCount = 2, leftToRight = true,  operation = OT.EQUAL_TO		}},
+			{ TT.AND,				new Op { precedence = 08, valCount = 2, leftToRight = true,  operation = OT.BIT_AND			}},
+			{ TT.CARET,				new Op { precedence = 09, valCount = 2, leftToRight = true,  operation = OT.BIT_XOR			}},
+			{ TT.PIPE,				new Op { precedence = 10, valCount = 2, leftToRight = true,  operation = OT.BIT_OR			}},
+			{ TT.AND_AND,			new Op { precedence = 11, valCount = 2, leftToRight = true,  operation = OT.LOGIC_AND		}},
+			{ TT.OR_OR,				new Op { precedence = 12, valCount = 2, leftToRight = true,  operation = OT.LOGIC_OR		}},
 			
-			{ TT.COMMA,				new Op { precedence = 13, valCount = 2, leftToRight = true , operation = TT.COMMA			}},
+			{ TT.COMMA,				new Op { precedence = 13, valCount = 2, leftToRight = true , operation = OT.COMMA			}},
 			
-			{ TT.AND_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.AND_EQUAL		}},
-			{ TT.EQUAL,				new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.ASSIGN			}},
-			{ TT.SLASH_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.SLASH_EQUAL		}},
-			{ TT.MINUS_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.MINUS_EQUAL		}},
-			{ TT.PERCENT_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.PERCENT_EQUAL	}},
-			{ TT.ASTERISK_EQUAL,	new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.ASTERISK_EQUAL	}},
-			{ TT.OR_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.OR_EQUAL		}},
-			{ TT.PLUS_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.PLUS_EQUAL		}},
-			{ TT.CARET_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = TT.CARET_EQUAL		}},
+			{ TT.AND_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.AND_EQUAL		}},
+			{ TT.EQUAL,				new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.ASSIGN			}},
+			{ TT.SLASH_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.SLASH_EQUAL		}},
+			{ TT.MINUS_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.MINUS_EQUAL		}},
+			{ TT.PERCENT_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.PERCENT_EQUAL	}},
+			{ TT.ASTERISK_EQUAL,	new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.ASTERISK_EQUAL	}},
+			{ TT.OR_EQUAL,			new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.OR_EQUAL		}},
+			{ TT.PLUS_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.PLUS_EQUAL		}},
+			{ TT.CARET_EQUAL,		new Op { precedence = 14, valCount = 2, leftToRight = false, operation = OT.CARET_EQUAL		}},
 		},
 		DEFINE_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD, EXPRESSION_OP[TT.PERIOD] },

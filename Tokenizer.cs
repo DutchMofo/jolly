@@ -83,37 +83,6 @@ class Token
 		FLOAT_LITERAL,
 		
 		/*##############
-			Operators
-		##############*/
-		REFERENCE,
-		DEREFERENCE,
-		// PLUS,
-		// MINUS,
-		INCREMENT,
-		DECREMENT,
-		LOGIC_AND,
-		EQUAL_TO,
-		LOGIC_OR,
-		LOGIC_NOT,
-		BIT_NOT,
-		BIT_AND,
-		BIT_OR,
-		BIT_XOR,
-		MODULO,
-		DIVIDE,
-		MULTIPLY,
-		GET_MEMBER,
-		SUBSCRIPT,
-		READ,
-		ASSIGN,
-		SHIFT_LEFT,
-		SHIFT_RIGHT,
-		// LESS_EQUAL,
-		// GREATER_EQUAL,
-		SLICE,
-		CAST,
-		
-		/*##############
 			Keywords
 		##############*/
 		I8,
@@ -200,7 +169,6 @@ class Token
 		if(type == Type.STRING_LITERAL)		return text + " " + token?._string;
 		if(type == Type.INTEGER_LITERAL)	return text + " " + token?._integer;
 		if(type == Type.FLOAT_LITERAL)		return text + " " + token?._float;
-		if(type <= Type.CAST)				return "operator " + text;
 		if(type <= Type.WHILE)				return "keyword " + text;
 		if(type <= Type.SORT_DESC)			return "directive " + text;
 		

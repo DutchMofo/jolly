@@ -6,14 +6,17 @@ using System;
 namespace Jolly
 {
 using NT = Node.NodeType;
-using TT = Token.Type;
+using OT = OperatorType;
 
 static class Analyser
 {
+	[ThreadStatic]
 	static List<Node> instructions, program;
+	[ThreadStatic]
 	static Node definitionInstruction;
-	
+	[ThreadStatic]
 	static int cursor = 0;
+	
 	public static List<Node> analyse(List<Node> program)
 	{
 		Analyser.program = program;
@@ -54,7 +57,7 @@ static class Analyser
 		variableDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				Operator o = (Operator)node;
-				Debug.Assert(o.operation == TT.GET_MEMBER);
+				Debug.Assert(o.operation == OT.GET_MEMBER);
 				operatorGetMember(o);
 				definitionInstruction = o.b;
 			} },
@@ -107,26 +110,27 @@ static class Analyser
 		Debug.Assert(definitionInstruction.dataType != null);
 		symbol.dataType = symbol.definitionScope.children[symbol.name].type = definitionInstruction.dataType;
 		instructions.Add(symbol);
+		// Just to be sure
 		definitionInstruction = null;
 	}
 	
-	static readonly Dictionary<TT, Action<Operator>>
-		operatorAnalysers = new Dictionary<TT, Action<Operator>>() {
-			{ TT.GET_MEMBER, operatorGetMember },
-			{ TT.MINUS, basicOperator },
-			{ TT.PLUS, basicOperator },
-			{ TT.MULTIPLY, basicOperator },
-			{ TT.DIVIDE, basicOperator },
-			{ TT.ASSIGN, op => {
+	static readonly Dictionary<OT, Action<Operator>>
+		operatorAnalysers = new Dictionary<OT, Action<Operator>>() {
+			{ OT.GET_MEMBER, operatorGetMember },
+			{ OT.MINUS, basicOperator },
+			{ OT.PLUS, basicOperator },
+			{ OT.MULTIPLY, basicOperator },
+			{ OT.DIVIDE, basicOperator },
+			{ OT.ASSIGN, op => {
 				Node a = op.a, b = op.b;
 				if(getTypeFromName(a)) {
-					instructions.Add(a = new Operator(op.a.location, TT.READ, op.a, null, new Result(op.a.location)));
+					instructions.Add(a = new Operator(op.a.location, OT.READ, op.a, null, new Result(op.a.location)));
 				} else {
 					// TODO: assign to other than variable
 					throw new Exception();
 				}
 				if(getTypeFromName(b)) {
-					instructions.Add(b = new Operator(op.b.location, TT.READ, op.b, null, new Result(op.b.location)));
+					instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
 				}
 				instructions.Add(op);
 			} },
@@ -162,10 +166,10 @@ static class Analyser
 	{
 		Node a = op.a, b = op.b;
 		if(getTypeFromName(a)) {
-			instructions.Add(a = new Operator(op.a.location, TT.READ, op.a, null, new Result(op.a.location)));
+			instructions.Add(a = new Operator(op.a.location, OT.READ, op.a, null, new Result(op.a.location)));
 		}
 		if(getTypeFromName(b)) {
-			instructions.Add(b = new Operator(op.b.location, TT.READ, op.b, null, new Result(op.b.location)));
+			instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
 		}
 		if(a.dataType != b.dataType) {
 			throw Jolly.addError(op.location, "Types not the same");
