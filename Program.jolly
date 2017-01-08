@@ -12,10 +12,15 @@ struct Problem
 	}
 }
 
+void initProblem(Problem* problem)
+{
+	problem.name = "Oke";
+}
+
 int main()
 {
-	
-	
+	Problem problemData;
+	initProblem(&problemData);
 	
 	return 12 / 2 + 2 * 10;
 }
@@ -42,10 +47,10 @@ IntList* init(this IntList* list)
 
 void add(this IntList* list, int value)
 {
-	if(data.length == used)
+	if(data.count == used)
 	{
-		int[] newData = new int[data.length * 2];
-		memcopy(data.data, newData.data, data.length * sizeof(int));
+		int[] newData = new int[data.count * 2];
+		memcopy(&data[0], &newData[0], data.count * sizeof(int));
 		newData, data = data, newData; // Swap data and newData
 		delete(newData);
 	}
