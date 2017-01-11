@@ -113,6 +113,8 @@ namespace Jolly
 			
 			// Console.WriteLine("Tokens:");
 			// tokens.forEach(Console.WriteLine);
+			// Debugger.Break();
+			
 						
 			program = new List<Node>(tokens.Length / 2);
 			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();

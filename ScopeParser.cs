@@ -40,7 +40,7 @@ namespace Jolly
 			}
 			
 			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
-			structScope.type = structScope;
+			structScope.type = new DataType(structScope);
 			
 			if(!scope.Add(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
@@ -72,7 +72,7 @@ namespace Jolly
 			}
 			
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
-			unionScope.type = unionScope;
+			unionScope.type = new DataType(unionScope);
 			
 			if(!scope.Add(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
@@ -235,7 +235,7 @@ namespace Jolly
 			if(parser.isFunction)
 			{
 				var functionNode = (Symbol)parser.getValue();
-				parser.theFunction.type = parser.theFunction;
+				parser.theFunction.type = new DataType(parser.theFunction);
 				// functionNode.dataType = parser.theFunction;
 				program.Add(functionNode);
 				

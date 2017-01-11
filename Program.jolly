@@ -22,6 +22,8 @@ int main()
 	Problem problemData;
 	initProblem(&problemData);
 	
+ 	i = 1 1;
+	
 	return 12 / 2 + 2 * 10;
 }
 

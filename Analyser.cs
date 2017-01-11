@@ -149,16 +149,15 @@ static class Analyser
 			}
 		}
 		
-		TableFolder type = op.a.dataType as TableFolder;
+		DataType type = op.a.dataType as DataType;
 		if(type == null) {
 			throw Jolly.addError(bName.location, "The type \"{0}\" has no members".fill(type));
 		}
 		
-		bName.dataType = type.getChild(bName.name)?.type;
+		bName.dataType = type.getSibling(bName.name);
 		
 		if(bName.dataType == null) {
-			string typeName = type?.parent.children.First(p => p.Value == type).Key;
-			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(typeName, bName.name));
+			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(type, bName.name));
 		}
 	}
 	

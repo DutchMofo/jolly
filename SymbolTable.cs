@@ -1,42 +1,76 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace Jolly
 {
 	enum ReferenceType
 	{
-		POINTER	= 1,
-		ARRAY	= 2,
-		SLICE	= 3,
+		NONE     = 0,
+		VARIABLE = 1,
+		POINTER  = 2,
+		ARRAY    = 3,
+		SLICE    = 4,
+	};
+	
+	struct DataTypeFetcher
+	{
+		public ReferenceType reference_type;
+		public DataType referenced;
 	}
 	
-	// class DataType
-	// {
-	// 	public int size, align;
-	// 	public bool is_baseType;
-	// 	public TableFolder definedInScope;
+	class DataType
+	{
+		// TODO: Remove someday
+		public string name;
 		
-	// 	public DataType() { System.Diagnostics.Debug.Assert(this as DataReferenceType != null); }
-	// 	public DataType(int size, int align) { this.size = size; this.align = align; }
-	// }
-	
-	// class DataReferenceType : DataType
-	// {
-	// 	public DataReferenceType(DataType referenced, ReferenceType reference)
-	// 	{
-	// 		this.referenced = referenced;
-	// 		int pSize = Jolly.SIZE_T_BYTES;
-	// 		switch(reference) {
-	// 			case ReferenceType.POINTER:	size = pSize;		align = pSize; break;
-	// 			case ReferenceType.ARRAY:	size = pSize * 2;	align = pSize; break;
-	// 			case ReferenceType.SLICE:	size = pSize * 2;	align = pSize; break;
-	// 			default: throw new ParseException();
-	// 		}
-	// 	}
-	// 	public ReferenceType reference;
-	// 	public DataType referenced;
-	// }
+		static int last_type_id;
+		static Dictionary<DataTypeFetcher, DataType>
+			allTypes = new Dictionary<DataTypeFetcher, DataType>();
+		
+		public int size, align, type_id;
+		public bool is_baseType;
+		public TableFolder scope;
+		
+		public ReferenceType reference_type;
+		public DataType referenced;
+		
+		public DataType(TableFolder scope)
+		{
+			this.scope = scope;
+		}
+		
+		public DataType(int size, int align)
+		{
+			// allTypes.Add(new );
+			this.type_id = last_type_id++;
+			this.align = align;
+			this.size = size;
+		}
+		
+		public DataType getSibling(string name)
+		{
+			return scope.getChild(name)?.type;
+		}
+		
+		public override string ToString()
+			=> reference_type == ReferenceType.NONE ? name : referenced.ToString() + '*'; // TODO: Not all references are pointers but it works for now
+		
+		public override int GetHashCode()
+		{
+			return reference_type == ReferenceType.NONE ?
+				type_id :
+				referenced.GetHashCode() & ((int)reference_type << 16);
+		}
+		
+		public override bool Equals(Object obj)
+		{
+			Debug.Assert(obj is DataTypeFetcher);
+			DataTypeFetcher other = (DataTypeFetcher)obj;
+			return other.reference_type == this.reference_type & other.referenced == this.referenced;
+		}
+	}
 	
 	[Flags]
 	enum NameFlags
@@ -49,17 +83,17 @@ namespace Jolly
 		IS_TYPE		= 1<<4,
 		IS_BASETYPE = 1<<5,
 		IS_PURE		= 1<<6,
-	}
+	};
 	
 	class TableItem
 	{
 		public TableFolder parent;
 		public NameFlags flags;
-		public TableItem type;
+		public DataType type;
 		public int offset, size, align;
 		
 		public virtual void calculateSize(Stack<TableFolder> typeStack) { }
-		public TableItem(TableItem type) { this.type = type; }
+		public TableItem(DataType type) { this.type = type; }
 	}
 		
 	class TableFolder : TableItem
@@ -79,8 +113,7 @@ namespace Jolly
 					Console.WriteLine("{0} [{1}]".fill(tPath, folder.flags));
 					folder.PrintTree(tPath, path.Length + 1);
 				} else {
-					string typeName = child.Value.type?.parent.children.First(p => p.Value == child.Value.type).Key;
-					Console.WriteLine("{0}{1} ({2})[{3}]".fill(new string(' ', space), child.Key, typeName, child.Value.flags));
+					Console.WriteLine("{0}{1} ({2})[{3}]".fill(new string(' ', space), child.Key, child.Value.type, child.Value.flags));
 				}
 			}
 		}
