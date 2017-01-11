@@ -42,33 +42,35 @@ enum OperatorType
 	GREATER,
 	NEW,
 	DELETE,
-	/*############
-		Assign
-	############*/
-	AND_EQUAL,			// &=
-	OR_EQUAL,			// |=
-	ASTERISK_EQUAL,		// *=
-	MINUS_EQUAL,		// -=
-	PLUS_EQUAL,			// +=
-	SLASH_EQUAL,		// /=
-	PERCENT_EQUAL,		// %=
-	CARET_EQUAL,		// ^=
-	/*#############
-		Compare
-	#############*/
-	NOT_EQUAL,			// !=
-	LESS_EQUAL,			// <=
-	GREATER_EQUAL,		// >=
-	EQUAL_GREATER,		// =>
+	/*##########################
+		Compound assignment
+	##########################*/
+	AND_EQUAL,
+	OR_EQUAL,
+	ASTERISK_EQUAL,
+	MINUS_EQUAL,
+	PLUS_EQUAL,
+	SLASH_EQUAL,
+	PERCENT_EQUAL,
+	CARET_EQUAL,
+	/*##########################
+		Relational operators 
+	##########################*/
+	NOT_EQUAL,	
+	LESS_EQUAL,
+	GREATER_EQUAL,
 	/*########################
 		Not really operators
 	########################*/
+	//TODO implement lambda
+	lambda_thing,		// =>
+	
 	BRACKET_OPEN,
 	BRACKET_CLOSE,
 	PARENTHESIS_OPEN,
 	PARENTHESIS_CLOSE,
 	COMMA,
-}
+};
 
 struct Op
 {
@@ -100,8 +102,10 @@ class ExpressionParser
 	TableFolder scope;
 	ScopeParser scopeParser;
 	Token.Type terminator;
-		
-	const byte VALUE_KIND = 1, OPERATOR_KIND = 2;
+	
+	Dictionary<TT, Op> opLookup, preOpLookup;
+	
+	const byte VALUE_KIND = 1, OPERATOR_KIND = 2, SEPARATOR_KIND = 3;
 
 	byte prevTokenKind = 0,		// Was the previous parsed token an operator or a value
 		 currentTokenKind = 0;	// Is the current token being parsed an operator or a value
@@ -162,7 +166,7 @@ class ExpressionParser
 		if(token.type < TT.I8 | token.type > TT.AUTO)
 			return false;
 		
-		if(prevTokenKind == VALUE_KIND || operators.Count > 0 && operators.Peek().operation != OT.COMMA) {
+		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -174,7 +178,11 @@ class ExpressionParser
 	{
 		if(token.type < TT.STRING_LITERAL | token.type > TT.FLOAT_LITERAL)
 			return false;
-					
+		
+		if(prevTokenKind == VALUE_KIND) {
+			throw Jolly.unexpected(token);
+		}
+			
 		Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new Literal(token.location, token._integer);
@@ -195,6 +203,10 @@ class ExpressionParser
 	{
 		if(token.type != TT.IDENTIFIER)
 			return false;
+		
+		if(prevTokenKind == VALUE_KIND) {
+			throw Jolly.unexpected(token);
+		}
 		
 		values.Push(new Symbol(token.location, token.name, scope));
 		return true;
@@ -260,10 +272,10 @@ class ExpressionParser
 		return true;
 	}
 	
-	bool parseOperator(Dictionary<TT, Op> lookup, Dictionary<TT, Op> preLookup)
+	bool parseOperator()
 	{
 		Op op;
-		if(!lookup.TryGetValue(token.type, out op))
+		if(!opLookup.TryGetValue(token.type, out op))
 			return false;
 		currentTokenKind = OPERATOR_KIND;
 		
@@ -272,7 +284,7 @@ class ExpressionParser
 			if(token.type == TT.PLUS || token.type == TT.MINUS) {
 				// unary plus and minus
 				values.Push(new Literal(token.location, 0));
-			} else if(!preLookup.TryGetValue(token.type, out op)) {
+			} else if(!preOpLookup.TryGetValue(token.type, out op)) {
 				throw Jolly.unexpected(token);
 			}
 		}
@@ -404,14 +416,18 @@ class ExpressionParser
 			values.Push(variable);
 		}
 		
-		// Return false to let parseOperator handle other work
-		return false;
+		parseOperator();
+		currentTokenKind = SEPARATOR_KIND;
+		return true;
 	}
 	
 	// Tries to define a function or variable,
 	// stops when it defines a function or it encounters an unknown token
 	void parseDefinition()
 	{
+		opLookup = Lookup.DEFINE_OP;
+		preOpLookup = Lookup.DEFINE_PRE_OP;
+		
 		for(token = tokens[cursor];
 			token.type != terminator/* & cursor < end*/;
 			token = tokens[cursor += 1])
@@ -419,7 +435,7 @@ class ExpressionParser
 			if( parseBasetype()			||
 				parseComma()			||
 				parseDefineIdentifier()	||
-				parseOperator(Lookup.DEFINE_OP, Lookup.DEFINE_PRE_OP))
+				parseOperator())
 			{
 				prevTokenKind = currentTokenKind;
 				currentTokenKind = VALUE_KIND;
@@ -437,6 +453,9 @@ class ExpressionParser
 		if(allowDefine)
 			parseDefinition();
 		
+		opLookup = Lookup.EXPRESSION_OP;
+		preOpLookup = Lookup.EXPRESSION_PRE_OP;
+		
 		for(token = tokens[cursor];
 			token.type != terminator/* & cursor < end*/;
 			token = tokens[cursor += 1])
@@ -445,7 +464,7 @@ class ExpressionParser
 				parseBasetype()		||
 				parseIdentifier()	||
 				parseComma()		||
-				parseOperator(Lookup.EXPRESSION_OP, Lookup.EXPRESSION_PRE_OP) ||
+				parseOperator()		||
 				parseBracket()		||
 				parseParenthesis())
 			{
