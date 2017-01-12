@@ -118,7 +118,6 @@ namespace Jolly
 						
 			program = new List<Node>(tokens.Length / 2);
 			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
-			Debugger.Break();
 			
 			program = Analyser.analyse(program);
 			
@@ -130,6 +129,7 @@ namespace Jolly
 			TableFolder.root.PrintTree("", 0);
 			
 			printMessages();
+			Debugger.Break();
 		}
 	}
 }

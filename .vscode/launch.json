@@ -7,6 +7,15 @@
             "type": "mono",
             "address": "localhost",
             "port": 55555
-        }
+        },
+		{
+			"name": ".net debug",
+			"type": "coreclr",
+			"request": "launch",
+			"preLaunchTask": "build",
+			"program": "${workspaceRoot}/bin/Debug/netcoreapp1.0/jolly.dll",
+			"cwd": "${workspaceRoot}",
+			"externalConsole": true
+		}
 	]
 }

@@ -20,8 +20,6 @@ static class Lookup
 			directives.Add(names[i].ToLower(), values[i]);
 	}
 	
-	static readonly NameFlags tFlag = NameFlags.IS_BASETYPE | NameFlags.IS_TYPE;
-	
 	static readonly DataType[] baseTypes = new DataType[] {
 		new DataType(1, 1) { name = "I8" },
 		new DataType(1, 1) { name = "U8" },
