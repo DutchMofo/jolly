@@ -77,18 +77,18 @@ struct Op
 {
 	public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
 	{
-		this.location = location;
 		this.leftToRight = leftToRight;
 		this.precedence = precedence;
 		this.isFunctionCall = false;
 		this.operation = operation;
+		this.location = location;
 		this.valCount = valCount;
 	}
-	public OT operation;
-	public bool leftToRight;
-	public bool isFunctionCall;
-	public SourceLocation location;
 	public byte precedence, valCount;
+	public SourceLocation location;
+	public bool isFunctionCall;
+	public bool leftToRight;
+	public OT operation;
 }
 
 // Parses an expression using a modified Shunting-yard algorithm.
@@ -106,93 +106,116 @@ class ExpressionParser
 		this.end = end;
 	}
 	
-	Token token;
-	Token[] tokens;
-	int end, cursor, startNodeCount;
-	TableFolder scope;
-	ScopeParser scopeParser;
-	TT terminator;
-	
-	Dictionary<TT, Op> opLookup, preOpLookup;
-	
 	const byte VALUE_KIND = 1, OPERATOR_KIND = 2, SEPARATOR_KIND = 3;
 
 	byte prevTokenKind = 0,		// Was the previous parsed token an operator or a value
 		 currentTokenKind = 0;	// Is the current token being parsed an operator or a value
 	bool defining;				// Are we defining variables
 	
+	Dictionary<TT, Op> opLookup, preOpLookup;
+	int end, cursor, startNodeCount;
+	ScopeParser scopeParser;
+	TableFolder scope;
+	Token[] tokens;
+	TT terminator;
+	Token token;
+
+	
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
 	
-	public bool isFunction;
 	public TableFolder theFunction;
+	public bool isFunction;
 	
-	public Node getValue() { return values.PeekOrDefault(); }
+	public Node getValue()
+		=> values.PeekOrDefault();
 	
-	void pushOperator(Op _op)
+	public int parseExpression(ScopeParser scopeParser, bool allowDefine)
 	{
-		Node a, b = null;
+		this.scopeParser = scopeParser;
+		currentTokenKind = VALUE_KIND;
 		
-		if(_op.valCount == 2)
+		if(allowDefine)
+			parseDefinition();
+		
+		opLookup = Lookup.EXPRESSION_OP;
+		preOpLookup = Lookup.EXPRESSION_PRE_OP;
+		
+		for(token = tokens[cursor];
+			token.type != terminator/* & cursor < end*/;
+			token = tokens[cursor += 1])
 		{
-			b = values.PopOrDefault();
-			a = values.PopOrDefault();
-			
-			if(a == null || b == null) {
-				Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null?"left":"right"));
-			}
-		
-			if(_op.operation == OT.COMMA)
+			switch(token.type)
 			{
-				Tupple list = a as Tupple;
-				if(a.nodeType == NT.TUPPLE && !list.closed) {
-					list.values.Add(b);
-					values.Push(a);
-				} else {
-					list = new Tupple(_op.location);
-					list.values.Add(a);
-					list.values.Add(b);
-					values.Push(list);
-				}
-				return;
+				case TT.IDENTIFIER:			parseIdentifier();			break;
+				case TT.COMMA:				parseComma();				break;
+				case TT.FLOAT_LITERAL:		case TT.INTEGER_LITERAL:	case TT.STRING_LITERAL: parseLiteral(); break;
+				case TT.BRACKET_OPEN:		parseBracketOpen();			break;
+				case TT.BRACKET_CLOSE:		parseBracketClose();		break;
+				case TT.PARENTHESIS_OPEN:	parseParenthesisOpen();		break;
+				case TT.PARENTHESIS_CLOSE:	parseParenthesisClose();	break;
+				default:
+					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
+						parseBasetype();
+						break;
+					}
+					if(parseOperator())
+						break;
+						
+					// Failed to parse token
+					throw Jolly.unexpected(token);
 			}
+			prevTokenKind = currentTokenKind;
+			currentTokenKind = VALUE_KIND;
 		}
-		else
+		
+		if(token.type != terminator) {
+			throw Jolly.unexpected(token);
+		}
+		
+		while(operators.Count > 0)
+			pushOperator(operators.Pop());
+		
+		return cursor;
+	} // parseExpression()
+	
+	// Tries to define a function or variable,
+	// stops when it defines a function or it encounters an unknown token
+	void parseDefinition()
+	{
+		opLookup = Lookup.DEFINE_OP;
+		preOpLookup = Lookup.DEFINE_PRE_OP;
+		
+		for(token = tokens[cursor];
+			token.type != terminator/* & cursor < end*/;
+			token = tokens[cursor += 1])
 		{
-			a = values.PopOrDefault();
-			if(a == null) {
-				Jolly.addError(_op.location, "Invalid expression term");
+			switch(token.type)
+			{
+				case TT.IDENTIFIER:	parseDefineIdentifier(); break;
+				case TT.COMMA:		parseComma();			 break;
+				default:
+					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
+						parseBasetype();
+						break;
+					}
+					if(parseOperator())
+						break;
+					
+					// Definition parser doesn't know what to do with the current token
+					return;
 			}
+			prevTokenKind = currentTokenKind;
+			currentTokenKind = VALUE_KIND;
 		}
-		
-		Operator op = new Operator(_op.location, _op.operation, a, b, new Result(_op.location));
-		values.Push(op.result);
-		expression.Add(op);
-	}
+	} // parseDefinition()
 	
-	bool parseBasetype()
+	void parseLiteral()
 	{
-		if(token.type < TT.I8 | token.type > TT.AUTO)
-			return false;
-		
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		
-		values.Push(new BaseType(token.location, Lookup.getBaseType(token.type)));
-		return true; 
-	}
-	
-	bool parseLiteral()
-	{
-		if(token.type < TT.STRING_LITERAL | token.type > TT.FLOAT_LITERAL)
-			return false;
-		
-		if(prevTokenKind == VALUE_KIND) {
-			throw Jolly.unexpected(token);
-		}
-			
 		Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new Literal(token.location, token._integer);
@@ -204,29 +227,27 @@ class ExpressionParser
 			lit = new Literal(token.location, token._string);
 			lit.dataType = Lookup.getBaseType(TT.STRING);
 		}
-		
 		values.Push(lit);
-		return true;
-	}
+	} // parseLiteral()
 	
-	bool parseIdentifier()
+	void parseBasetype()
 	{
-		if(token.type != TT.IDENTIFIER)
-			return false;
-		
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		
-		values.Push(new Symbol(token.location, token.name, scope));
-		return true;
+		values.Push(new BaseType(token.location, Lookup.getBaseType(token.type)));
 	}
 	
-	bool parseDefineIdentifier()
+	void parseIdentifier()
 	{
-		if(token.type != TT.IDENTIFIER)
-			return false;
-				
+		if(prevTokenKind == VALUE_KIND) {
+			throw Jolly.unexpected(token);
+		}
+		values.Push(new Symbol(token.location, token.name, scope));
+	}
+	
+	void parseDefineIdentifier()
+	{
 		Node prev = values.PeekOrDefault();
 		if(prevTokenKind == VALUE_KIND && (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
 		{
@@ -278,117 +299,10 @@ class ExpressionParser
 		}
 		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION)
 			values.Push(new Symbol(token.location, token.name, scope));
-		
-		return true;
-	}
+	} // parseDefineIdentifier()
 	
-	bool parseOperator()
-	{
-		Op op;
-		if(!opLookup.TryGetValue(token.type, out op))
-			return false;
-		currentTokenKind = OPERATOR_KIND;
-		
-		if(prevTokenKind != VALUE_KIND)
-		{
-			if(token.type == TT.PLUS || token.type == TT.MINUS) {
-				// unary plus and minus
-				values.Push(new Literal(token.location, 0));
-			} else if(!preOpLookup.TryGetValue(token.type, out op)) {
-				throw Jolly.unexpected(token);
-			}
-		}
-		
-		if(operators.Count > 0)
-		{
-			Op prevOp = operators.Peek();
-			while(prevOp.valCount > 0 && (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence))
-			{
-				pushOperator(operators.Pop());
-				if(operators.Count == 0) break;
-				prevOp = operators.Peek();
-			}
-		}
-		op.location = token.location;
-		operators.Push(op);		
-		return true;
-	}
-	
-	bool parseBracket()
-	{
-		if(token.type == TT.BRACKET_OPEN)
-		{
-			currentTokenKind = OPERATOR_KIND;
-			operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, token.location));
-			return true;
-		}
-		else if(token.type == TT.BRACKET_CLOSE)
-		{
-			currentTokenKind = OPERATOR_KIND;
-			
-			Op op;
-			while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN)
-				pushOperator(op);
-				
-			if(op.operation == OT.UNDEFINED) {
-				throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
-			}
-			
-			return true;
-		}
-		return false;
-	}
-	
-	
-	bool parseParenthesis()
-	{
-		if(token.type == TT.PARENTHESIS_OPEN)
-		{
-			currentTokenKind = OPERATOR_KIND;
-			operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
-				isFunctionCall = (prevTokenKind == VALUE_KIND),
-			});
-			return true;
-		}
-		else if(token.type == TT.PARENTHESIS_CLOSE)
-		{
-			Op op;
-			while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN)
-				pushOperator(op);
-			
-			if(op.operation == OT.UNDEFINED) {
-				throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
-			}
-			
-			if(op.isFunctionCall)
-			{
-				Node[] arguments;
-				Node symbol = values.Pop();
-				if(symbol.nodeType != NT.NAME) {
-					arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).values.ToArray() : new Node[] { symbol };
-					symbol = values.Pop(); 
-				} else {
-					arguments = new Node[0];
-				}
-				Debug.Assert(symbol.nodeType == NT.NAME);
-				
-				values.Push(new Result(token.location));
-				expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
-			} else {
-				Node list = values.PeekOrDefault();
-				if(list?.nodeType == NT.TUPPLE)
-					((Tupple)list).closed = true;
-			}
-			return true;
-		}
-		return false;
-	}
-	
-	bool parseComma()
-	{
-		if(token.type != TT.COMMA)
-			return false;
-				
+	void parseComma()
+	{		
 		if(prevTokenKind != VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
@@ -414,77 +328,145 @@ class ExpressionParser
 			}
 			values.Push(variable);
 		}
-		
 		parseOperator();
 		currentTokenKind = SEPARATOR_KIND;
+	} // parseComma()
+	
+	// Returns true if it parsed the token
+	bool parseOperator()
+	{
+		Op op;
+		if(!opLookup.TryGetValue(token.type, out op))
+			return false;
+		currentTokenKind = OPERATOR_KIND;
+		
+		if(prevTokenKind != VALUE_KIND)
+		{
+			if(token.type == TT.PLUS || token.type == TT.MINUS) {
+				// unary plus and minus
+				values.Push(new Literal(token.location, 0));
+			} else if(!preOpLookup.TryGetValue(token.type, out op)) {
+				throw Jolly.unexpected(token);
+			}
+		}
+		
+		if(operators.Count > 0)
+		{
+			Op prevOp = operators.Peek();
+			while(prevOp.valCount > 0 && (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence)) {
+				pushOperator(operators.Pop());
+				if(operators.Count == 0) break;
+				prevOp = operators.Peek();
+			}
+		}
+		op.location = token.location;
+		operators.Push(op);		
 		return true;
+	} // parseOperator()
+	
+	void parseBracketOpen()
+	{
+		currentTokenKind = OPERATOR_KIND;
+		
+		if(prevTokenKind == OPERATOR_KIND) {
+			throw Jolly.unexpected(token);
+		}
+		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, token.location));
 	}
 	
-	// Tries to define a function or variable,
-	// stops when it defines a function or it encounters an unknown token
-	void parseDefinition()
+	void parseBracketClose()
 	{
-		opLookup = Lookup.DEFINE_OP;
-		preOpLookup = Lookup.DEFINE_PRE_OP;
+		// TODO: Should this be a operator kind?
+		currentTokenKind = OPERATOR_KIND;
 		
-		for(token = tokens[cursor];
-			token.type != terminator/* & cursor < end*/;
-			token = tokens[cursor += 1])
-		{
-			if( parseBasetype()			||
-				parseDefineIdentifier()	||
-				parseComma()			||
-				parseOperator())
-			{
-				prevTokenKind = currentTokenKind;
-				currentTokenKind = VALUE_KIND;
-				continue;
-			}
-			return;
+		Op op;
+		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN)
+			pushOperator(op);
+			
+		if(op.operation == OT.UNDEFINED) {
+			throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
 		}
 	}
 	
-	public int parseExpression(ScopeParser scopeParser, bool allowDefine)
+	void parseParenthesisOpen()
 	{
-		this.scopeParser = scopeParser;
-		currentTokenKind = VALUE_KIND;
+		currentTokenKind = OPERATOR_KIND;
+		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
+			isFunctionCall = (prevTokenKind == VALUE_KIND),
+		});
+	} // parseParenthesisOpen()
+	
+	void parseParenthesisClose()
+	{
+		Op op;
+		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
+			pushOperator(op);
+		}
 		
-		if(allowDefine)
-			parseDefinition();
+		if(op.operation == OT.UNDEFINED) {
+			throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
+		}
 		
-		opLookup = Lookup.EXPRESSION_OP;
-		preOpLookup = Lookup.EXPRESSION_PRE_OP;
-		
-		for(token = tokens[cursor];
-			token.type != terminator/* & cursor < end*/;
-			token = tokens[cursor += 1])
+		if(op.isFunctionCall)
 		{
-			if(	parseLiteral()		||
-				parseBasetype()		||
-				parseIdentifier()	||
-				parseComma()		||
-				parseOperator()		||
-				parseBracket()		||
-				parseParenthesis())
-			{
-				prevTokenKind = currentTokenKind;
-				currentTokenKind = VALUE_KIND;
-				continue;
+			Node[] arguments;
+			Node symbol = values.Pop();
+			if(symbol.nodeType != NT.NAME) {
+				arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).values.ToArray() : new Node[] { symbol };
+				symbol = values.Pop(); 
+			} else {
+				arguments = new Node[0];
+			}
+			Debug.Assert(symbol.nodeType == NT.NAME);
+			
+			values.Push(new Result(token.location));
+			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
+		} else {
+			Node list = values.PeekOrDefault();
+			if(list?.nodeType == NT.TUPPLE)
+				((Tupple)list).closed = true;
+		}
+	} // parseParenthesisClose()
+	
+	void pushOperator(Op _op)
+	{
+		Node a, b = null;
+		
+		if(_op.valCount == 2)
+		{
+			b = values.PopOrDefault();
+			a = values.PopOrDefault();
+			
+			if(a == null || b == null) {
+				throw Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null ? "left" : "right"));
 			}
 			
-			// Failed to parse token
-			throw Jolly.unexpected(token);
+			if(_op.operation == OT.COMMA)
+			{
+				Tupple list = a as Tupple;
+				if(a.nodeType == NT.TUPPLE && !list.closed) {
+					list.values.Add(b);
+					values.Push(a);
+				} else {
+					list = new Tupple(_op.location);
+					list.values.Add(a);
+					list.values.Add(b);
+					values.Push(list);
+				}
+				return;
+			}
 		}
-		
-		if(token.type != terminator) {
-			throw Jolly.unexpected(token);
+		else
+		{
+			a = values.PopOrDefault();
+			if(a == null) {
+				throw Jolly.addError(_op.location, "Invalid expression term");
+			}
 		}
-		
-		while(operators.Count > 0)
-			pushOperator(operators.Pop());
-		
-		return cursor;
-	} // parseExpression
+		Operator op = new Operator(_op.location, _op.operation, a, b, new Result(_op.location));
+		values.Push(op.result);
+		expression.Add(op);
+	} // pushOperator()
 }
 
 }
