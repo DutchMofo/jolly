@@ -18,6 +18,8 @@ namespace Jolly
 			ENUM,
 			USERTYPE,
 			
+			TYPE_TO_REFERENCE,
+			
 			ALIAS,
 			BLOCK,
 			BREAK,
@@ -51,6 +53,18 @@ namespace Jolly
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
 	
+	class TypeToReference : Node
+	{
+		public TypeToReference(SourceLocation loc, Node target, ReferenceType referenceType)
+			: base(NT.TYPE_TO_REFERENCE, loc)
+		{
+			this.referenceType = referenceType;
+			this.target = target;
+		}
+		public ReferenceType referenceType;
+		public Node target;
+	}
+	
 	class BaseType : Node
 	{
 		public BaseType(SourceLocation loc, DataType type)
@@ -80,7 +94,7 @@ namespace Jolly
 	{
 		public Result(SourceLocation loc, NT type = NT.RESULT)
 			: base(type, loc) {  }
-		public Node resultData;
+		// public Node resultData;
 	}
 		
 	class Operator : Node

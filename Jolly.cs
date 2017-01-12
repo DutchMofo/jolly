@@ -125,8 +125,6 @@ namespace Jolly
 			program.forEach(Console.WriteLine);
 			Console.WriteLine("");
 			
-			Console.WriteLine("/");
-			TableFolder.root.PrintTree("", 0);
 			
 			printMessages();
 			Debugger.Break();

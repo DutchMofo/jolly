@@ -10,12 +10,11 @@ using OT = OperatorType;
 
 static class Analyser
 {
-	[ThreadStatic]
-	static List<Node> instructions, program;
-	[ThreadStatic]
-	static Node definitionInstruction;
-	[ThreadStatic]
-	static int cursor = 0;
+	[ThreadStatic] static List<Node> instructions, program;
+	// Used to store the intermediary node nessasary for looking up the correct datatype
+	// of the variable about to be defined
+	[ThreadStatic] static Node definitionInstruction;
+	[ThreadStatic] static int cursor = 0;
 	
 	public static List<Node> analyse(List<Node> program)
 	{
@@ -30,6 +29,9 @@ static class Analyser
 				action(node);
 			}
 		}
+		
+		Console.WriteLine("/");
+		TableFolder.root.PrintTree("", 0);
 		
 		cursor = 0;
 		for(Node node = program[cursor]; cursor < program.Count; cursor += 1)
@@ -59,7 +61,7 @@ static class Analyser
 				Operator o = (Operator)node;
 				Debug.Assert(o.operation == OT.GET_MEMBER);
 				operatorGetMember(o);
-				definitionInstruction = o.b;
+				definitionInstruction = o.result;
 			} },
 			{ NT.BASETYPE, node => {
 				definitionInstruction = node;
@@ -69,6 +71,12 @@ static class Analyser
 					throw Jolly.addError(node.location, "Does not exist in the current context");
 				}
 				definitionInstruction = node;
+			} },
+			{ NT.TYPE_TO_REFERENCE, node => {
+				TypeToReference tToRef = (TypeToReference)node;
+				getTypeFromName(tToRef.target);
+				tToRef.dataType = DataType.getReferenceTo(tToRef.target.dataType, tToRef.referenceType);
+				definitionInstruction = tToRef;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
@@ -124,12 +132,15 @@ static class Analyser
 			{ OT.ASSIGN, op => {
 				Node a = op.a, b = op.b;
 				if(getTypeFromName(a)) {
-					instructions.Add(a = new Operator(op.a.location, OT.READ, op.a, null, new Result(op.a.location)));
-				} else {
-					// TODO: assign to other than variable
-					throw new Exception();
+					a.dataType = DataType.getReferenceTo(a.dataType, ReferenceType.VARIABLE);
 				}
+				
+				if(a.dataType.referenceType != ReferenceType.VARIABLE) {
+					throw Jolly.addError(a.location, "Cannot assign to this");
+				}
+				
 				if(getTypeFromName(b)) {
+					op.b.dataType = DataType.getReferenceTo(b.dataType, ReferenceType.VARIABLE);
 					instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
 				}
 				instructions.Add(op);
@@ -154,20 +165,25 @@ static class Analyser
 			throw Jolly.addError(bName.location, "The type \"{0}\" has no members".fill(type));
 		}
 		
-		bName.dataType = type.getSibling(bName.name);
+		if(type.referenceType == ReferenceType.VARIABLE)
+			type = type.referenced;
+		op.result.dataType = type.getSibling(bName.name);
 		
-		if(bName.dataType == null) {
+		if(op.result.dataType == null) {
 			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(type, bName.name));
 		}
+		op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.VARIABLE);
 	}
 	
 	static void basicOperator(Operator op)
 	{
 		Node a = op.a, b = op.b;
 		if(getTypeFromName(a)) {
+			op.b.dataType = DataType.getReferenceTo(a.dataType, ReferenceType.VARIABLE);
 			instructions.Add(a = new Operator(op.a.location, OT.READ, op.a, null, new Result(op.a.location)));
 		}
 		if(getTypeFromName(b)) {
+			op.b.dataType = DataType.getReferenceTo(b.dataType, ReferenceType.VARIABLE);
 			instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
 		}
 		if(a.dataType != b.dataType) {

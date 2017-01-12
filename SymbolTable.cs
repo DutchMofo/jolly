@@ -16,7 +16,17 @@ namespace Jolly
 	
 	struct DataTypeFetcher
 	{
-		public ReferenceType reference_type;
+		public override int GetHashCode()
+			=> referenced.GetHashCode();
+		
+		public override bool Equals (object obj)
+		{
+			Debug.Assert(obj is DataTypeFetcher);
+			DataTypeFetcher other = (DataTypeFetcher)obj;
+			return other.referenceType == this.referenceType & other.referenced == this.referenced;
+		}
+		
+		public ReferenceType referenceType;
 		public DataType referenced;
 	}
 	
@@ -27,18 +37,43 @@ namespace Jolly
 		
 		static int last_type_id;
 		static Dictionary<DataTypeFetcher, DataType>
-			allTypes = new Dictionary<DataTypeFetcher, DataType>();
+			allReferenceTypes = new Dictionary<DataTypeFetcher, DataType>();
+		
+		public static DataType getReferenceTo(DataType referenced, ReferenceType referenceType)
+		{
+			DataType theType;
+			DataTypeFetcher lookup = new DataTypeFetcher() {
+				referenceType = referenceType,
+				referenced = referenced,
+			};
+			if(allReferenceTypes.TryGetValue(lookup, out theType))
+				return theType;
+			theType = new DataType(referenced, referenceType);
+			allReferenceTypes.Add(lookup, theType);
+			return theType;
+		}
+		
+		public override int GetHashCode()
+		{
+			return referenceType == ReferenceType.NONE ? type_id : referenced.GetHashCode() & ((int)referenceType << 16);
+		}
 		
 		public int size, align, type_id;
 		public bool is_baseType;
 		public TableFolder scope;
 		
-		public ReferenceType reference_type;
+		public ReferenceType referenceType;
 		public DataType referenced;
 		
 		public DataType(TableFolder scope)
 		{
 			this.scope = scope;
+		}
+		
+		public DataType(DataType referenced, ReferenceType referenceType)
+		{
+			this.referenceType = referenceType;
+			this.referenced = referenced;
 		}
 		
 		public DataType(int size, int align)
@@ -55,21 +90,7 @@ namespace Jolly
 		}
 		
 		public override string ToString()
-			=> reference_type == ReferenceType.NONE ? name : referenced.ToString() + '*'; // TODO: Not all references are pointers but it works for now
-		
-		public override int GetHashCode()
-		{
-			return reference_type == ReferenceType.NONE ?
-				type_id :
-				referenced.GetHashCode() & ((int)reference_type << 16);
-		}
-		
-		public override bool Equals(Object obj)
-		{
-			Debug.Assert(obj is DataTypeFetcher);
-			DataTypeFetcher other = (DataTypeFetcher)obj;
-			return other.reference_type == this.reference_type & other.referenced == this.referenced;
-		}
+			=> referenceType == ReferenceType.NONE ? name : referenced.ToString() + '*'; // TODO: Not all references are pointers but it works for now
 	}
 	
 	[Flags]
