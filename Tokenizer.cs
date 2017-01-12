@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace Jolly
 {
@@ -383,29 +384,43 @@ class Tokenizer
 			location = getLocation(),
 			index = tokens.Count,
 		};
+		int start = cursor;
 		ulong integer = getLong();
 		char chr = source[cursor];
 		
 		if (prevToken.type == Token.Type.PERIOD || (chr == '.' && source[cursor + 1] != '.'))
 		{ // Float numbers
-			token.type = Token.Type.INTEGER_LITERAL;
-			if (prevToken.type == Token.Type.PERIOD) {
-				// token._integer = 0;
-				// token.number.fracture = integer;
+			token.type = Token.Type.FLOAT_LITERAL;
+			
+			if(prevToken.type == Token.Type.PERIOD)
+				start -= 1;
+			
+			while(true)
+			{
+				switch(source[cursor]) {
+					case '.':
+					case 'e':
+					case 'E':
+					case '-':
+					case '+':
+						incrementCursor();
+						continue;
+				}
+				if(isDigit(source[cursor])) {
+					incrementCursor();
+					continue;
+				}
+				break;
 			}
-			else {
-				incrementCursor();
-				// token._integer = integer;
-				// token._fracture = getLong();
-			}
+			string number = source.Substring(start, cursor - start);
+			token._float = double.Parse(number,
+				NumberStyles.AllowExponent | NumberStyles.AllowDecimalPoint);
 		}
 		else if (chr == 'x' || chr == 'X')
 		{ // Hexadecimal numbers
-			// if(integer != 0) {
-			// 	token._integer = integer;
-			// 	return token;
-			// }
-			
+			if(integer != 0) {
+				Jolly.addWarning(getLocation(), ".. Before x must be 0");
+			}
 			
 			incrementCursor();
 			token._integer = getLongHex();
@@ -438,23 +453,6 @@ class Tokenizer
 			// token.number.minSize = 8;
 		}
 		
-		// TODO: Fix this mess
-		if (chr == 'e' || chr == 'E')
-		{ // Exponent
-			incrementCursor();
-			chr = source[cursor];
-			bool negative = chr == '-';
-			if (chr == '-' || chr == '+') {
-				incrementCursor();
-				chr = source[cursor];
-			}
-
-			if (!isDigit(chr))
-				Jolly.addWarning(getLocation(), "Expected exponent amount");
-			
-			// token.number.exponent = (short)(negative ? -(short)getLong() : (short)getLong());
-		}
-
 		if (prevToken.type == Token.Type.PERIOD) {
 			prevToken._float = token._float;
 			prevToken.type = token.type;
