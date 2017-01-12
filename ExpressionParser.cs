@@ -73,6 +73,13 @@ enum OperatorType
 	COMMA,
 };
 
+enum DefineMode
+{
+	NONE,
+	ARGUMENT,
+	MEMBER_OR_VARIABLE,
+}
+	
 struct Op
 {
 	public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
@@ -108,19 +115,17 @@ class ExpressionParser
 	
 	const byte VALUE_KIND = 1, OPERATOR_KIND = 2, SEPARATOR_KIND = 3;
 
-	byte prevTokenKind = 0,		// Was the previous parsed token an operator or a value
-		 currentTokenKind = 0;	// Is the current token being parsed an operator or a value
-	bool defining;				// Are we defining variables
+	byte prevTokenKind = 0,				// Was the previous parsed token an operator or a value
+		 currentTokenKind = VALUE_KIND;	// Is the current token being parsed an operator or a value
+	DefineMode defineMode;				// Are we defining variables
 	
 	Dictionary<TT, Op> opLookup, preOpLookup;
 	int end, cursor, startNodeCount;
-	ScopeParser scopeParser;
 	TableFolder scope;
 	Token[] tokens;
 	TT terminator;
 	Token token;
 
-	
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
@@ -131,14 +136,13 @@ class ExpressionParser
 	public Node getValue()
 		=> values.PeekOrDefault();
 	
-	public int parseExpression(ScopeParser scopeParser, bool allowDefine)
+	public int parseExpression(DefineMode defineMode)
 	{
-		this.scopeParser = scopeParser;
-		currentTokenKind = VALUE_KIND;
-		
-		if(allowDefine)
+		this.defineMode = defineMode;
+		if(this.defineMode != DefineMode.NONE)
 			parseDefinition();
 		
+		this.defineMode = DefineMode.NONE;
 		opLookup = Lookup.EXPRESSION_OP;
 		preOpLookup = Lookup.EXPRESSION_PRE_OP;
 		
@@ -195,6 +199,7 @@ class ExpressionParser
 			{
 				case TT.IDENTIFIER:	parseDefineIdentifier(); break;
 				case TT.COMMA:		parseComma();			 break;
+				case TT.ASTERISK:	parseTypeToReference();	 break;
 				default:
 					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
 						parseBasetype();
@@ -249,36 +254,40 @@ class ExpressionParser
 	void parseDefineIdentifier()
 	{
 		Node prev = values.PeekOrDefault();
-		if(prevTokenKind == VALUE_KIND && (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE))
+		if(prevTokenKind == VALUE_KIND/* && (prev.nodeType == NT.NAME | prev.nodeType == NT.BASETYPE)*/)
 		{
 			// Pop eventual period and comma operators
 			while(operators.Count > 0)
 				pushOperator(operators.Pop());
 			
 			// Define
-			Token next = tokens[cursor + 1];
-			if(next.type == TT.PARENTHESIS_OPEN)
+			Token nextToken = tokens[cursor + 1];
+			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
-				var function = new Function(token.location, null, scope);
-				function.returns = values.Pop();
+				if(defineMode == DefineMode.ARGUMENT) {
+					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
+				}
 				
 				values.Push(new Symbol(token.location, token.name, scope, NT.FUNCTION));
-				theFunction = new TableFolder(){ type = prev.dataType };
+				
+				expression.Add(new Symbol(token.location, token.name, scope, NT.FUNCTION));
+				theFunction = new TableFolder();
+				theFunction.type = new DataType(theFunction) { name = token.name };
 				
 				if(!scope.Add(token.name, theFunction)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, next.partnerIndex, expression);
-				cursor = parser.parseExpression(scopeParser, true)-1;
+				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
+				cursor = parser.parseExpression(DefineMode.ARGUMENT)-1;
+				
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
 				isFunction = true;
 			}
 			else
 			{ // Variable
-				defining = true;
 				TableItem variableItem = new TableItem(prev.dataType);
 				
 				if(!scope.Add(token.name, variableItem)) {
@@ -292,7 +301,7 @@ class ExpressionParser
 					expression.Add(variable);
 					expression.Add(prev);
 				} else {
-					expression.Insert(startNodeCount, variable);	
+					expression.Insert(startNodeCount, variable);
 				}
 				values.Push(variable);
 			}
@@ -311,25 +320,40 @@ class ExpressionParser
 			pushOperator(operators.Pop());
 		
 		// TODO: This probably has other side-effects but it works for now
-		if(defining)
+		if(defineMode != DefineMode.NONE)
 		{
-			Token name = tokens[cursor + 1];
-			prevTokenKind = currentTokenKind = VALUE_KIND;
-			
-			if(name.type != TT.IDENTIFIER) {
-				throw Jolly.unexpected(name);
+			if(defineMode == DefineMode.ARGUMENT)
+			{
+				cursor += 1;
+				parseDefinition();
+			}
+			else
+			{
+				// TODO: implement define after comma: int a, b; so that it copies the datatype of the first
+				//											  ^
+				throw new ParseException();
 			}
 			
-			var variable = new Symbol(name.location, name.name, scope); 
-			TableItem variableItem = new TableItem(null);
+			// Token name = tokens[cursor + 1];
+			// prevTokenKind = currentTokenKind = VALUE_KIND;
 			
-			if(!scope.Add(name.name, variableItem)) {
-				Jolly.addError(name.location, "Trying to redefine variable");
-			}
-			values.Push(variable);
+			// if(name.type != TT.IDENTIFIER) {
+			// 	throw Jolly.unexpected(name);
+			// }
+			
+			// var variable = new Symbol(name.location, name.name, scope); 
+			// TableItem variableItem = new TableItem(null);
+			
+			// if(!scope.Add(name.name, variableItem)) {
+			// 	Jolly.addError(name.location, "Trying to redefine variable");
+			// }
+			// values.Push(variable);
 		}
-		parseOperator();
-		currentTokenKind = SEPARATOR_KIND;
+		else
+		{
+			parseOperator();
+			currentTokenKind = SEPARATOR_KIND;	
+		}
 	} // parseComma()
 	
 	// Returns true if it parsed the token
@@ -380,11 +404,11 @@ class ExpressionParser
 		currentTokenKind = OPERATOR_KIND;
 		
 		Op op;
-		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN)
+		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
+			if(op.operation == OT.UNDEFINED) {
+				throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
+			}
 			pushOperator(op);
-			
-		if(op.operation == OT.UNDEFINED) {
-			throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
 		}
 	}
 	
@@ -400,11 +424,10 @@ class ExpressionParser
 	{
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
+			if(op.operation == OT.UNDEFINED) {
+				throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
+			}
 			pushOperator(op);
-		}
-		
-		if(op.operation == OT.UNDEFINED) {
-			throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
 		}
 		
 		if(op.isFunctionCall)
@@ -422,11 +445,21 @@ class ExpressionParser
 			values.Push(new Result(token.location));
 			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
 		} else {
+			// Close list so you can't add to it: (a, b), c
 			Node list = values.PeekOrDefault();
 			if(list?.nodeType == NT.TUPPLE)
 				((Tupple)list).closed = true;
 		}
 	} // parseParenthesisClose()
+	
+	void parseTypeToReference()
+	{
+		if(prevTokenKind == OPERATOR_KIND | prevTokenKind == 0) {
+			throw Jolly.unexpected(token);
+		}
+		currentTokenKind = VALUE_KIND;
+		values.Push(new TypeToReference(token.location, values.Pop(), ReferenceType.POINTER));
+	}
 	
 	void pushOperator(Op _op)
 	{

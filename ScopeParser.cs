@@ -4,7 +4,7 @@ namespace Jolly
 {
     using TT = Token.Type;
     using NT = Node.NodeType;
-
+	
     class ScopeParser
 	{
 		protected Token token;
@@ -40,7 +40,7 @@ namespace Jolly
 			}
 			
 			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
-			structScope.type = new DataType(structScope);
+			structScope.type = new DataType(structScope) { name = name.name };
 			
 			if(!scope.Add(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
@@ -72,7 +72,7 @@ namespace Jolly
 			}
 			
 			TableFolder unionScope = new TableFolder(){ flags = NameFlags.UNION | NameFlags.FOLDER };
-			unionScope.type = new DataType(unionScope);
+			unionScope.type = new DataType(unionScope) { name = name.name };
 			
 			if(!scope.Add(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
@@ -219,9 +219,9 @@ namespace Jolly
 				return false;
 			
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
-			cursor = parser.parseExpression(this, false);
+			cursor = parser.parseExpression(DefineMode.NONE);
 			
-			program.Add(new Result(token.location, NT.RETURN){ resultData = parser.getValue() });
+			program.Add(new Result(token.location, NT.RETURN));
 			
 			return true;
 		}
@@ -229,18 +229,14 @@ namespace Jolly
 		protected void parseExpression()
 		{
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
-			cursor = parser.parseExpression(this, true);
+			cursor = parser.parseExpression(DefineMode.MEMBER_OR_VARIABLE);
 			
 			// TODO: Not sure why I don't just do this in the expression parser
 			if(parser.isFunction)
 			{
-				var functionNode = (Symbol)parser.getValue();
-				parser.theFunction.type = new DataType(parser.theFunction);
-				// functionNode.dataType = parser.theFunction;
-				program.Add(functionNode);
-				
 				Token brace = tokens[cursor + 1];
-				new BlockParser(cursor + 1, brace.partnerIndex, parser.theFunction, tokens, program)
+				Symbol functionNode = (Symbol)parser.getValue();
+				new BlockParser(cursor + 2, brace.partnerIndex, parser.theFunction, tokens, program)
 					{ scopeHead = functionNode } // Hacky
 					.parseBlock();
 				cursor = brace.partnerIndex;
