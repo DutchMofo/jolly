@@ -72,7 +72,7 @@ namespace Jolly
 		public Tupple(SourceLocation loc)
 			: base(NodeType.TUPPLE, loc) { }
 		
-		public List<Node> list = new List<Node>();
+		public List<Node> values = new List<Node>();
 		public bool closed;
 	}
 	

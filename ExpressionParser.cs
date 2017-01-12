@@ -45,14 +45,14 @@ enum OperatorType
 	/*##########################
 		Compound assignment
 	##########################*/
-	AND_EQUAL,
-	OR_EQUAL,
-	ASTERISK_EQUAL,
-	MINUS_EQUAL,
-	PLUS_EQUAL,
-	SLASH_EQUAL,
-	PERCENT_EQUAL,
-	CARET_EQUAL,
+	AND_ASSIGN,
+	OR_ASSIGN,
+	ASTERISK_ASSIGN,
+	MINUS_ASSIGN,
+	PLUS_ASSIGN,
+	SLASH_ASSIGN,
+	PERCENT_ASSIGN,
+	CARET_ASSIGN,
 	/*##########################
 		Relational operators 
 	##########################*/
@@ -63,8 +63,9 @@ enum OperatorType
 		Not really operators
 	########################*/
 	//TODO implement lambda
-	lambda_thing,		// =>
+	lambda_thing,
 	
+	TYPE_TO_REFERENCE,
 	BRACKET_OPEN,
 	BRACKET_CLOSE,
 	PARENTHESIS_OPEN,
@@ -74,6 +75,15 @@ enum OperatorType
 
 struct Op
 {
+	public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
+	{
+		this.location = location;
+		this.leftToRight = leftToRight;
+		this.precedence = precedence;
+		this.isFunctionCall = false;
+		this.operation = operation;
+		this.valCount = valCount;
+	}
 	public OT operation;
 	public bool leftToRight;
 	public bool isFunctionCall;
@@ -101,7 +111,7 @@ class ExpressionParser
 	int end, cursor, startNodeCount;
 	TableFolder scope;
 	ScopeParser scopeParser;
-	Token.Type terminator;
+	TT terminator;
 	
 	Dictionary<TT, Op> opLookup, preOpLookup;
 	
@@ -137,12 +147,12 @@ class ExpressionParser
 			{
 				Tupple list = a as Tupple;
 				if(a.nodeType == NT.TUPPLE && !list.closed) {
-					list.list.Add(b);
+					list.values.Add(b);
 					values.Push(a);
 				} else {
 					list = new Tupple(_op.location);
-					list.list.Add(a);
-					list.list.Add(b);
+					list.values.Add(a);
+					list.values.Add(b);
 					values.Push(list);
 				}
 				return;
@@ -186,10 +196,10 @@ class ExpressionParser
 		Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new Literal(token.location, token._integer);
-			lit.dataType = Lookup.getBaseType(TT.I32);
+			lit.dataType = Lookup.getBaseType(TT.I32); // TODO: Temporary
 		} else if(token.type == TT.FLOAT_LITERAL) {
 			lit = new Literal(token.location, token._float);
-			lit.dataType = Lookup.getBaseType(TT.F32);
+			lit.dataType = Lookup.getBaseType(TT.F32); // TODO: Temporary
 		} else {
 			lit = new Literal(token.location, token._string);
 			lit.dataType = Lookup.getBaseType(TT.STRING);
@@ -309,13 +319,7 @@ class ExpressionParser
 		if(token.type == TT.BRACKET_OPEN)
 		{
 			currentTokenKind = OPERATOR_KIND;
-			operators.Push(new Op {
-				operation = OT.BRACKET_OPEN,
-				location = token.location,
-				leftToRight = false,
-				precedence = 255,
-				valCount = 0,
-			});
+			operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, token.location));
 			return true;
 		}
 		else if(token.type == TT.BRACKET_CLOSE)
@@ -341,13 +345,8 @@ class ExpressionParser
 		if(token.type == TT.PARENTHESIS_OPEN)
 		{
 			currentTokenKind = OPERATOR_KIND;
-			operators.Push(new Op {
-				operation = OT.PARENTHESIS_OPEN,
-				isFunctionCall = values.PeekOrDefault()?.nodeType == NT.NAME,
-				leftToRight = false,
-				location = token.location,
-				precedence = 255,
-				valCount = 0,
+			operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
+				isFunctionCall = (prevTokenKind == VALUE_KIND),
 			});
 			return true;
 		}
@@ -366,7 +365,7 @@ class ExpressionParser
 				Node[] arguments;
 				Node symbol = values.Pop();
 				if(symbol.nodeType != NT.NAME) {
-					arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).list.ToArray() : new Node[] { symbol };
+					arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).values.ToArray() : new Node[] { symbol };
 					symbol = values.Pop(); 
 				} else {
 					arguments = new Node[0];
@@ -390,7 +389,7 @@ class ExpressionParser
 		if(token.type != TT.COMMA)
 			return false;
 				
-		if(prevTokenKind == OPERATOR_KIND) {
+		if(prevTokenKind != VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -433,8 +432,8 @@ class ExpressionParser
 			token = tokens[cursor += 1])
 		{
 			if( parseBasetype()			||
-				parseComma()			||
 				parseDefineIdentifier()	||
+				parseComma()			||
 				parseOperator())
 			{
 				prevTokenKind = currentTokenKind;
