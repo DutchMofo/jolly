@@ -124,8 +124,7 @@ namespace Jolly
 			Console.WriteLine("Nodes:");
 			program.forEach(Console.WriteLine);
 			Console.WriteLine("");
-			
-			
+						
 			printMessages();
 			Debugger.Break();
 		}

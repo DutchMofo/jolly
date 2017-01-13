@@ -221,15 +221,15 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		Literal lit;
+		NodeLiteral lit;
 		if(token.type == TT.INTEGER_LITERAL) {
-			lit = new Literal(token.location, token._integer);
+			lit = new NodeLiteral(token.location, token._integer);
 			lit.dataType = Lookup.getBaseType(TT.I32); // TODO: Temporary
 		} else if(token.type == TT.FLOAT_LITERAL) {
-			lit = new Literal(token.location, token._float);
+			lit = new NodeLiteral(token.location, token._float);
 			lit.dataType = Lookup.getBaseType(TT.F32); // TODO: Temporary
 		} else {
-			lit = new Literal(token.location, token._string);
+			lit = new NodeLiteral(token.location, token._string);
 			lit.dataType = Lookup.getBaseType(TT.STRING);
 		}
 		values.Push(lit);
@@ -240,7 +240,7 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new BaseType(token.location, Lookup.getBaseType(token.type)));
+		values.Push(new NodeBaseType(token.location, Lookup.getBaseType(token.type)));
 	}
 	
 	void parseIdentifier()
@@ -248,7 +248,7 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new Symbol(token.location, token.name, scope));
+		values.Push(new NodeSymbol(token.location, token.name, scope));
 	}
 	
 	void parseDefineIdentifier()
@@ -268,9 +268,9 @@ class ExpressionParser
 					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
 				}
 				
-				values.Push(new Symbol(token.location, token.name, scope, NT.FUNCTION));
+				values.Push(new NodeSymbol(token.location, token.name, scope, NT.FUNCTION));
 				
-				expression.Add(new Symbol(token.location, token.name, scope, NT.FUNCTION));
+				expression.Add(new NodeSymbol(token.location, token.name, scope, NT.FUNCTION));
 				theFunction = new TableFolder();
 				theFunction.type = new DataType(theFunction) { name = token.name };
 				
@@ -293,7 +293,7 @@ class ExpressionParser
 				if(!scope.Add(token.name, variableItem)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				var variable = new Symbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
+				var variable = new NodeSymbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
 				variable.childNodeCount = expression.Count - startNodeCount;
 				
 				if(variable.childNodeCount == 0) {
@@ -307,7 +307,7 @@ class ExpressionParser
 			}
 		}
 		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION)
-			values.Push(new Symbol(token.location, token.name, scope));
+			values.Push(new NodeSymbol(token.location, token.name, scope));
 	} // parseDefineIdentifier()
 	
 	void parseComma()
@@ -368,7 +368,7 @@ class ExpressionParser
 		{
 			if(token.type == TT.PLUS || token.type == TT.MINUS) {
 				// unary plus and minus
-				values.Push(new Literal(token.location, 0));
+				values.Push(new NodeLiteral(token.location, 0));
 			} else if(!preOpLookup.TryGetValue(token.type, out op)) {
 				throw Jolly.unexpected(token);
 			}
@@ -435,20 +435,20 @@ class ExpressionParser
 			Node[] arguments;
 			Node symbol = values.Pop();
 			if(symbol.nodeType != NT.NAME) {
-				arguments = (symbol.nodeType == NT.TUPPLE) ? ((Tupple)symbol).values.ToArray() : new Node[] { symbol };
+				arguments = (symbol.nodeType == NT.TUPPLE) ? ((NodeTupple)symbol).values.ToArray() : new Node[] { symbol };
 				symbol = values.Pop(); 
 			} else {
 				arguments = new Node[0];
 			}
 			Debug.Assert(symbol.nodeType == NT.NAME);
 			
-			values.Push(new Result(token.location));
-			expression.Add(new Function_call(token.location, ((Symbol)symbol).name, arguments));
+			values.Push(new NodeResult(token.location));
+			expression.Add(new NodeFunctionCall(token.location, ((NodeSymbol)symbol).name, arguments));
 		} else {
 			// Close list so you can't add to it: (a, b), c
 			Node list = values.PeekOrDefault();
 			if(list?.nodeType == NT.TUPPLE)
-				((Tupple)list).closed = true;
+				((NodeTupple)list).closed = true;
 		}
 	} // parseParenthesisClose()
 	
@@ -457,8 +457,7 @@ class ExpressionParser
 		if(prevTokenKind == OPERATOR_KIND | prevTokenKind == 0) {
 			throw Jolly.unexpected(token);
 		}
-		currentTokenKind = VALUE_KIND;
-		values.Push(new TypeToReference(token.location, values.Pop(), ReferenceType.POINTER));
+		values.Push(new NodeModifyType(token.location, values.Pop(), NodeModifyType.TO_REFERENCE));
 	}
 	
 	void pushOperator(Op _op)
@@ -476,12 +475,12 @@ class ExpressionParser
 			
 			if(_op.operation == OT.COMMA)
 			{
-				Tupple list = a as Tupple;
+				NodeTupple list = a as NodeTupple;
 				if(a.nodeType == NT.TUPPLE && !list.closed) {
 					list.values.Add(b);
 					values.Push(a);
 				} else {
-					list = new Tupple(_op.location);
+					list = new NodeTupple(_op.location);
 					list.values.Add(a);
 					list.values.Add(b);
 					values.Push(list);
@@ -496,7 +495,7 @@ class ExpressionParser
 				throw Jolly.addError(_op.location, "Invalid expression term");
 			}
 		}
-		Operator op = new Operator(_op.location, _op.operation, a, b, new Result(_op.location));
+		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b, new NodeResult(_op.location));
 		values.Push(op.result);
 		expression.Add(op);
 	} // pushOperator()

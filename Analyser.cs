@@ -58,7 +58,7 @@ static class Analyser
 		// Used to load the type before defining a variable
 		variableDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
-				Operator o = (Operator)node;
+				NodeOperator o = (NodeOperator)node;
 				Debug.Assert(o.operation == OT.GET_MEMBER);
 				operatorGetMember(o);
 				definitionInstruction = o.result;
@@ -67,16 +67,13 @@ static class Analyser
 				definitionInstruction = node;
 			} },
 			{ NT.NAME, node => {
-				if(!getTypeFromName(node)) {
-					throw Jolly.addError(node.location, "Does not exist in the current context");
-				}
+				getTypeFromName(ref node, false);
 				definitionInstruction = node;
 			} },
-			{ NT.TYPE_TO_REFERENCE, node => {
-				TypeToReference tToRef = (TypeToReference)node;
-				getTypeFromName(tToRef.target);
-				tToRef.dataType = DataType.getReferenceTo(tToRef.target.dataType, tToRef.referenceType);
-				definitionInstruction = tToRef;
+			{ NT.MODIFY_TYPE, node => {
+				NodeModifyType tToRef = (NodeModifyType)node;
+				getTypeFromName(ref tToRef.target, false);
+				definitionInstruction = tToRef.target;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
@@ -84,7 +81,7 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => instructions.Add(node) },
 			{ NT.OPERATOR, node => {
-				Operator o = (Operator)node;
+				NodeOperator o = (NodeOperator)node;
 				operatorAnalysers[o.operation](o);
 			} },
 			{ NT.RETURN, node => {
@@ -93,11 +90,11 @@ static class Analyser
 		};
 	
 	static void skipSymbol(Node node)
-		=> cursor += (node as Symbol).childNodeCount;
+		=> cursor += (node as NodeSymbol).childNodeCount;
 	
 	static void defineMemberOrVariable(Node node)
 	{
-		Symbol symbol = (Symbol)node;
+		NodeSymbol symbol = (NodeSymbol)node;
 		if(symbol.dataType != null) {
 			cursor += symbol.childNodeCount;
 			return;
@@ -122,42 +119,37 @@ static class Analyser
 		definitionInstruction = null;
 	}
 	
-	static readonly Dictionary<OT, Action<Operator>>
-		operatorAnalysers = new Dictionary<OT, Action<Operator>>() {
+	static readonly Dictionary<OT, Action<NodeOperator>>
+		operatorAnalysers = new Dictionary<OT, Action<NodeOperator>>() {
 			{ OT.GET_MEMBER, operatorGetMember },
 			{ OT.MINUS, basicOperator },
 			{ OT.PLUS, basicOperator },
 			{ OT.MULTIPLY, basicOperator },
 			{ OT.DIVIDE, basicOperator },
 			{ OT.ASSIGN, op => {
-				Node a = op.a, b = op.b;
-				if(getTypeFromName(a)) {
-					a.dataType = DataType.getReferenceTo(a.dataType, ReferenceType.VARIABLE);
-				}
+				getTypeFromName(ref op.a, false);
 				
-				if(a.dataType.referenceType != ReferenceType.VARIABLE) {
-					throw Jolly.addError(a.location, "Cannot assign to this");
+				if(op.a.dataType.referenceType != ReferenceType.POINTER) {
+					throw Jolly.addError(op.a.location, "Cannot assign to this");
 				}
-				
-				if(getTypeFromName(b)) {
-					op.b.dataType = DataType.getReferenceTo(b.dataType, ReferenceType.VARIABLE);
-					instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
-				}
+				getTypeFromName(ref op.b, false);
 				instructions.Add(op);
+			} },
+			{ OT.REFERENCE, op => {
+				getTypeFromName(ref op.a, true);
+				op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.POINTER);
 			} },
 		};
 	
-	static void operatorGetMember(Operator op)
+	static void operatorGetMember(NodeOperator op)
 	{
-		Symbol bName = op.b as Symbol;
+		NodeSymbol bName = op.b as NodeSymbol;
 		if(bName == null) {
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
 		if(op.a.dataType == null) {
-			if(!getTypeFromName(op.a)) {
-				throw Jolly.addError(op.a.location, "Does not exist in the current context");
-			}
+			getTypeFromName(ref op.a, false);
 		}
 		
 		DataType type = op.a.dataType as DataType;
@@ -165,46 +157,45 @@ static class Analyser
 			throw Jolly.addError(bName.location, "The type \"{0}\" has no members".fill(type));
 		}
 		
-		if(type.referenceType == ReferenceType.VARIABLE)
-			type = type.referenced;
-		op.result.dataType = type.getSibling(bName.name);
+		op.result.dataType = (type.referenceType == ReferenceType.POINTER) ? 
+			type.getSibling(bName.name) ?? type.referenced.getSibling(bName.name) :
+			type.getSibling(bName.name);
 		
 		if(op.result.dataType == null) {
 			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(type, bName.name));
 		}
-		op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.VARIABLE);
+		op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.POINTER);
 	}
 	
-	static void basicOperator(Operator op)
+	static void basicOperator(NodeOperator op)
 	{
-		Node a = op.a, b = op.b;
-		if(getTypeFromName(a)) {
-			op.b.dataType = DataType.getReferenceTo(a.dataType, ReferenceType.VARIABLE);
-			instructions.Add(a = new Operator(op.a.location, OT.READ, op.a, null, new Result(op.a.location)));
-		}
-		if(getTypeFromName(b)) {
-			op.b.dataType = DataType.getReferenceTo(b.dataType, ReferenceType.VARIABLE);
-			instructions.Add(b = new Operator(op.b.location, OT.READ, op.b, null, new Result(op.b.location)));
-		}
-		if(a.dataType != b.dataType) {
+		getTypeFromName(ref op.a, true);
+		getTypeFromName(ref op.b, true);
+		if(op.a.dataType != op.b.dataType) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
 		op.result.dataType = op.a.dataType;
 		instructions.Add(op);
 	}
 	
-	static bool getTypeFromName(Node node)
+	static bool getTypeFromName(ref Node node, bool load)
 	{
 		if(node.nodeType == NT.NAME)
 		{
-			Symbol name = (Symbol)node;
+			NodeSymbol name = (NodeSymbol)node;
 			Debug.Assert(name.dataType == null);
 			var item = name.definitionScope.searchItem(name.name);
 			
 			if(item == null) {
 				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.name));
 			}
-			name.dataType = item.type;
+			
+			if(load) {
+				name.dataType = item.type;
+				instructions.Add(node = new NodeOperator(name.location, OT.READ, name, null, new NodeResult(name.location)));
+			} else {
+				node.dataType = DataType.getReferenceTo(item.type, NodeModifyType.TO_REFERENCE);
+			}
 			return true;
 		}
 		return false;

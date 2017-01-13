@@ -18,7 +18,7 @@ namespace Jolly
 			ENUM,
 			USERTYPE,
 			
-			TYPE_TO_REFERENCE,
+			MODIFY_TYPE,
 			
 			ALIAS,
 			BLOCK,
@@ -53,27 +53,28 @@ namespace Jolly
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
 	
-	class TypeToReference : Node
+	class NodeModifyType : Node
 	{
-		public TypeToReference(SourceLocation loc, Node target, ReferenceType referenceType)
-			: base(NT.TYPE_TO_REFERENCE, loc)
+		public NodeModifyType(SourceLocation loc, Node target, byte targetType)
+			: base(NT.MODIFY_TYPE, loc)
 		{
-			this.referenceType = referenceType;
+			this.targetType = targetType;
 			this.target = target;
 		}
-		public ReferenceType referenceType;
+		public const byte TO_REFERENCE = 1, TO_ARRAY = 2, TO_SLICE = 3;
+		public byte targetType;
 		public Node target;
 	}
 	
-	class BaseType : Node
+	class NodeBaseType : Node
 	{
-		public BaseType(SourceLocation loc, DataType type)
+		public NodeBaseType(SourceLocation loc, DataType type)
 			: base(NT.BASETYPE, loc) { dataType = type; }
 	}
 	
-	class Symbol : Node
+	class NodeSymbol : Node
 	{
-		public Symbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
+		public NodeSymbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
 		
 		public TableFolder definitionScope;
@@ -81,25 +82,25 @@ namespace Jolly
 		public string name;
 	}
 		
-	class Tupple : Node
+	class NodeTupple : Node
 	{
-		public Tupple(SourceLocation loc)
+		public NodeTupple(SourceLocation loc)
 			: base(NodeType.TUPPLE, loc) { }
 		
 		public List<Node> values = new List<Node>();
 		public bool closed;
 	}
 	
-	class Result : Node
+	class NodeResult : Node
 	{
-		public Result(SourceLocation loc, NT type = NT.RESULT)
+		public NodeResult(SourceLocation loc, NT type = NT.RESULT)
 			: base(type, loc) {  }
 		// public Node resultData;
 	}
 		
-	class Operator : Node
+	class NodeOperator : Node
 	{
-		public Operator(SourceLocation loc, OperatorType operation, Node a, Node b, Node result)
+		public NodeOperator(SourceLocation loc, OperatorType operation, Node a, Node b, Node result)
 			: base(NodeType.OPERATOR, loc)
 		{
 			this.operation = operation;
@@ -114,15 +115,15 @@ namespace Jolly
 		public Node a, b, result;
 	}
 	
-	class Literal : Node
+	class NodeLiteral : Node
 	{
-		public Literal(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
+		public NodeLiteral(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
 		public object data;
 	}
 	
-	class Function_call : Node
+	class NodeFunctionCall : Node
 	{
-		public Function_call(SourceLocation loc, string f, Node[] a)
+		public NodeFunctionCall(SourceLocation loc, string f, Node[] a)
 			: base(NodeType.FUNCTION_CALL, loc)
 		{
 			functionName = f;
@@ -133,12 +134,12 @@ namespace Jolly
 		public Node[] arguments;
 	}
 	
-	class Function : Node
+	class NodeFunction : Node
 	{
-		public Function(SourceLocation loc, Symbol[] arguments, TableFolder parentScope)
+		public NodeFunction(SourceLocation loc, NodeSymbol[] arguments, TableFolder parentScope)
 			: base(NodeType.FUNCTION, loc) { this.arguments = arguments; }
 		
-		public Symbol[] arguments;
+		public NodeSymbol[] arguments;
 		public Node returns;
 	}
 }

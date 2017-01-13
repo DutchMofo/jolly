@@ -13,7 +13,7 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
-		protected Symbol scopeHead;
+		protected NodeSymbol scopeHead;
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
@@ -45,7 +45,7 @@ namespace Jolly
 			if(!scope.Add(name.name, structScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
-			var structNode = new Symbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
+			var structNode = new NodeSymbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
 				{ scopeHead = structNode } // Hacky
@@ -77,7 +77,7 @@ namespace Jolly
 			if(!scope.Add(name.name, unionScope)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
-			var unionNode = new Symbol(token.location, name.name, scope, NT.UNION) /*{ dataType = unionScope }*/;
+			var unionNode = new NodeSymbol(token.location, name.name, scope, NT.UNION) /*{ dataType = unionScope }*/;
 			program.Add(unionNode);
 			new StructParser(cursor + 1, brace.partnerIndex, unionScope, tokens, program)
 				{ scopeHead = unionNode } // Hacky
@@ -193,7 +193,7 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			Symbol _namespace = new Symbol(token.location, name.name, scope, NT.BLOCK);
+			NodeSymbol _namespace = new NodeSymbol(token.location, name.name, scope, NT.BLOCK);
 			TableFolder _namespaceScope = new TableFolder() { flags = NameFlags.FOLDER };
 			
 			program.Add(_namespace); 
@@ -221,7 +221,7 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
 			cursor = parser.parseExpression(DefineMode.NONE);
 			
-			program.Add(new Result(token.location, NT.RETURN));
+			program.Add(new NodeResult(token.location, NT.RETURN));
 			
 			return true;
 		}
@@ -235,14 +235,14 @@ namespace Jolly
 			if(parser.isFunction)
 			{
 				Token brace = tokens[cursor + 1];
-				Symbol functionNode = (Symbol)parser.getValue();
+				NodeSymbol functionNode = (NodeSymbol)parser.getValue();
 				new BlockParser(cursor + 2, brace.partnerIndex, parser.theFunction, tokens, program)
 					{ scopeHead = functionNode } // Hacky
 					.parseBlock();
 				cursor = brace.partnerIndex;
 				
 				if(program[program.Count - 1].nodeType != NT.RETURN)
-					program.Add(new Result(tokens[brace.partnerIndex].location, NT.RETURN));
+					program.Add(new NodeResult(tokens[brace.partnerIndex].location, NT.RETURN));
 			}
 		}
 		
