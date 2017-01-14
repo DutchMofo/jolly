@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System;
 
 namespace Jolly
@@ -29,9 +28,6 @@ static class Analyser
 				action(node);
 			}
 		}
-		
-		Console.WriteLine("/");
-		TableFolder.root.PrintTree("", 0);
 		
 		cursor = 0;
 		for(Node node = program[cursor]; cursor < program.Count; cursor += 1)
@@ -78,8 +74,14 @@ static class Analyser
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
-			{ NT.STRUCT, skipSymbol },
-			{ NT.FUNCTION, node => instructions.Add(node) },
+			{ NT.STRUCT, node => {
+				DataType.makeUnique(ref node.dataType);
+				skipSymbol(node);
+			} },
+			{ NT.FUNCTION, node => {
+				DataType.makeUnique(ref node.dataType);
+				instructions.Add(node);
+			} },
 			{ NT.OPERATOR, node => {
 				NodeOperator o = (NodeOperator)node;
 				operatorAnalysers[o.operation](o);
@@ -113,7 +115,7 @@ static class Analyser
 		cursor += symbol.childNodeCount;
 		
 		Debug.Assert(definitionInstruction.dataType != null);
-		symbol.dataType = symbol.definitionScope.children[symbol.name].type = definitionInstruction.dataType;
+		symbol.dataType = symbol.definitionScope.children[symbol.name].dataType = definitionInstruction.dataType;
 		instructions.Add(symbol);
 		// Just to be sure
 		definitionInstruction = null;
@@ -129,7 +131,7 @@ static class Analyser
 			{ OT.ASSIGN, op => {
 				getTypeFromName(ref op.a, false);
 				
-				if(op.a.dataType.referenceType != ReferenceType.POINTER) {
+				if(!(op.a.dataType is DataTypeReference)) {
 					throw Jolly.addError(op.a.location, "Cannot assign to this");
 				}
 				getTypeFromName(ref op.b, false);
@@ -137,7 +139,8 @@ static class Analyser
 			} },
 			{ OT.REFERENCE, op => {
 				getTypeFromName(ref op.a, true);
-				op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.POINTER);
+				op.result.dataType = new DataTypeReference(op.result.dataType);
+				DataType.makeUnique(ref op.result.dataType);
 			} },
 		};
 	
@@ -152,19 +155,16 @@ static class Analyser
 			getTypeFromName(ref op.a, false);
 		}
 		
-		DataType type = op.a.dataType as DataType;
-		if(type == null) {
-			throw Jolly.addError(bName.location, "The type \"{0}\" has no members".fill(type));
-		}
-		
-		op.result.dataType = (type.referenceType == ReferenceType.POINTER) ? 
-			type.getSibling(bName.name) ?? type.referenced.getSibling(bName.name) :
-			type.getSibling(bName.name);
+		var refType = op.a.dataType as DataTypeReference;
+		op.result.dataType = (refType != null) ? 
+			refType.getMember(bName.name) ?? refType.referenced.getMember(bName.name) :
+			op.a.dataType.getMember(bName.name);
 		
 		if(op.result.dataType == null) {
-			throw Jolly.addError(bName.location, "The type {0} does not contain a member \"{1}\"".fill(type, bName.name));
+			throw Jolly.addError(bName.location, "The type does not contain a member \"{1}\"".fill(bName.name));
 		}
-		op.result.dataType = DataType.getReferenceTo(op.result.dataType, ReferenceType.POINTER);
+		op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
+		DataType.makeUnique(ref op.result.dataType);
 	}
 	
 	static void basicOperator(NodeOperator op)
@@ -191,10 +191,11 @@ static class Analyser
 			}
 			
 			if(load) {
-				name.dataType = item.type;
+				name.dataType = item.dataType;
 				instructions.Add(node = new NodeOperator(name.location, OT.READ, name, null, new NodeResult(name.location)));
 			} else {
-				node.dataType = DataType.getReferenceTo(item.type, NodeModifyType.TO_REFERENCE);
+				node.dataType = new DataTypeReference(item.dataType) as DataType; 
+				DataType.makeUnique(ref node.dataType);
 			}
 			return true;
 		}

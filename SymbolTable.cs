@@ -18,36 +18,17 @@ namespace Jolly
 	
 	class TableItem
 	{
-		public TableFolder parent;
-		public NameFlags flags;
-		public DataType type;
-		public int offset, size, align;
-		
-		public virtual void calculateSize(Stack<TableFolder> typeStack) { }
-		public TableItem(DataType type) { this.type = type; }
+		public int index;
+		public DataType dataType;
 	}
-		
-	class TableFolder : TableItem
+	
+	class TableFolder 
 	{
+		TableFolder parent;
 		public Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
-		public static TableFolder root = new TableFolder();
 		
-		public TableFolder() : base(null) { }
-		
-		public void PrintTree(string path, int space)
-		{
-			foreach(var child in children)
-			{
-				TableFolder folder = child.Value as TableFolder;
-				if(folder != null) {
-					string tPath = path + '/' + child.Key;
-					Console.WriteLine("{0} [{1}]".fill(tPath, folder.flags));
-					folder.PrintTree(tPath, path.Length + 1);
-				} else {
-					Console.WriteLine("{0}{1} ({2})[{3}]".fill(new string(' ', space), child.Key, child.Value.type, child.Value.flags));
-				}
-			}
-		}
+		public TableFolder(TableFolder parent)
+			 { this.parent = parent; }
 		
 		public TableItem searchItem(string name)
 		{
@@ -68,7 +49,7 @@ namespace Jolly
 			return item;
 		}
 		
-		public bool Add(string childName, TableItem child)
+		public bool Add(string childName, DataType child)
 		{
 			TableFolder iterator = this;
 			do {
@@ -77,11 +58,10 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			if((child.flags & NameFlags.IS_BASETYPE) != 0)
-				flags &= ~NameFlags.IS_PURE;
+			// if((child.flags & NameFlags.IS_BASETYPE) != 0)
+			// 	flags &= ~NameFlags.IS_PURE;
 			
-			children.Add(childName, child);
-			child.parent = this;
+			children.Add(childName, new TableItem{ dataType = child, index = children.Count });
 			return true;
 		}
 		

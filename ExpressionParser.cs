@@ -6,6 +6,7 @@ namespace Jolly
 using TT = Token.Type;
 using NT = Node.NodeType;
 using OT = OperatorType;
+using System.Linq;
 
 enum OperatorType
 {
@@ -268,19 +269,26 @@ class ExpressionParser
 					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
 				}
 				
-				values.Push(new NodeSymbol(token.location, token.name, scope, NT.FUNCTION));
+				theFunction = new TableFolder(null);
+				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
+				cursor = parser.parseExpression(DefineMode.ARGUMENT)-1;
 				
-				expression.Add(new NodeSymbol(token.location, token.name, scope, NT.FUNCTION));
-				theFunction = new TableFolder();
-				theFunction.type = new DataType(theFunction) { name = token.name };
+				var returns = (prev.nodeType == NT.TUPPLE) ?
+					((NodeTupple)prev).values.Select(i => i.dataType).ToArray() :
+					new DataType[] { prev.dataType };
+				var arguments = theFunction.children.Values.Select(i => i.dataType).ToArray();
 				
-				if(!scope.Add(token.name, theFunction)) {
+				var functionType = new DataTypeFunction(returns, arguments) as DataType;
+				// DataType.makeUnique(ref functionType);
+				
+				if(!scope.Add(token.name, functionType)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
-				cursor = parser.parseExpression(DefineMode.ARGUMENT)-1;
+				var functionNode = new NodeSymbol(token.location, token.name, scope, NT.FUNCTION);
+				values.Push(functionNode);
+				expression.Add(functionNode);
 				
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
@@ -288,9 +296,7 @@ class ExpressionParser
 			}
 			else
 			{ // Variable
-				TableItem variableItem = new TableItem(prev.dataType);
-				
-				if(!scope.Add(token.name, variableItem)) {
+				if(!scope.Add(token.name, null)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
 				var variable = new NodeSymbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);

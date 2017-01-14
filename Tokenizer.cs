@@ -121,7 +121,8 @@ class Token
 		CONST,
 		EXTERN,
 		THIS,
-
+		
+		_,
 		AS,
 		ASSERT,
 		REINTERPRET,
@@ -284,8 +285,7 @@ class Tokenizer
 
 	Token getIndentifier(Token prevToken)
 	{
-		Token token = new Token()
-		{
+		Token token = new Token() {
 			location = getLocation(),
 			type = Token.Type.IDENTIFIER,
 			index = tokens.Count,
@@ -413,8 +413,7 @@ class Tokenizer
 				break;
 			}
 			string number = source.Substring(start, cursor - start);
-			token._float = double.Parse(number,
-				NumberStyles.AllowExponent | NumberStyles.AllowDecimalPoint);
+			token._float = double.Parse(number, NumberStyles.AllowExponent | NumberStyles.AllowDecimalPoint);
 		}
 		else if (chr == 'x' || chr == 'X')
 		{ // Hexadecimal numbers

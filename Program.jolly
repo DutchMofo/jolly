@@ -23,7 +23,7 @@ int main()
 	Problem problemData;
 	initProblem(&problemData);
 	
-	int i = (int: .10e-1) * 3;
+	int i = (int: 10) * 3;
 	
 	return 12 / 2 + 2 * 10;
 }

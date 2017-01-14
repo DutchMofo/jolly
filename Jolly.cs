@@ -29,22 +29,10 @@ namespace Jolly
 		
 		public static void forEach<T>(this IEnumerable<T> list, Action<T> action)
 			{ foreach(T i in list) action(i); }
+			
+		public static bool any<T>(this T[] list, Func<T, int, bool> action)
+			{ for(int i = 0; i < list.Length; i += 1) if(action(list[i], i)) return true; return false; }
 	}
-	
-	// static class DebugLog
-	// {
-	// 	static Socket _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-		
-	// 	static DebugLog()
-	// 	{
-	// 		_socket.Connect(new UnixEndPoint("/tmp/jolly"));
-	// 	}
-		
-	// 	public static void Log(object item)
-	// 	{
-	// 		_socket.Send(System.Text.Encoding.UTF8.GetBytes(item.ToString()));
-	// 	}
-	// }
 	
 	struct SourceLocation
 	{
@@ -58,74 +46,40 @@ namespace Jolly
 		}
 	}
 	
-	struct Message
-	{
-		public enum MessageType
-		{
-			WARNING,
-			ERROR,
-		}
-		public string text;
-		public MessageType type;
-		public SourceLocation location;
-		
-		public override string ToString()
-			=> "{0}:{1}: {2}: {3}".fill(location.line, location.column, type.ToString().ToLower(), text);
-	}
-	
 	class Jolly
 	{
-		static int /*maxMessageLine = 0, maxMessageColumn = 0,*/ errorCount = 0;
-		static List<Message> messages = new List<Message>();
-		public static int SIZE_T_BYTES = 8;
+		static int errorCount = 0;
 		
 		public static string formatEnum<T>(T val)
 			=> val.ToString().ToLower().Replace('_', ' ');
 		
 		public static ParseException addError(SourceLocation location, string message)
 		{
-			++errorCount;
-			messages.Add(new Message { location = location, text = message, type = Message.MessageType.ERROR });
+			errorCount += 1;
+			Console.WriteLine("{0}:error: {1}: {2}".fill(location.line, location.column, message));
 			return new ParseException();
 		}
 		
 		public static void addWarning(SourceLocation location, string message)
-			=> messages.Add(new Message { location = location, text = message, type = Message.MessageType.WARNING });
+			=> Console.WriteLine("{0}:warning: {1}: {2}".fill(location.line, location.column, message));
 			
-		
 		public static ParseException unexpected(Token token)
 			=> addError(token.location, "Unexpected {0}".fill(token));
 		
 		public static ParseException unexpected(Node node)
 			=> addError(node.location, "Unexpected {0}".fill(node.nodeType));
-		
-		static void printMessages()
-		{
-			Console.WriteLine();
-			messages.forEach(m => Console.WriteLine(m));
-		}
-		
+				
 		public static void Main(string[] args)
 		{
-			List<Node> program;
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
-			
-			// Console.WriteLine("Tokens:");
-			// tokens.forEach(Console.WriteLine);
-			// Debugger.Break();
-			
-						
-			program = new List<Node>(tokens.Length / 2);
-			new ScopeParser(0, tokens.Length-1, TableFolder.root, tokens, program).parseBlock();
+		
+			List<Node> program = new List<Node>(tokens.Length / 2);
+			var globalScope = new TableFolder(null);
+			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
 			
 			program = Analyser.analyse(program);
 			
-			Console.WriteLine("Nodes:");
-			program.forEach(Console.WriteLine);
-			Console.WriteLine("");
-						
-			printMessages();
 			Debugger.Break();
 		}
 	}

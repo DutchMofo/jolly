@@ -39,10 +39,13 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			TableFolder structScope = new TableFolder() { flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE };
-			structScope.type = new DataType(structScope) { name = name.name };
+			// flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE
 			
-			if(!scope.Add(name.name, structScope)) {
+			TableFolder structScope = new TableFolder(scope);
+			var structType = new DataTypeStruct(structScope) as DataType;
+			// DataType.makeUnique(ref structType);
+			
+			if(!scope.Add(name.name, structType)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
 			var structNode = new NodeSymbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
@@ -56,6 +59,7 @@ namespace Jolly
 			return true;
 		}
 		
+		#if false
 		protected bool parseUnion()
 		{
 			if(token.type != TT.UNION)
@@ -88,7 +92,6 @@ namespace Jolly
 			return true;
 		}
 		
-		#if false
 		protected bool parseFor()
 		{
 			if(token.type != TT.FOR)
@@ -169,7 +172,6 @@ namespace Jolly
 			
 			// return true;
 		}
-		#endif
 		
 		protected bool parseBraceOpen()
 		{
@@ -212,6 +214,7 @@ namespace Jolly
 			}
 			return true;
 		}
+		#endif
 		
 		protected bool parseReturn()
 		{
@@ -248,8 +251,10 @@ namespace Jolly
 		
 		protected virtual void _parse()
 		{
-			if( parseStruct() ||
-				parseNamespace())
+			if( 
+				parseStruct() ||
+				// parseNamespace() ||
+				false)
 				return;
 			parseExpression();
 		}
@@ -281,7 +286,8 @@ namespace Jolly
 				parseReturn()		||
 				// parseForeach()		||
 				// parseWhile()		||
-				parseBraceOpen())
+				// parseBraceOpen()	||
+				false)
 				return;
 			parseExpression();
 		}
@@ -294,8 +300,10 @@ namespace Jolly
 		
 		protected override void _parse()
 		{
-			if( parseStruct() ||
-				parseUnion())
+			if( 
+				parseStruct()	||
+				// parseUnion()	||
+				false)
 				return;
 			parseExpression();
 		}
