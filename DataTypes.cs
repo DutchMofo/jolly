@@ -23,8 +23,8 @@ namespace Jolly
 		public string name; // TODO: Remove someday
 		public int size, align, typeID;
 		
-		public DataType() { }
-		public DataType(int size, int align) { this.size = size; this.align = align; }
+		public DataType() { this.typeID = lastTypeID++; }
+		public DataType(int size, int align) { this.size = size; this.align = align; this.typeID = lastTypeID++; }
 		
 		public virtual DataType getMember(string name) => null;
 		
@@ -68,11 +68,15 @@ namespace Jolly
 	
 	class DataTypeStruct : DataType
 	{
+		public TableFolder memberTable;
+		public DataType[] members;
+		
 		public DataTypeStruct(TableFolder memberTable) 
 			{ this.memberTable = memberTable; }
 		
-		public TableFolder memberTable;
-		public DataType[] members;
+		
+		public override DataType getMember(string name)
+			=> memberTable.getChild(name).dataType;
 	}
 	
 	class DataTypeFunction : DataType

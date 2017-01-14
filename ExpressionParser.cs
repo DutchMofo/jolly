@@ -269,13 +269,11 @@ class ExpressionParser
 					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
 				}
 				
-				theFunction = new TableFolder(null);
+				theFunction = new TableFolder(scope);
 				var parser = new ExpressionParser(theFunction, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
 				cursor = parser.parseExpression(DefineMode.ARGUMENT)-1;
 				
-				var returns = (prev.nodeType == NT.TUPPLE) ?
-					((NodeTupple)prev).values.Select(i => i.dataType).ToArray() :
-					new DataType[] { prev.dataType };
+				var returns = new DataType[(prev as NodeTupple)?.values.Count ?? 1];
 				var arguments = theFunction.children.Values.Select(i => i.dataType).ToArray();
 				
 				var functionType = new DataTypeFunction(returns, arguments) as DataType;
@@ -286,10 +284,10 @@ class ExpressionParser
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var functionNode = new NodeSymbol(token.location, token.name, scope, NT.FUNCTION);
+				var functionNode = new NodeSymbol(token.location, token.name, scope, NT.FUNCTION)
+					{ dataType = functionType };
 				values.Push(functionNode);
 				expression.Add(functionNode);
-				
 				
 				terminator = TT.PARENTHESIS_CLOSE; // HACK: stop parsing 
 				isFunction = true;

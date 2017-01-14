@@ -48,7 +48,8 @@ namespace Jolly
 			if(!scope.Add(name.name, structType)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
-			var structNode = new NodeSymbol(name.location, name.name, scope, NT.STRUCT) /*{ dataType = structScope }*/;
+			var structNode = new NodeSymbol(name.location, name.name, scope, NT.STRUCT)
+				{ dataType = structType };
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
 				{ scopeHead = structNode } // Hacky

@@ -161,7 +161,7 @@ static class Analyser
 			op.a.dataType.getMember(bName.name);
 		
 		if(op.result.dataType == null) {
-			throw Jolly.addError(bName.location, "The type does not contain a member \"{1}\"".fill(bName.name));
+			throw Jolly.addError(bName.location, "The type does not contain a member \"{0}\"".fill(bName.name));
 		}
 		op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
 		DataType.makeUnique(ref op.result.dataType);
