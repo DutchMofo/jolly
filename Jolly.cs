@@ -56,18 +56,18 @@ namespace Jolly
 		public static ParseException addError(SourceLocation location, string message)
 		{
 			errorCount += 1;
-			Console.WriteLine("{0}:error: {1}: {2}".fill(location.line, location.column, message));
+			Console.WriteLine("{0}:{1}: error: {2}".fill(location.line, location.column, message));
 			return new ParseException();
 		}
 		
 		public static void addWarning(SourceLocation location, string message)
-			=> Console.WriteLine("{0}:warning: {1}: {2}".fill(location.line, location.column, message));
+			=> Console.WriteLine("{0}:{1}: warning: {2}".fill(location.line, location.column, message));
 			
 		public static ParseException unexpected(Token token)
-			=> addError(token.location, "Unexpected {0}".fill(token));
+			=> addError(token.location, "Unexpected {0}".fill(Token.TypeToString(token.type, token)));
 		
 		public static ParseException unexpected(Node node)
-			=> addError(node.location, "Unexpected {0}".fill(node.nodeType));
+			=> addError(node.location, "Unexpected {0}".fill(formatEnum(node.nodeType)));
 				
 		public static void Main(string[] args)
 		{
@@ -80,7 +80,7 @@ namespace Jolly
 			
 			program = Analyser.analyse(program);
 			
-			Debugger.Break();
+			Debugger.Break();			
 		}
 	}
 }

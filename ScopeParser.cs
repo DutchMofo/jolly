@@ -13,7 +13,7 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
-		protected NodeSymbol scopeHead;
+		public NodeSymbol scopeHead;
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
@@ -42,7 +42,7 @@ namespace Jolly
 			// flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE
 			
 			TableFolder structScope = new TableFolder(scope);
-			var structType = new DataTypeStruct(structScope) as DataType;
+			var structType = new DataTypeStruct(structScope) { name = name.name } as DataType;
 			// DataType.makeUnique(ref structType);
 			
 			if(!scope.Add(name.name, structType)) {
@@ -234,20 +234,6 @@ namespace Jolly
 		{
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
 			cursor = parser.parseExpression(DefineMode.MEMBER_OR_VARIABLE);
-			
-			// TODO: Not sure why I don't just do this in the expression parser
-			if(parser.isFunction)
-			{
-				Token brace = tokens[cursor + 1];
-				NodeSymbol functionNode = (NodeSymbol)parser.getValue();
-				new BlockParser(cursor + 2, brace.partnerIndex, parser.theFunction, tokens, program)
-					{ scopeHead = functionNode } // Hacky
-					.parseBlock();
-				cursor = brace.partnerIndex;
-				
-				if(program[program.Count - 1].nodeType != NT.RETURN)
-					program.Add(new NodeResult(tokens[brace.partnerIndex].location, NT.RETURN));
-			}
 		}
 		
 		protected virtual void _parse()
@@ -269,8 +255,10 @@ namespace Jolly
 			{
 				_parse();
 			}
-			if(scopeHead != null)
+			if(scopeHead != null) {
+				program.Add(null);
 				scopeHead.childNodeCount = program.Count - startNodeCount;
+			}
 		}
 	}
 	

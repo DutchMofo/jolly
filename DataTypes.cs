@@ -30,6 +30,8 @@ namespace Jolly
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
+		
+		public override string ToString() => name;
 	}
 	
 	class DataTypeReference : DataType
@@ -48,6 +50,8 @@ namespace Jolly
 		}
 		public override int GetHashCode()
 			=> referenced.GetHashCode() << 3;
+		
+		public override string ToString() => referenced + "*";
 	}
 	
 	class DataTypeArray : DataType
@@ -64,6 +68,8 @@ namespace Jolly
 		}
 		public override int GetHashCode()
 			=> collectionType.GetHashCode() & countType.GetHashCode() & length;
+			
+		public override string ToString() => collectionType + "[]";
 	}
 	
 	class DataTypeStruct : DataType
@@ -74,9 +80,10 @@ namespace Jolly
 		public DataTypeStruct(TableFolder memberTable) 
 			{ this.memberTable = memberTable; }
 		
-		
 		public override DataType getMember(string name)
 			=> memberTable.getChild(name).dataType;
+			
+		public override string ToString() => name;
 	}
 	
 	class DataTypeFunction : DataType
@@ -105,5 +112,7 @@ namespace Jolly
 			returns.forEach(a => hash ^= a.GetHashCode());
 			return hash;
 		}
+		
+		public override string ToString() => name;
 	}
 }

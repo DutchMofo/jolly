@@ -22,24 +22,24 @@ static class Lookup
 	
 	static readonly DataType[] baseTypes = new DataType[] {
 		new DataType(1, 1) { name = "I8" },
-		new DataType(1, 1) { name = "U8" },
-		new DataType(2, 2) { name = "I16" },
-		new DataType(2, 2) { name = "U16" },
-		new DataType(4, 4) { name = "I32" },
-		new DataType(4, 4) { name = "U32" },
-		new DataType(8, 8) { name = "I64" },
-		new DataType(8, 8) { name = "U64" },
-		new DataType(4, 4) { name = "F32" },
-		new DataType(4, 4) { name = "F64" },
 		new DataType(1, 1) { name = "BYTE" },
+		new DataType(1, 1) { name = "U8" },
 		new DataType(1, 1) { name = "UBYTE" },
+		new DataType(2, 2) { name = "I16" },
 		new DataType(2, 2) { name = "SHORT" },
+		new DataType(2, 2) { name = "U16" },
 		new DataType(2, 2) { name = "USHORT" },
+		new DataType(4, 4) { name = "I32" },
 		new DataType(4, 4) { name = "INT" },
+		new DataType(4, 4) { name = "U32" },
 		new DataType(4, 4) { name = "UINT" },
+		new DataType(8, 8) { name = "I64" },
 		new DataType(8, 8) { name = "LONG" },
+		new DataType(8, 8) { name = "U64" },
 		new DataType(8, 8) { name = "ULONG" },
+		new DataType(4, 4) { name = "F32" },
 		new DataType(4, 4) { name = "FLOAT" },
+		new DataType(4, 4) { name = "F64" },
 		new DataType(4, 4) { name = "DOUBLE" },
 		new DataType(0, 0) { name = "VOID" },
 		new DataType(2, 2) { name = "RUNE" },
@@ -50,7 +50,7 @@ static class Lookup
 
 	public static DataType getBaseType(TT type)
 	{
-		return baseTypes[type - TT.I8];
+		return baseTypes[(type < TT.VOID) ? (type - TT.I8) & (~1) : type - TT.I8];
 	}
 
 	public readonly static Dictionary<TT, Op>
