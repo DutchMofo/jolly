@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 
 namespace Jolly
@@ -78,6 +77,7 @@ namespace Jolly
 			program = Analyser.analyse(program);
 			
 			program.forEach(i => Console.WriteLine(i.toDebugText()));
+            System.Diagnostics.Debugger.Break();
 		}
 	}
 }

@@ -13,7 +13,7 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
-		public NodeDefinition scopeHead;
+		public NodeSymbol scopeHead;
 		public static readonly Node scopeEnd = new Node(NT.SCOPE_END, new SourceLocation());
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
@@ -43,12 +43,12 @@ namespace Jolly
 			// flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE
 			
 			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
-			var structType = new DataTypeStruct(structScope) { name = name.name } as DataType;
-			var structNode = new NodeDefinition(name.location, name.name, scope, NT.STRUCT)
+			var structType = new DataTypeStruct(structScope) { name = name.text } as DataType;
+			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
 				{ dataType = structType };
 			
-			if(!scope.Add(name.name, structType, structNode)) {
-				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
+			if(!scope.Add(name.text, structType, structNode)) {
+				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
@@ -257,7 +257,7 @@ namespace Jolly
 			}
 			if(scopeHead != null) {
 				program.Add(scopeEnd);
-				scopeHead.childNodeCount = program.Count - startNodeCount;
+				scopeHead.memberCount = program.Count - startNodeCount;
 			}
 		}
 	}

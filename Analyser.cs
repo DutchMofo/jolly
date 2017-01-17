@@ -59,7 +59,24 @@ static class Analyser
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
-			{ NT.FUNCTION, skipSymbol },
+			{ NT.FUNCTION, node => {
+				NodeFunction function = (NodeFunction)node;
+				for(int i = 1; i <= function.returnDefinitionCount; i += 1)
+				{
+					node = program[cursor + i];
+					Action<Node> action;
+					if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
+						action(node);
+					} else {
+						throw Jolly.unexpected(node);
+					}
+				}
+				cursor += function.returnDefinitionCount;
+				
+				"".ToString();
+				
+				
+			} },
 			{ NT.STRUCT, node => {
 				instructions.Add(node);
 				scopeStack.Push((NodeSymbol)node);
@@ -77,12 +94,22 @@ static class Analyser
 				definitionInstruction = node;
 			} },
 			{ NT.NAME, node => {
-				getTypeFromName(ref node);
+				getTypeFromName(ref node, false);
 				definitionInstruction = node;
+			} },
+			{ NT.TUPPLE, node => {
+				NodeTupple tupple = (NodeTupple)node;
+				for(int i = 0; i < tupple.values.Count; i += 1) {
+					// getTypeFromName(ref tupple.values[i], false); // Fuck you c#
+					var _node = tupple.values[i];
+					getTypeFromName(ref _node, false);
+					tupple.values[i] = _node;
+				}
+				definitionInstruction = tupple;
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
-				getTypeFromName(ref tToRef.target);
+				getTypeFromName(ref tToRef.target, false);
 				definitionInstruction = tToRef.target;
 			} },
 		},
@@ -109,17 +136,17 @@ static class Analyser
 		};
 	
 	static void skipSymbol(Node node)
-		=> cursor += (node as NodeDefinition).childNodeCount;
+		=> cursor += (node as NodeSymbol).memberCount;
 	
 	static void defineMemberOrVariable(Node node)
 	{
-		NodeDefinition symbol = (NodeDefinition)node;
+		NodeSymbol symbol = (NodeSymbol)node;
 		if(symbol.dataType != null) {
-			cursor += symbol.childNodeCount;
+			cursor += symbol.memberCount;
 			return;
 		}
 		
-		for(int i = 1; i <= symbol.childNodeCount; i += 1)
+		for(int i = 1; i <= symbol.memberCount; i += 1)
 		{
 			node = program[cursor + i];
 			Action<Node> action;
@@ -129,7 +156,7 @@ static class Analyser
 				throw Jolly.unexpected(node);
 			}
 		}
-		cursor += symbol.childNodeCount;
+		cursor += symbol.memberCount;
 		
 		Debug.Assert(definitionInstruction.dataType != null);
 		symbol.dataType = definitionInstruction.dataType;
@@ -203,8 +230,8 @@ static class Analyser
 		if(refType != null) {
 			op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
 			DataType.makeUnique(ref op.result.dataType);
+			instructions.Add(op);
 		}
-		instructions.Add(op);
 	}
 	
 	static void basicOperator(NodeOperator op)
@@ -231,8 +258,9 @@ static class Analyser
 			}
 			Debug.Assert(item.dataType != null);
 			
-			if((item.dataType is DataTypeReference) && load) {
-				node = new NodeResult(name.location) { dataType = item.dataType };
+			DataTypeReference refTo = item.dataType as DataTypeReference;
+			if(refTo != null && load) {
+				node = new NodeResult(name.location) { dataType = refTo.referenced };
 				instructions.Add(new NodeOperator(name.location, OT.READ, item.node, null, result: node));
 			} else {
 				node.dataType = item.dataType;

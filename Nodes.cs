@@ -81,20 +81,10 @@ namespace Jolly
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
 		
 		public TableFolder definitionScope;
+		public int memberCount;
 		public string name;
 	}
-	
-	class NodeDefinition : NodeSymbol
-	{
-		public NodeDefinition(SourceLocation loc, string name, TableFolder definitionScope, NT type)
-			: base(loc, name, definitionScope, type) { }
-		
-		public int childNodeCount;
-		
-		public override string toDebugText()
-			=> "define " + dataType;
-	}
-		
+			
 	class NodeTupple : Node
 	{
 		public NodeTupple(SourceLocation loc)
@@ -153,15 +143,14 @@ namespace Jolly
 			=> "call " + functionName;
 	}
 	
-	class NodeFunction : Node
+	class NodeFunction : NodeSymbol
 	{
-		public NodeFunction(SourceLocation loc, NodeSymbol[] arguments, TableFolder parentScope)
-			: base(NodeType.FUNCTION, loc) { this.arguments = arguments; }
-		
-		public NodeSymbol[] arguments;
-		public Node returns;
+		public NodeFunction(SourceLocation loc, string name, TableFolder definitionScope)
+			: base(loc, name, definitionScope, NodeType.FUNCTION) {  }
+			
+		public int returnDefinitionCount, argumentDefinitionCount;
 		
 		public override string toDebugText()
-			=> "function";
+			=> "function " + name;
 	}
 }

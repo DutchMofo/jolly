@@ -78,6 +78,7 @@ enum DefineMode
 	NONE,
 	ARGUMENT,
 	MEMBER_FUNCTION_VARIABLE,
+	DITTO,
 }
 	
 struct Op
@@ -245,7 +246,7 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new NodeSymbol(token.location, token.name, scope));
+		values.Push(new NodeSymbol(token.location, token.text, scope));
 	}
 	
 	void parseDefineIdentifier()
@@ -262,24 +263,25 @@ class ExpressionParser
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
 				if(defineMode == DefineMode.ARGUMENT) {
-					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
+					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.text));
 				}
 				
-				var functionNode = new NodeDefinition(token.location, token.name, scope, NT.FUNCTION);
+				var functionNode = new NodeFunction(token.location, token.text, scope);
+				expression.Insert(startNodeCount, functionNode);
+				expression.AddRange(values); // TODO: Might have side-effects
+				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
+				int _startNodeCount2 = expression.Count;
 				
-				expression.Add(functionNode);
-				int startNodeCount = expression.Count;
-				
-				if(!scope.Add(token.name, null, functionNode)) {
+				if(!scope.Add(token.text, null, functionNode)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var theFunctionScope = new TableFolder(scope);
+				var theFunctionScope = new TableFolder(scope); 
 				var parser = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
 				cursor = parser.parseExpression(DefineMode.ARGUMENT);
 				
-				// TODO: Handle arguments
+				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
 				
 				Token brace = tokens[cursor + 1];
 				if(brace.type != TT.BRACE_OPEN) {
@@ -290,30 +292,33 @@ class ExpressionParser
 				cursor = brace.partnerIndex - 1;
 				
 				expression.Add(ScopeParser.scopeEnd);
-				functionNode.childNodeCount = expression.Count - startNodeCount;
+				functionNode.memberCount = expression.Count - startNodeCount;
 				
 				terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
 			}
 			else
 			{ // Variable
-				var variable = new NodeDefinition(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
-				if(!scope.Add(token.name, null, variable)) {
-					Jolly.addError(token.location, "Trying to redefine variable");
+				var variable = new NodeSymbol(token.location, token.text, scope, NT.VARIABLE_DEFINITION);
+				if(!scope.Add(token.text, null, variable)) {
+					throw Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				variable.childNodeCount = expression.Count - startNodeCount;
+				variable.memberCount = expression.Count - startNodeCount;
 				
-				if(variable.childNodeCount == 0) {
-					variable.childNodeCount = 1;
+				if(variable.memberCount == 0) {
+					variable.memberCount = 1;
 					expression.Add(variable);
 					expression.Add(prev);
 				} else {
 					expression.Insert(startNodeCount, variable);
 				}
-				values.Push(new NodeSymbol(token.location, token.name, scope));
+				values.Push(new NodeSymbol(token.location, token.text, scope));
+				
+				if(defineMode == DefineMode.MEMBER_FUNCTION_VARIABLE)
+					defineMode = DefineMode.DITTO;
 			}
 		}
 		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION)
-			values.Push(new NodeSymbol(token.location, token.name, scope));
+			values.Push(new NodeSymbol(token.location, token.text, scope));
 	} // parseDefineIdentifier()
 	
 	void parseComma()
@@ -326,20 +331,13 @@ class ExpressionParser
 			pushOperator(operators.Pop());
 		
 		// TODO: This probably has other side-effects but it works for now
-		if(defineMode != DefineMode.NONE)
+		if(defineMode == DefineMode.ARGUMENT)
 		{
-			if(defineMode == DefineMode.ARGUMENT)
-			{
-				cursor += 1;
-				parseDefinition();
-			}
-			else
-			{
-				// TODO: implement define after comma: int a, b; so that it copies the datatype of the first
-				//											  ^
-				throw new ParseException();
-			}
-			
+			cursor += 1;
+			parseDefinition();
+		}
+		else if(defineMode == DefineMode.DITTO)
+		{
 			// Token name = tokens[cursor + 1];
 			// prevTokenKind = currentTokenKind = VALUE_KIND;
 			
@@ -353,7 +351,10 @@ class ExpressionParser
 			// 	Jolly.addError(name.location, "Trying to redefine variable");
 			// }
 			// values.Push(variable);
-		}
+			// TODO: implement define after comma: int a, b; so that it copies the datatype of the first
+			//											  ^
+			throw new ParseException();
+		}	
 		else
 		{
 			parseOperator();

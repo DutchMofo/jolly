@@ -166,7 +166,7 @@ class Token
 		string text = Jolly.formatEnum(type);
 		
 		if(type <= Type.EQUAL_GREATER)		return "token " + text;
-		if(type == Type.IDENTIFIER)			return text + " " + token?.name;
+		if(type == Type.IDENTIFIER)			return text + " " + token?.text;
 		if(type == Type.STRING_LITERAL)		return text + " " + token?._string;
 		if(type == Type.INTEGER_LITERAL)	return text + " " + token?._integer;
 		if(type == Type.FLOAT_LITERAL)		return text + " " + token?._float;
@@ -196,7 +196,7 @@ class Token
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public ulong _integer	{ get { return (ulong)data; }	set { data = value; } }
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
-	public string name		{ get { return (string)data; }	set { data = value; } }
+	public string text		{ get { return (string)data; }	set { data = value; } }
 	// };
 };
 
@@ -293,11 +293,11 @@ class Tokenizer
 		int start = cursor, size = 0;
 		while (isIndentifierChar(source[cursor]))
 		size += incrementCursor();
-		token.name = source.Substring(start, size);
+		token.text = source.Substring(start, size);
 
 		if (prevToken.type == Token.Type.HASH)
 		{
-			if (Lookup.directives.TryGetValue(token.name, out prevToken.type)) {
+			if (Lookup.directives.TryGetValue(token.text, out prevToken.type)) {
 				overridePrev(prevToken);
 				return null;
 			}
@@ -305,8 +305,8 @@ class Tokenizer
 		}
 		else
 		{
-			if( Lookup.keywords.ContainsKey(token.name))
-				token.type = Lookup.keywords[token.name];
+			if( Lookup.keywords.ContainsKey(token.text))
+				token.type = Lookup.keywords[token.text];
 		}
 		return token;
 	}
