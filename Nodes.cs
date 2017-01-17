@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Jolly
 {
-	using NT = Node.NodeType;
+    using NT = Node.NodeType;
 	// using TT = Token.Type;
 		
 	class Node
@@ -19,6 +19,7 @@ namespace Jolly
 			USERTYPE,
 			
 			MODIFY_TYPE,
+			SCOPE_END,
 			
 			ALIAS,
 			BLOCK,
@@ -51,6 +52,8 @@ namespace Jolly
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
+			
+		public virtual string toDebugText() => "";
 	}
 	
 	class NodeModifyType : Node
@@ -78,8 +81,18 @@ namespace Jolly
 			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
 		
 		public TableFolder definitionScope;
-		public int childNodeCount;
 		public string name;
+	}
+	
+	class NodeDefinition : NodeSymbol
+	{
+		public NodeDefinition(SourceLocation loc, string name, TableFolder definitionScope, NT type)
+			: base(loc, name, definitionScope, type) { }
+		
+		public int childNodeCount;
+		
+		public override string toDebugText()
+			=> "define " + dataType;
 	}
 		
 	class NodeTupple : Node
@@ -113,6 +126,9 @@ namespace Jolly
 		
 		public OperatorType operation;
 		public Node a, b, result;
+		
+		public override string toDebugText()
+			{ /*Debugger.Break(); */return "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType); }
 	}
 	
 	class NodeLiteral : Node
@@ -132,6 +148,9 @@ namespace Jolly
 		
 		public string functionName;
 		public Node[] arguments;
+		
+		public override string toDebugText()
+			=> "call " + functionName;
 	}
 	
 	class NodeFunction : Node
@@ -141,5 +160,8 @@ namespace Jolly
 		
 		public NodeSymbol[] arguments;
 		public Node returns;
+		
+		public override string toDebugText()
+			=> "function";
 	}
 }

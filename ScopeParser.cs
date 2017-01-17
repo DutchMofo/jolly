@@ -13,7 +13,8 @@ namespace Jolly
 		protected TableFolder scope;
 		protected List<Node> program;
 		
-		public NodeSymbol scopeHead;
+		public NodeDefinition scopeHead;
+		public static readonly Node scopeEnd = new Node(NT.SCOPE_END, new SourceLocation());
 		
 		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
 		{
@@ -41,15 +42,14 @@ namespace Jolly
 			
 			// flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE
 			
-			TableFolder structScope = new TableFolder(scope);
+			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
 			var structType = new DataTypeStruct(structScope) { name = name.name } as DataType;
-			// DataType.makeUnique(ref structType);
+			var structNode = new NodeDefinition(name.location, name.name, scope, NT.STRUCT)
+				{ dataType = structType };
 			
-			if(!scope.Add(name.name, structType)) {
+			if(!scope.Add(name.name, structType, structNode)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.name));
 			}
-			var structNode = new NodeSymbol(name.location, name.name, scope, NT.STRUCT)
-				{ dataType = structType };
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
 				{ scopeHead = structNode } // Hacky
@@ -233,7 +233,7 @@ namespace Jolly
 		protected void parseExpression()
 		{
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
-			cursor = parser.parseExpression(DefineMode.MEMBER_OR_VARIABLE);
+			cursor = parser.parseExpression(DefineMode.MEMBER_FUNCTION_VARIABLE);
 		}
 		
 		protected virtual void _parse()
@@ -256,7 +256,7 @@ namespace Jolly
 				_parse();
 			}
 			if(scopeHead != null) {
-				program.Add(null);
+				program.Add(scopeEnd);
 				scopeHead.childNodeCount = program.Count - startNodeCount;
 			}
 		}

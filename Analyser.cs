@@ -15,21 +15,17 @@ static class Analyser
 	// of the variable about to be defined
 	[ThreadStatic] static Node definitionInstruction;
 	[ThreadStatic] static int cursor = 0;
-	
+		
 	public static List<Node> analyse(List<Node> program)
 	{
 		Analyser.program = program;
-		instructions = new List<Node>(program.Count);
+		var debug = instructions = new List<Node>(program.Count);
 				
 		for(Node node = program[cursor];
 			cursor < program.Count;
 			cursor += 1)
 		{
 			node = program[cursor];
-			if(node == null) {
-				ScopeEnd(scopeStack.Pop());
-				continue;
-			}
 			Action<Node> action;
 			if(typeDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
@@ -42,22 +38,17 @@ static class Analyser
 			cursor += 1)
 		{
 			node = program[cursor];
-			if(node == null) {
-				ScopeEnd(scopeStack.Pop());
-				continue;
-			}
 			Action<Node> action;
 			if(!analysers.TryGetValue(node.nodeType, out action)) {
 				throw Jolly.unexpected(node);
 			}
-			if(action != null) // Null means skip
-				action(node);
+			action(node);
 		}
 		
 		return instructions;
 	}
 	
-	static void ScopeEnd(NodeSymbol scopeHeader)
+	static void scopeEnd(Node scopeHeader)
 	{
 		if(scopeHeader.nodeType != NT.FUNCTION) // TODO: Remove this
 		DataType.makeUnique(ref scopeHeader.dataType);
@@ -66,6 +57,7 @@ static class Analyser
 	static readonly Dictionary<NT, Action<Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
 			{ NT.FUNCTION, skipSymbol },
 			{ NT.STRUCT, node => {
@@ -85,16 +77,17 @@ static class Analyser
 				definitionInstruction = node;
 			} },
 			{ NT.NAME, node => {
-				getTypeFromName(ref node, false, false);
+				getTypeFromName(ref node);
 				definitionInstruction = node;
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
-				getTypeFromName(ref tToRef.target, false, false);
+				getTypeFromName(ref tToRef.target);
 				definitionInstruction = tToRef.target;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
+			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.VARIABLE_DEFINITION, defineMemberOrVariable },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
@@ -106,19 +99,21 @@ static class Analyser
 				operatorAnalysers[o.operation](o);
 			} },
 			{ NT.FUNCTION_CALL, node => {
+				// TODO: Validate datatype's
 				instructions.Add(node);
 			} },
 			{ NT.RETURN, node => {
-				
+				// TODO: Validate datatype's
+				instructions.Add(node);
 			} },
 		};
 	
 	static void skipSymbol(Node node)
-		=> cursor += (node as NodeSymbol).childNodeCount;
+		=> cursor += (node as NodeDefinition).childNodeCount;
 	
 	static void defineMemberOrVariable(Node node)
 	{
-		NodeSymbol symbol = (NodeSymbol)node;
+		NodeDefinition symbol = (NodeDefinition)node;
 		if(symbol.dataType != null) {
 			cursor += symbol.childNodeCount;
 			return;
@@ -137,10 +132,17 @@ static class Analyser
 		cursor += symbol.childNodeCount;
 		
 		Debug.Assert(definitionInstruction.dataType != null);
-		symbol.dataType = symbol.definitionScope.children[symbol.name].dataType = definitionInstruction.dataType;
+		symbol.dataType = definitionInstruction.dataType;
+		
+		if((symbol.definitionScope.flags & NameFlags.IS_TYPE) == 0) {
+			DataType refToData = new DataTypeReference(symbol.dataType);
+			DataType.makeUnique(ref refToData);
+			symbol.definitionScope.children[symbol.name].dataType = refToData;
+		} else {
+			symbol.definitionScope.children[symbol.name].dataType = symbol.dataType;
+		}
 		instructions.Add(symbol);
-		// Just to be sure
-		definitionInstruction = null;
+		definitionInstruction = null; // Just to be sure
 	}
 	
 	static readonly Dictionary<OT, Action<NodeOperator>>
@@ -151,28 +153,29 @@ static class Analyser
 			{ OT.MULTIPLY, basicOperator },
 			{ OT.DIVIDE, basicOperator },
 			{ OT.ASSIGN, op => {
-				getTypeFromName(ref op.a, false, true);
+				getTypeFromName(ref op.a, false);
 				
 				var target = op.a.dataType as DataTypeReference;
 				if(target == null) {
 					throw Jolly.addError(op.a.location, "Cannot assign to this");
 				}
 				
+				getTypeFromName(ref op.b);
 				if(target.referenced != op.b.dataType) {
 					throw Jolly.addError(op.a.location, "Cannot assign this value type");
 				}
-				getTypeFromName(ref op.b, true, false);
+				op.result.dataType = op.b.dataType;
 				instructions.Add(op);
 			} },
 			{ OT.REFERENCE, op => {
-				getTypeFromName(ref op.a, false, false);
+				getTypeFromName(ref op.a);
 				op.result.dataType = new DataTypeReference(op.a.dataType);
 				DataType.makeUnique(ref op.result.dataType);
 				instructions.Add(op);
 			} },
 			{ OT.CAST, op => {
-				getTypeFromName(ref op.a, true, true);
-				getTypeFromName(ref op.b, false, false);
+				getTypeFromName(ref op.a);
+				getTypeFromName(ref op.b);
 				op.result.dataType = op.b.dataType;
 				instructions.Add(op);
 			} },
@@ -180,14 +183,13 @@ static class Analyser
 	
 	static void operatorGetMember(NodeOperator op)
 	{
+		getTypeFromName(ref op.a, false);
+		if(op.a.dataType == null) {
+			throw Jolly.addError(op.a.location, "Can't load type");
+		}
 		NodeSymbol bName = op.b as NodeSymbol;
 		if(bName == null) {
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
-		}
-		
-		if(op.a.dataType == null) {
-			if(!getTypeFromName(ref op.a, false, op.a.dataType is DataTypeReference))
-				throw Jolly.addError(op.a.location, "Can't load type");
 		}
 		
 		var refType = op.a.dataType as DataTypeReference;
@@ -198,15 +200,17 @@ static class Analyser
 		if(op.result.dataType == null) {
 			throw Jolly.addError(bName.location, "The type does not contain a member \"{0}\"".fill(bName.name));
 		}
-		op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
-		DataType.makeUnique(ref op.result.dataType);
+		if(refType != null) {
+			op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
+			DataType.makeUnique(ref op.result.dataType);
+		}
 		instructions.Add(op);
 	}
 	
 	static void basicOperator(NodeOperator op)
 	{
-		getTypeFromName(ref op.a, true, true);
-		getTypeFromName(ref op.b, true, true);
+		getTypeFromName(ref op.a);
+		getTypeFromName(ref op.b);
 		if(op.a.dataType != op.b.dataType) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
@@ -214,7 +218,7 @@ static class Analyser
 		instructions.Add(op);
 	}
 	
-	static bool getTypeFromName(ref Node node, bool load, bool makeReference)
+	static bool getTypeFromName(ref Node node, bool load = true)
 	{
 		if(node.nodeType == NT.NAME)
 		{
@@ -227,15 +231,11 @@ static class Analyser
 			}
 			Debug.Assert(item.dataType != null);
 			
-			if(load) {
-				name.dataType = item.dataType;
-				Debugger.Break();
-				instructions.Add(node = new NodeOperator(name.location, OT.READ, name, null, new NodeResult(name.location)));
-			} else if(makeReference) {
-				node.dataType = new DataTypeReference(item.dataType) as DataType; 
-				DataType.makeUnique(ref node.dataType);
+			if((item.dataType is DataTypeReference) && load) {
+				node = new NodeResult(name.location) { dataType = item.dataType };
+				instructions.Add(new NodeOperator(name.location, OT.READ, item.node, null, result: node));
 			} else {
-				name.dataType = item.dataType;
+				node.dataType = item.dataType;
 			}
 			return true;
 		}

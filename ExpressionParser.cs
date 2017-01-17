@@ -6,7 +6,6 @@ namespace Jolly
 using TT = Token.Type;
 using NT = Node.NodeType;
 using OT = OperatorType;
-using System.Linq;
 
 enum OperatorType
 {
@@ -78,7 +77,7 @@ enum DefineMode
 {
 	NONE,
 	ARGUMENT,
-	MEMBER_OR_VARIABLE,
+	MEMBER_FUNCTION_VARIABLE,
 }
 	
 struct Op
@@ -266,12 +265,12 @@ class ExpressionParser
 					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.name));
 				}
 				
-				var functionNode = new NodeSymbol(token.location, token.name, scope, NT.FUNCTION);
+				var functionNode = new NodeDefinition(token.location, token.name, scope, NT.FUNCTION);
 				
 				expression.Add(functionNode);
 				int startNodeCount = expression.Count;
 				
-				if(!scope.Add(token.name, null)) {
+				if(!scope.Add(token.name, null, functionNode)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
@@ -290,17 +289,17 @@ class ExpressionParser
 				new BlockParser(cursor + 2, brace.partnerIndex, theFunctionScope, tokens, expression).parseBlock();
 				cursor = brace.partnerIndex - 1;
 				
-				expression.Add(null);
+				expression.Add(ScopeParser.scopeEnd);
 				functionNode.childNodeCount = expression.Count - startNodeCount;
 				
 				terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
 			}
 			else
 			{ // Variable
-				if(!scope.Add(token.name, null)) {
+				var variable = new NodeDefinition(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
+				if(!scope.Add(token.name, null, variable)) {
 					Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				var variable = new NodeSymbol(token.location, token.name, scope, NT.VARIABLE_DEFINITION);
 				variable.childNodeCount = expression.Count - startNodeCount;
 				
 				if(variable.childNodeCount == 0) {

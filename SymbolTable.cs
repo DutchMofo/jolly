@@ -19,12 +19,14 @@ namespace Jolly
 	class TableItem
 	{
 		public int index;
+		public Node node;
 		public DataType dataType;
 	}
 	
 	class TableFolder 
 	{
 		TableFolder parent;
+		public NameFlags flags;
 		public Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
 		
 		public TableFolder(TableFolder parent)
@@ -49,7 +51,7 @@ namespace Jolly
 			return item;
 		}
 		
-		public bool Add(string childName, DataType child)
+		public bool Add(string childName, DataType child, Node node)
 		{
 			TableFolder iterator = this;
 			do {
@@ -61,7 +63,7 @@ namespace Jolly
 			// if((child.flags & NameFlags.IS_BASETYPE) != 0)
 			// 	flags &= ~NameFlags.IS_PURE;
 			
-			children.Add(childName, new TableItem{ dataType = child, index = children.Count });
+			children.Add(childName, new TableItem{ dataType = child, index = children.Count, node = node });
 			return true;
 		}
 		

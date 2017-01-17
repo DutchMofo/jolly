@@ -23,9 +23,10 @@ int main()
 	Problem problemData;
 	initProblem(&problemData);
 	
-	int i = (int: 10) * 2;
+	int a = 2;
+	int i = (int: 10) * a;
 	
-	return 12 / 2 + 2 * 10;
+	return 12 / a + 2 * i;
 }
 
 /*

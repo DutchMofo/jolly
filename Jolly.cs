@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-// using System.Net;
-// using System.Net.Sockets;
-// using Mono.Unix;
 
 namespace Jolly
 {
@@ -80,7 +77,7 @@ namespace Jolly
 			
 			program = Analyser.analyse(program);
 			
-			Debugger.Break();			
+			program.forEach(i => Console.WriteLine(i.toDebugText()));
 		}
 	}
 }
