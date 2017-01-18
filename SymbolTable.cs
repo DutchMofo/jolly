@@ -60,9 +60,6 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			// if((child.flags & NameFlags.IS_BASETYPE) != 0)
-			// 	flags &= ~NameFlags.IS_PURE;
-			
 			children.Add(childName, new TableItem{ dataType = child, index = children.Count, node = node });
 			return true;
 		}

@@ -76,8 +76,9 @@ enum OperatorType
 enum DefineMode
 {
 	NONE,
+	MEMBER,
 	ARGUMENT,
-	MEMBER_FUNCTION_VARIABLE,
+	FUNCTION_VARIABLE,
 	DITTO,
 }
 	
@@ -103,13 +104,14 @@ struct Op
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
-	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program)
+	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program, ScopeParser parser)
 	{
 		startNodeCount = program.Count;
 		this.terminator = terminator;
 		this.expression = program;
 		this.cursor = cursor;
 		this.tokens = tokens;
+		this.parser = parser;
 		this.scope = scope;
 		this.end = end;
 	}
@@ -120,8 +122,9 @@ class ExpressionParser
 		 currentTokenKind = VALUE_KIND;	// Is the current token being parsed an operator or a value
 	DefineMode defineMode;				// Are we defining variables
 	
-	Dictionary<TT, Op> opLookup, preOpLookup;
 	int end, cursor, startNodeCount;
+	Dictionary<TT, Op> opLookup;
+	ScopeParser parser;
 	TableFolder scope;
 	Token[] tokens;
 	TT terminator;
@@ -142,7 +145,6 @@ class ExpressionParser
 		
 		this.defineMode = DefineMode.NONE;
 		opLookup = Lookup.EXPRESSION_OP;
-		preOpLookup = Lookup.EXPRESSION_PRE_OP;
 		
 		for(token = tokens[cursor];
 			token.type != terminator/* & cursor < end*/;
@@ -187,7 +189,6 @@ class ExpressionParser
 	void parseDefinition()
 	{
 		opLookup = Lookup.DEFINE_OP;
-		preOpLookup = Lookup.DEFINE_PRE_OP;
 		
 		for(token = tokens[cursor];
 			token.type != terminator/* & cursor < end*/;
@@ -262,13 +263,13 @@ class ExpressionParser
 			Token nextToken = tokens[cursor + 1];
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
-				if(defineMode == DefineMode.ARGUMENT) {
-					throw Jolly.addError(token.location, "Trying to define function \"{0}\" as argument".fill(token.text));
+				if(defineMode != DefineMode.FUNCTION_VARIABLE) {
+					throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 				}
 				
 				var functionNode = new NodeFunction(token.location, token.text, scope);
 				expression.Insert(startNodeCount, functionNode);
-				expression.AddRange(values); // TODO: Might have side-effects
+				expression.AddRange(values);
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
@@ -277,9 +278,9 @@ class ExpressionParser
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var theFunctionScope = new TableFolder(scope); 
-				var parser = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression);
-				cursor = parser.parseExpression(DefineMode.ARGUMENT);
+				var theFunctionScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
+				cursor = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression, parser)
+					.parseExpression(DefineMode.ARGUMENT);
 				
 				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
 				
@@ -299,8 +300,20 @@ class ExpressionParser
 			else
 			{ // Variable
 				var variable = new NodeSymbol(token.location, token.text, scope, NT.VARIABLE_DEFINITION);
-				if(!scope.Add(token.text, null, variable)) {
-					throw Jolly.addError(token.location, "Trying to redefine variable");
+				
+				if(defineMode == DefineMode.MEMBER)
+				{
+					var structType = ((DataTypeStruct)parser.scopeHead.dataType);
+					if(structType.memberMap.ContainsKey(token.text)) {
+						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
+					}
+					structType.memberMap.Add(token.text, structType.memberMap.Count);
+				}
+				else
+				{
+					if(!scope.Add(token.text, null, variable)) {
+						throw Jolly.addError(token.location, "Trying to redefine variable");
+					}	
 				}
 				variable.memberCount = expression.Count - startNodeCount;
 				
@@ -313,7 +326,7 @@ class ExpressionParser
 				}
 				values.Push(new NodeSymbol(token.location, token.text, scope));
 				
-				if(defineMode == DefineMode.MEMBER_FUNCTION_VARIABLE)
+				if(defineMode == DefineMode.FUNCTION_VARIABLE)
 					defineMode = DefineMode.DITTO;
 			}
 		}
@@ -330,7 +343,6 @@ class ExpressionParser
 		while(operators.Count > 0)
 			pushOperator(operators.Pop());
 		
-		// TODO: This probably has other side-effects but it works for now
 		if(defineMode == DefineMode.ARGUMENT)
 		{
 			cursor += 1;
@@ -338,21 +350,6 @@ class ExpressionParser
 		}
 		else if(defineMode == DefineMode.DITTO)
 		{
-			// Token name = tokens[cursor + 1];
-			// prevTokenKind = currentTokenKind = VALUE_KIND;
-			
-			// if(name.type != TT.IDENTIFIER) {
-			// 	throw Jolly.unexpected(name);
-			// }
-			
-			// var variable = new Symbol(name.location, name.name, scope);
-			
-			// if(!scope.Add(name.name, variableItem)) {
-			// 	Jolly.addError(name.location, "Trying to redefine variable");
-			// }
-			// values.Push(variable);
-			// TODO: implement define after comma: int a, b; so that it copies the datatype of the first
-			//											  ^
 			throw new ParseException();
 		}	
 		else
@@ -372,11 +369,11 @@ class ExpressionParser
 		
 		if(prevTokenKind != VALUE_KIND)
 		{
-			if(token.type == TT.PLUS || token.type == TT.MINUS) {
-				// unary plus and minus
-				values.Push(new NodeLiteral(token.location, 0));
-			} else if(!preOpLookup.TryGetValue(token.type, out op)) {
-				throw Jolly.unexpected(token);
+			switch(token.type) {
+				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE ); break;
+				case TT.AND		: op = new Op(02, 1, false, OT.REFERENCE   ); break;
+				case TT.PLUS: case TT.MINUS: values.Push(new NodeLiteral(token.location, 0)); break;
+				default: throw Jolly.unexpected(token);
 			}
 		}
 		

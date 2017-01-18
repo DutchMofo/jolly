@@ -12,6 +12,7 @@ namespace Jolly
 		protected int cursor, end;
 		protected TableFolder scope;
 		protected List<Node> program;
+		protected DefineMode defineMode = DefineMode.FUNCTION_VARIABLE;
 		
 		public NodeSymbol scopeHead;
 		public static readonly Node scopeEnd = new Node(NT.SCOPE_END, new SourceLocation());
@@ -40,10 +41,8 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			// flags = NameFlags.IS_TYPE | NameFlags.IS_PURE | NameFlags.FOLDER | NameFlags.IS_TYPE
-			
 			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
-			var structType = new DataTypeStruct(structScope) { name = name.text } as DataType;
+			var structType = new DataTypeStruct() { name = name.text, structScope = structScope } as DataType;
 			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
 				{ dataType = structType };
 			
@@ -52,7 +51,7 @@ namespace Jolly
 			}
 			program.Add(structNode);
 			new StructParser(cursor + 1, brace.partnerIndex, structScope, tokens, program)
-				{ scopeHead = structNode } // Hacky
+				{ scopeHead = structNode, defineMode = DefineMode.MEMBER } // Hacky
 				.parseBlock();
 			
 			cursor = brace.partnerIndex;
@@ -222,7 +221,7 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program, this);
 			cursor = parser.parseExpression(DefineMode.NONE);
 			
 			program.Add(new NodeResult(token.location, NT.RETURN));
@@ -232,8 +231,8 @@ namespace Jolly
 		
 		protected void parseExpression()
 		{
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program);
-			cursor = parser.parseExpression(DefineMode.MEMBER_FUNCTION_VARIABLE);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program, this);
+			cursor = parser.parseExpression(defineMode);
 		}
 		
 		protected virtual void _parse()

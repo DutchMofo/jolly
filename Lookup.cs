@@ -54,10 +54,6 @@ static class Lookup
 	}
 
 	public readonly static Dictionary<TT, Op>
-		EXPRESSION_PRE_OP = new Dictionary<TT, Op>() {
-			{ TT.ASTERISK,			new Op(02, 1, false, OT.DEREFERENCE		)},
-			{ TT.AND,				new Op(02, 1, false, OT.REFERENCE		)},
-		},
 		EXPRESSION_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD,			new Op(01, 2, true,  OT.GET_MEMBER		)},
 			{ TT.EXCLAMATION,		new Op(02, 1, false, OT.LOGIC_NOT		)},
@@ -101,9 +97,6 @@ static class Lookup
 		DEFINE_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD, EXPRESSION_OP[TT.PERIOD] },
 			{ TT.COMMA, EXPRESSION_OP[TT.COMMA] },
-		},
-		DEFINE_PRE_OP = new Dictionary<TT, Op>() {
-			// { TT.COMMA, EXPRESSION_OP[TT.COMMA] }
 		};
 	
 	//In ascii order

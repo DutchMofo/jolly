@@ -74,9 +74,9 @@ namespace Jolly
 			var globalScope = new TableFolder(null);
 			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
 			
-			program = Analyser.analyse(program);
+			var instructions = Analyser.analyse(program);
 			
-			program.forEach(i => Console.WriteLine(i.toDebugText()));
+			instructions.forEach(Console.WriteLine);
             System.Diagnostics.Debugger.Break();
 		}
 	}

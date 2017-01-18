@@ -40,6 +40,7 @@ namespace Jolly
 			RESULT,
 			RETURN,
 			USING,
+			MEMBER_DEFINITION,
 			VARIABLE_DEFINITION,
 			WHILE,
 			

@@ -26,7 +26,7 @@ namespace Jolly
 		public DataType() { this.typeID = lastTypeID++; }
 		public DataType(int size, int align) { this.size = size; this.align = align; this.typeID = lastTypeID++; }
 		
-		public virtual DataType getMember(string name) => null;
+		public virtual DataType getMember(string name, bool isStatic) => null;
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
@@ -74,14 +74,21 @@ namespace Jolly
 	
 	class DataTypeStruct : DataType
 	{
-		public TableFolder memberTable;
+		public TableFolder structScope;
+		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
 		
-		public DataTypeStruct(TableFolder memberTable) 
-			{ this.memberTable = memberTable; }
-		
-		public override DataType getMember(string name)
-			=> memberTable.getChild(name).dataType;
+		public override DataType getMember(string name, bool isStatic)
+		{
+			if(isStatic) {
+				return structScope.searchItem(name)?.dataType;
+			} else {
+				int index;
+				if(memberMap.TryGetValue(name, out index))
+					return members[index];
+			}
+			return null;
+		}
 			
 		public override string ToString() => name;
 	}
