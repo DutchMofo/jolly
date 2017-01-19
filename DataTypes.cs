@@ -56,18 +56,18 @@ namespace Jolly
 	
 	class DataTypeArray : DataType
 	{
-		public DataType collectionType, countType;
+		public DataType collectionType;
 		public int length;
 				
 		public override bool Equals(object obj)
 		{
 			var arr = obj as DataTypeArray;
 			if(arr != null)
-				return arr.length == length && arr.collectionType == collectionType && arr.countType == countType;
+				return arr.length == length && arr.collectionType == collectionType;
 			return false;
 		}
 		public override int GetHashCode()
-			=> collectionType.GetHashCode() & countType.GetHashCode() & length;
+			=> collectionType.GetHashCode() & length;
 			
 		public override string ToString() => collectionType + "[]";
 	}

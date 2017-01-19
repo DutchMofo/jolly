@@ -23,7 +23,7 @@ static class Analyser
 	public static List<Instruction> analyse(List<Node> program)
 	{
 		Analyser.program = program;
-		var debug = instructions = new List<Instruction>(program.Count);
+		instructions = new List<Instruction>(program.Count);
 				
 		for(Node node = program[cursor];
 			cursor < program.Count;
@@ -60,8 +60,9 @@ static class Analyser
 	static readonly Dictionary<NT, Action<Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
-			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
+			{ NT.MEMBER_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.FUNCTION, node => {
 				int startCursor = cursor;
 				NodeFunction function = (NodeFunction)node;
@@ -162,10 +163,7 @@ static class Analyser
 	static DataType defineMemberOrVariable(Node node)
 	{
 		NodeSymbol symbol = (NodeSymbol)node;
-		if(symbol.dataType != null) {
-			cursor += symbol.memberCount;
-			return null;
-		}
+		Debug.Assert(symbol.dataType != null);
 		
 		for(int i = 1; i <= symbol.memberCount; i += 1)
 		{
@@ -245,19 +243,33 @@ static class Analyser
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		var refType = op.a.dataType as DataTypeReference;
-		op.result.dataType = (refType != null) ? 
-			refType.getMember(bName.name, false) ?? refType.referenced.getMember(bName.name, false) :
-			op.a.dataType.getMember(bName.name, true);
+		var varType = op.a.dataType as DataTypeReference;
+		if(varType != null) {
+			var refType = varType.referenced as DataTypeReference;
+			op.result.dataType = (refType != null) ? 
+				varType.getMember(bName.name, false) ?? refType.referenced.getMember(bName.name, false) :
+				varType.getMember(bName.name, false);
+			
+			if(refType != null) {
+				op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
+				DataType.makeUnique(ref op.result.dataType);
+				// instructions.Add(op);asdasd
+			}
+		} else {
+			/*
+				Get static member
+				struct Foo { struct Bar { int i; } }
+				Foo.Bar _variable;
+			*/
+			// op.result.dataType =
+		}
+		
+		
 		
 		if(op.result.dataType == null) {
 			throw Jolly.addError(bName.location, "The type does not contain a member \"{0}\"".fill(bName.name));
 		}
-		if(refType != null) {
-			op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
-			DataType.makeUnique(ref op.result.dataType);
-			// instructions.Add(op);asdasd
-		}
+		
 	}
 	
 	static void basicOperator(NodeOperator op)
