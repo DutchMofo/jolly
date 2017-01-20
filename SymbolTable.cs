@@ -20,10 +20,10 @@ namespace Jolly
 	{
 		public int index;
 		public Node node;
-		public DataType dataType;
+		public TypeInfo typeInfo;
 	}
 	
-	class TableFolder 
+	class TableFolder : TableItem
 	{
 		TableFolder parent;
 		public NameFlags flags;
@@ -60,7 +60,7 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			children.Add(childName, new TableItem{ dataType = child, index = children.Count, node = node });
+			children.Add(childName, new TableItem{ typeInfo = new TypeInfo(child, true), index = children.Count, node = node });
 			return true;
 		}
 		

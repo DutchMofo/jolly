@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Jolly
 {
-    using NT = Node.NodeType;
+	using NT = Node.NodeType;
 	// using TT = Token.Type;
 		
 	class Node
@@ -47,6 +47,7 @@ namespace Jolly
 			COUNT // Must be last
 		}
 		
+		public bool isValue;
 		public NodeType nodeType;
 		public DataType dataType;
 		public SourceLocation location;
@@ -70,20 +71,14 @@ namespace Jolly
 		public Node target;
 	}
 	
-	class NodeBaseType : Node
-	{
-		public NodeBaseType(SourceLocation loc, DataType type)
-			: base(NT.BASETYPE, loc) { dataType = type; }
-	}
-	
 	class NodeSymbol : Node
 	{
 		public NodeSymbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
-			: base(type, loc) { this.name = name; this.definitionScope = definitionScope; }
+			: base(type, loc) { this.text = name; this.definitionScope = definitionScope; }
 		
 		public TableFolder definitionScope;
 		public int memberCount;
-		public string name;
+		public string text;
 	}
 			
 	class NodeTupple : Node
@@ -119,7 +114,7 @@ namespace Jolly
 		public Node a, b, result;
 		
 		public override string toDebugText()
-			{ /*Debugger.Break(); */return "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType); }
+			{ return "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType); }
 	}
 	
 	class NodeLiteral : Node
@@ -152,6 +147,6 @@ namespace Jolly
 		public int returnDefinitionCount, argumentDefinitionCount;
 		
 		public override string toDebugText()
-			=> "function " + name;
+			=> "function " + text;
 	}
 }

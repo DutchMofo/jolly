@@ -12,11 +12,11 @@ struct Problem
 	}
 }
 
-Problem, int initProblem(Problem* problem)
+Problem*, int initProblem(Problem* problem)
 {
 	damm.counter = 1;
 	problem.name = "Oke";
-	return problem.it;
+	return problem, damm.counter;
 }
 
 int main()

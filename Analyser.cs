@@ -53,8 +53,11 @@ static class Analyser
 	}
 	
 	static void scopeEnd(Node scopeHeader)
-	{
-		DataType.makeUnique(ref scopeHeader.dataType);
+	{ 
+		if(scopeHeader.nodeType != NT.STRUCT) {
+			var type = (DataType)scopeHeader.typeInfo.type;
+			DataType.makeUnique(ref type);
+		}
 	}
 	
 	static readonly Dictionary<NT, Action<Node>>
@@ -78,8 +81,8 @@ static class Analyser
 				}
 				cursor += function.returnDefinitionCount + 1;
 				var returns = (definitionInstruction.nodeType == NT.TUPPLE) ?
-					((NodeTupple)definitionInstruction).values.Select(n => n.dataType).ToArray() :
-					new DataType[] { definitionInstruction.dataType };
+					((NodeTupple)definitionInstruction).values.Select(n => (DataType)n.typeInfo.type).ToArray() :
+					new DataType[] { (DataType)definitionInstruction.typeInfo.type };
 				definitionInstruction = null;
 				
 				int end = cursor + function.argumentDefinitionCount;
@@ -163,7 +166,7 @@ static class Analyser
 	static DataType defineMemberOrVariable(Node node)
 	{
 		NodeSymbol symbol = (NodeSymbol)node;
-		Debug.Assert(symbol.dataType != null);
+		Debug.Assert(symbol.typeInfo.type == null);
 		
 		for(int i = 1; i <= symbol.memberCount; i += 1)
 		{
@@ -177,21 +180,28 @@ static class Analyser
 		}
 		cursor += symbol.memberCount;
 		
-		Debug.Assert(definitionInstruction.dataType != null);
-		symbol.dataType = definitionInstruction.dataType;
+		Debug.Assert(definitionInstruction.typeInfo.type != null);
+		
+		if(definitionInstruction.typeInfo.type is TableItem) {
+			symbol.typeInfo = ((TableItem)definitionInstruction.typeInfo.type).typeInfo;
+			symbol.typeInfo.isStatic = false;
+		} else {
+			symbol.typeInfo = definitionInstruction.typeInfo;
+			symbol.typeInfo.isStatic = false;
+		}
 		
 		if((symbol.definitionScope.flags & NameFlags.IS_TYPE) == 0) {
-			DataType refToData = new DataTypeReference(symbol.dataType);
+			DataType refToData = new DataTypeReference((DataType)symbol.typeInfo.type);
 			DataType.makeUnique(ref refToData);
-			symbol.definitionScope.children[symbol.name].dataType = refToData;
+			symbol.definitionScope.children[symbol.text].typeInfo.type = refToData;
 		} else {
-			var structType = symbol.dataType as DataTypeStruct;
+			var structType = symbol.typeInfo.type as DataTypeStruct;
 			if(structType != null) {
-				structType.members[structType.memberMap[symbol.name]] = symbol.dataType;
+				structType.members[structType.memberMap[symbol.text]] = structType;
 			}
 		}
 				
-		return symbol.dataType;
+		return (DataType)symbol.typeInfo.type;
 		// instructions.Add(symbol);asdasd
 		// definitionInstruction = null; // Just to be sure
 	}
@@ -206,28 +216,29 @@ static class Analyser
 			{ OT.ASSIGN, op => {
 				getTypeFromName(ref op.a, false);
 				
-				var target = op.a.dataType as DataTypeReference;
+				var target = op.a.typeInfo.type as DataTypeReference;
 				if(target == null) {
 					throw Jolly.addError(op.a.location, "Cannot assign to this");
 				}
 				
 				getTypeFromName(ref op.b);
-				if(target.referenced != op.b.dataType) {
+				if(target.referenced != op.b.typeInfo.type) {
 					throw Jolly.addError(op.a.location, "Cannot assign this value type");
 				}
-				op.result.dataType = op.b.dataType;
+				op.result.typeInfo = op.b.typeInfo;
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.REFERENCE, op => {
 				getTypeFromName(ref op.a);
-				op.result.dataType = new DataTypeReference(op.a.dataType);
-				DataType.makeUnique(ref op.result.dataType);
+				var reference = (DataType)new DataTypeReference((DataType)op.a.typeInfo.type);
+				DataType.makeUnique(ref reference);
+				op.result.typeInfo.type = reference;
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.CAST, op => {
 				getTypeFromName(ref op.a);
 				getTypeFromName(ref op.b);
-				op.result.dataType = op.b.dataType;
+				op.result.typeInfo = op.b.typeInfo;
 				instructions.Add(new InstructionOperator(op));
 			} },
 		};
@@ -235,7 +246,7 @@ static class Analyser
 	static void operatorGetMember(NodeOperator op)
 	{
 		getTypeFromName(ref op.a, false);
-		if(op.a.dataType == null) {
+		if(op.a.typeInfo.type == null | op.a.typeInfo.isStatic) {
 			throw Jolly.addError(op.a.location, "Can't load type");
 		}
 		NodeSymbol bName = op.b as NodeSymbol;
@@ -243,16 +254,18 @@ static class Analyser
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		var varType = op.a.dataType as DataTypeReference;
+		var varType = op.a.typeInfo.type as DataTypeReference;
 		if(varType != null) {
 			var refType = varType.referenced as DataTypeReference;
-			op.result.dataType = (refType != null) ? 
-				varType.getMember(bName.name, false) ?? refType.referenced.getMember(bName.name, false) :
-				varType.getMember(bName.name, false);
+			op.result.typeInfo.type = (refType != null) ? 
+				varType.getMember(bName.text) ?? refType.referenced.getMember(bName.text) :
+				varType.getMember(bName.text);
+			op.result.typeInfo.isStatic = false;
 			
 			if(refType != null) {
-				op.result.dataType = new DataTypeReference(op.result.dataType) as DataType; 
-				DataType.makeUnique(ref op.result.dataType);
+				DataType reference = new DataTypeReference((DataType)op.result.typeInfo.type);
+				DataType.makeUnique(ref reference);
+				op.result.typeInfo.type = reference;
 				// instructions.Add(op);asdasd
 			}
 		} else {
@@ -261,13 +274,13 @@ static class Analyser
 				struct Foo { struct Bar { int i; } }
 				Foo.Bar _variable;
 			*/
-			// op.result.dataType =
+			op.result.typeInfo.type = ((TableFolder)op.a.typeInfo.type).getChild(bName.text);
 		}
 		
 		
 		
-		if(op.result.dataType == null) {
-			throw Jolly.addError(bName.location, "The type does not contain a member \"{0}\"".fill(bName.name));
+		if(op.result.typeInfo.type == null) {
+			throw Jolly.addError(bName.location, "The type does not contain a member \"{0}\"".fill(bName.text));
 		}
 		
 	}
@@ -276,10 +289,10 @@ static class Analyser
 	{
 		getTypeFromName(ref op.a);
 		getTypeFromName(ref op.b);
-		if(op.a.dataType != op.b.dataType) {
+		if(op.a.typeInfo.type != op.b.typeInfo.type) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
-		op.result.dataType = op.a.dataType;
+		op.result.typeInfo = op.a.typeInfo;
 		// instructions.Add(op);asdasd
 	}
 	
@@ -288,20 +301,20 @@ static class Analyser
 		if(node.nodeType == NT.NAME)
 		{
 			NodeSymbol name = (NodeSymbol)node;
-			Debug.Assert(name.dataType == null);
-			var item = name.definitionScope.searchItem(name.name);
+			Debug.Assert(name.typeInfo.type == null);
+			var item = name.definitionScope.searchItem(name.text);
 			
 			if(item == null) {
-				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.name));
+				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 			}
-			Debug.Assert(item.dataType != null);
+			Debug.Assert(item.typeInfo.type != null);
 			
-			DataTypeReference refTo = item.dataType as DataTypeReference;
+			DataTypeReference refTo = item.typeInfo.type as DataTypeReference;
 			if(refTo != null && load) {
-				node = new NodeResult(name.location) { dataType = refTo.referenced };
+				node = new NodeResult(name.location) { typeInfo = new TypeInfo(refTo.referenced, false) };
 				// instructions.Add(new NodeOperator(name.location, OT.READ, item.node, null, result: node));asdasd
 			} else {
-				node.dataType = item.dataType;
+				node.typeInfo.type = item.typeInfo;
 			}
 			return true;
 		}
