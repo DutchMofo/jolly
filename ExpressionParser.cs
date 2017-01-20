@@ -223,13 +223,13 @@ class ExpressionParser
 		NodeLiteral lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new NodeLiteral(token.location, token._integer);
-			lit.typeInfo = new TypeInfo(Lookup.getBaseType(TT.I32), true); // TODO: Temporary
+			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.I32), true); // TODO: Temporary
 		} else if(token.type == TT.FLOAT_LITERAL) {
 			lit = new NodeLiteral(token.location, token._float);
-			lit.typeInfo = new TypeInfo(Lookup.getBaseType(TT.F32), true); // TODO: Temporary
+			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.F32), true); // TODO: Temporary
 		} else {
 			lit = new NodeLiteral(token.location, token._string);
-			lit.typeInfo = new TypeInfo(Lookup.getBaseType(TT.STRING), true);
+			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.STRING), true);
 		}
 		values.Push(lit);
 	} // parseLiteral()
@@ -239,7 +239,7 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new Node(NT.BASETYPE, token.location) { typeInfo = new TypeInfo(Lookup.getBaseType(token.type), true) });
+		values.Push(new Node(NT.BASETYPE, token.location) { dataType = new TypeInfo(Lookup.getBaseType(token.type), true) });
 	}
 	
 	void parseIdentifier()
@@ -303,7 +303,7 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = ((DataTypeStruct)parser.scopeHead.typeInfo.type);
+					var structType = ((DataTypeStruct)parser.scopeHead.dataType.type);
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}

@@ -44,7 +44,7 @@ namespace Jolly
 			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
 			var structType = new DataTypeStruct() { name = name.text, structScope = structScope } as DataType;
 			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
-				{ typeInfo = new TypeInfo(structType, true) };
+				{ dataType = new TypeInfo(structType, true) };
 			
 			if(!scope.Add(name.text, structType, structNode)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
