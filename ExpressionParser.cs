@@ -134,9 +134,6 @@ class ExpressionParser
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
 	
-	public Node getValue()
-		=> values.PeekOrDefault();
-	
 	public int parseExpression(DefineMode defineMode)
 	{
 		this.defineMode = defineMode;
@@ -223,14 +220,15 @@ class ExpressionParser
 		NodeLiteral lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new NodeLiteral(token.location, token._integer);
-			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.I32), true); // TODO: Temporary
+			lit.dataType = Lookup.getBaseType(TT.I32); // TODO: Temporary
 		} else if(token.type == TT.FLOAT_LITERAL) {
 			lit = new NodeLiteral(token.location, token._float);
-			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.F32), true); // TODO: Temporary
+			lit.dataType = Lookup.getBaseType(TT.F32); // TODO: Temporary
 		} else {
 			lit = new NodeLiteral(token.location, token._string);
-			lit.dataType = new TypeInfo(Lookup.getBaseType(TT.STRING), true);
+			lit.dataType = Lookup.getBaseType(TT.STRING);
 		}
+		lit.typeKind = TypeKind.VALUE;
 		values.Push(lit);
 	} // parseLiteral()
 	
@@ -239,7 +237,7 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new Node(NT.BASETYPE, token.location) { dataType = new TypeInfo(Lookup.getBaseType(token.type), true) });
+		values.Push(new Node(NT.BASETYPE, token.location) { dataType = Lookup.getBaseType(token.type), typeKind = TypeKind.STATIC });
 	}
 	
 	void parseIdentifier()
@@ -273,7 +271,7 @@ class ExpressionParser
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
-				if(!scope.Add(token.text, null, functionNode)) {
+				if(!scope.Add(token.text, null, TypeKind.STATIC, functionNode)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
@@ -303,15 +301,17 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = ((DataTypeStruct)parser.scopeHead.dataType.type);
+					var structType = (DataTypeStruct)parser.scopeHead.dataType;
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}
 					structType.memberMap.Add(token.text, structType.memberMap.Count);
+					variable.typeKind = TypeKind.STATIC;
 				}
 				else
 				{
-					if(!scope.Add(token.text, null, variable)) {
+					variable.typeKind = TypeKind.ADDRES;
+					if(!scope.Add(token.text, null, TypeKind.ADDRES, variable)) {
 						throw Jolly.addError(token.location, "Trying to redefine variable");
 					}	
 				}

@@ -42,11 +42,11 @@ namespace Jolly
 			}
 			
 			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
-			var structType = new DataTypeStruct() { name = name.text, structScope = structScope } as DataType;
+			var structType = new DataTypeStruct() { name = name.text, structScope = structScope };
 			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
-				{ dataType = new TypeInfo(structType, true) };
+				{ dataType = structType };
 			
-			if(!scope.Add(name.text, structType, structNode)) {
+			if(!scope.Add(name.text, structType, TypeKind.STATIC, structNode)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
 			program.Add(structNode);
@@ -54,6 +54,8 @@ namespace Jolly
 				{ scopeHead = structNode, defineMode = DefineMode.MEMBER } // Hacky
 				.parseBlock();
 			
+			structType.members = new DataType[structType.memberMap.Count];
+			structScope.dataType = structType;
 			cursor = brace.partnerIndex;
 			
 			return true;

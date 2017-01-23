@@ -27,7 +27,7 @@ namespace Jolly
 	
 	class InstructionOperator : Instruction
 	{
-		public InstructionOperator(NodeOperator op) { aType = (DataType)op.a.dataType.type; bType = (DataType)op.b.dataType.type; resultType = (DataType)op.result.dataType.type; }
+		public InstructionOperator(NodeOperator op) { aType = op.a.dataType; bType = op.b?.dataType; resultType = op.result.dataType; }
 		public DataType aType, bType, resultType;
 		public override string ToString() => "{0} = {1} {2}, {3}".fill(resultType, instruction, aType, bType);
 	}

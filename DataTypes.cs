@@ -87,6 +87,14 @@ namespace Jolly
 			return null;
 		}
 		
+		public override DataType getChild(string name)
+		{
+			TableItem cache;
+			if(structScope.children.TryGetValue(name, out cache))
+				return cache.dataType;
+			return null;
+		}
+		
 		public override string ToString() => name;
 	}
 	

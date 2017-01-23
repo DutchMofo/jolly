@@ -4,7 +4,15 @@ namespace Jolly
 {
 	using NT = Node.NodeType;
 	// using TT = Token.Type;
-		
+	
+	enum TypeKind
+	{
+		UNDEFINED,
+		STATIC,
+		VALUE,
+		ADDRES
+	}
+	
 	class Node
 	{
 		public Node(NodeType nT, SourceLocation l) { nodeType = nT; location = l; }
@@ -47,7 +55,7 @@ namespace Jolly
 			COUNT // Must be last
 		}
 		
-		public bool isValue;
+		public TypeKind typeKind;
 		public NodeType nodeType;
 		public DataType dataType;
 		public SourceLocation location;
@@ -55,7 +63,7 @@ namespace Jolly
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 			
-		public virtual string toDebugText() => "";
+		public virtual string toDebugText() { System.Diagnostics.Debugger.Break(); return ""; }//=> "";
 	}
 	
 	class NodeModifyType : Node
@@ -79,6 +87,9 @@ namespace Jolly
 		public TableFolder definitionScope;
 		public int memberCount;
 		public string text;
+		
+		public override string toDebugText()
+			=> "define " + text;
 	}
 			
 	class NodeTupple : Node
@@ -114,7 +125,7 @@ namespace Jolly
 		public Node a, b, result;
 		
 		public override string toDebugText()
-			{ return "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType); }
+			=>  "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType);
 	}
 	
 	class NodeLiteral : Node

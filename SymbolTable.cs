@@ -20,13 +20,15 @@ namespace Jolly
 	{
 		public int index;
 		public Node node;
-		public TypeInfo typeInfo;
+		public DataType dataType;
+		public TypeKind typeKind;
 	}
 	
-	class TableFolder : TableItem
+	class TableFolder
 	{
 		TableFolder parent;
 		public NameFlags flags;
+		public DataType dataType;
 		public Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
 		
 		public TableFolder(TableFolder parent)
@@ -51,7 +53,7 @@ namespace Jolly
 			return item;
 		}
 		
-		public bool Add(string childName, DataType child, Node node)
+		public bool Add(string childName, DataType child, TypeKind typeKind, Node node)
 		{
 			TableFolder iterator = this;
 			do {
@@ -60,7 +62,7 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			children.Add(childName, new TableItem{ typeInfo = new TypeInfo(child, true), index = children.Count, node = node });
+			children.Add(childName, new TableItem{ dataType = child, typeKind = typeKind, index = children.Count, node = node });
 			return true;
 		}
 		
