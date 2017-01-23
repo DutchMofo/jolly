@@ -63,7 +63,8 @@ namespace Jolly
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 			
-		public virtual string toDebugText() { System.Diagnostics.Debugger.Break(); return ""; }//=> "";
+		public virtual string toDebugText()
+			=> (nodeType == NT.RETURN) ? "return" : "";
 	}
 	
 	class NodeModifyType : Node
