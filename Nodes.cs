@@ -28,6 +28,8 @@ namespace Jolly
 			
 			MODIFY_TYPE,
 			SCOPE_END,
+			NAME,
+			MEMBER_NAME,
 			
 			ALIAS,
 			BLOCK,
@@ -43,7 +45,6 @@ namespace Jolly
 			TUPPLE,
 			LITERAL,
 			LOOP_CONTROL,
-			NAME,
 			OPERATOR,
 			RESULT,
 			RETURN,

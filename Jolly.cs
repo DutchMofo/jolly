@@ -76,7 +76,7 @@ namespace Jolly
 			
 			var instructions = Analyser.analyse(program);
 			
-			instructions.forEach(n => Console.WriteLine(n.toDebugText()));
+			instructions.forEach(n => Console.WriteLine(n));
             System.Diagnostics.Debugger.Break();
 		}
 	}

@@ -1,17 +1,6 @@
 
 Problem.InnerProblem damm;
 
-struct Problem
-{
-	string name;
-	InnerProblem it;
-	
-	struct InnerProblem
-	{
-		int counter;
-	}
-}
-
 Problem*, int initProblem(Problem* problem)
 {
 	damm.counter = 1;
@@ -30,47 +19,13 @@ int main()
 	return 12 / a + 2 * i;
 }
 
-/*
-// TODO: Work out the details
-
-struct IntList
+struct Problem
 {
-	size_t used;
-	int[] data;
-}
-
-inline int operator[] (this IntList* list, size_t index)
-{
-	return list.data[index];
-}
-
-IntList* init(this IntList* list)
-{
-	list.data = new int[32];
-	return list;
-}
-
-void add(this IntList* list, int value)
-{
-	if(data.count == used)
-	{
-		int[] newData = new int[data.count * 2];
-		memcopy(&data[0], &newData[0], data.count * sizeof(int));
-		newData, data = data, newData; // Swap data and newData
-		delete(newData);
-	}
-	data[used] = value;
-	used += 1;
-}
-
-function main()
-{
-	IntList list;
-	list.init();
+	string name;
+	InnerProblem it;
 	
-	for(int i = 0..64)
+	struct InnerProblem
 	{
-		list.add(i);
-	}	
+		int counter;
+	}
 }
-*/

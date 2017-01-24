@@ -449,9 +449,12 @@ class ExpressionParser
 			expression.Add(new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments));
 		} else {
 			// Close list so you can't add to it: (a, b), c
-			Node list = values.PeekOrDefault();
-			if(list?.nodeType == NT.TUPPLE)
-				((NodeTupple)list).closed = true;
+			Node prevVal = values.PeekOrDefault();
+			if(prevVal?.nodeType == NT.TUPPLE) {
+				var tup = ((NodeTupple)prevVal);
+				expression.AddRange(tup.values);
+				tup.closed = true;
+			}
 		}
 	} // parseParenthesisClose()
 	
@@ -460,7 +463,9 @@ class ExpressionParser
 		if(prevTokenKind == OPERATOR_KIND | prevTokenKind == 0) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new NodeModifyType(token.location, values.Pop(), NodeModifyType.TO_REFERENCE));
+		Node prev = values.Pop();
+		expression.Add(prev);
+		values.Push(new NodeModifyType(token.location, prev, NodeModifyType.TO_REFERENCE));
 	}
 	
 	void pushOperator(Op _op)
@@ -489,7 +494,10 @@ class ExpressionParser
 					values.Push(list);
 				}
 				return;
-			}
+			} else if(_op.operation == OT.GET_MEMBER)
+				b.nodeType = NT.MEMBER_NAME;
+			expression.Add(a);
+			expression.Add(b);
 		}
 		else
 		{
@@ -497,6 +505,7 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(_op.location, "Invalid expression term");
 			}
+			expression.Add(a);
 		}
 		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b, new NodeResult(_op.location));
 		values.Push(op.result);
