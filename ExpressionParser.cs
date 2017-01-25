@@ -317,13 +317,7 @@ class ExpressionParser
 				}
 				variable.memberCount = expression.Count - startNodeCount;
 				
-				if(variable.memberCount == 0) {
-					variable.memberCount = 1;
-					expression.Add(variable);
-					expression.Add(prev);
-				} else {
-					expression.Insert(startNodeCount, variable);
-				}
+				expression.Insert(startNodeCount, variable);
 				values.Push(new NodeSymbol(token.location, token.text, scope));
 				
 				if(defineMode == DefineMode.FUNCTION_VARIABLE)
@@ -370,8 +364,8 @@ class ExpressionParser
 		if(prevTokenKind != VALUE_KIND)
 		{
 			switch(token.type) {
-				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE ); break;
-				case TT.AND		: op = new Op(02, 1, false, OT.REFERENCE   ); break;
+				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break;
+				case TT.AND		: op = new Op(02, 1, false, OT.REFERENCE  ); break;
 				case TT.PLUS: case TT.MINUS: values.Push(new NodeLiteral(token.location, 0)); break;
 				default: throw Jolly.unexpected(token);
 			}
@@ -445,8 +439,9 @@ class ExpressionParser
 			}
 			Debug.Assert(symbol.nodeType == NT.NAME);
 			
-			values.Push(new NodeResult(token.location));
-			expression.Add(new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments));
+			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
+			expression.Add(node);
+			values.Push(node);
 		} else {
 			// Close list so you can't add to it: (a, b), c
 			Node prevVal = values.PeekOrDefault();
@@ -487,15 +482,17 @@ class ExpressionParser
 				if(a.nodeType == NT.TUPPLE && !list.closed) {
 					list.values.Add(b);
 					values.Push(a);
-				} else {
+				}  else {
 					list = new NodeTupple(_op.location);
 					list.values.Add(a);
 					list.values.Add(b);
 					values.Push(list);
 				}
 				return;
-			} else if(_op.operation == OT.GET_MEMBER)
+			}
+			if(_op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
+			}
 			expression.Add(a);
 			expression.Add(b);
 		}
@@ -505,11 +502,10 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(_op.location, "Invalid expression term");
 			}
-			expression.Add(a);
 		}
-		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b, new NodeResult(_op.location));
-		values.Push(op.result);
+		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b);
 		expression.Add(op);
+		values.Push(op);
 	} // pushOperator()
 }
 

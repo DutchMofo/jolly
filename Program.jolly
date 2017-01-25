@@ -3,7 +3,7 @@ Problem.InnerProblem damm;
 
 Problem*, int initProblem(Problem* problem)
 {
-	damm.counter = 1;
+	damm.counter = damm.counter + 1;
 	problem.name = "Oke";
 	return problem, damm.counter;
 }
@@ -14,7 +14,7 @@ int main()
 	initProblem(&problemData);
 	
 	int a = 2;
-	int i = (int: 10) * a;
+	int i = (int: 10.) * a;
 	
 	return 12 / a + 2 * i;
 }

@@ -22,9 +22,16 @@ namespace Jolly
 		
 		public string name; // TODO: Remove someday
 		public int size, align, typeID;
+		public bool isBaseType;
 		
 		public DataType() { this.typeID = lastTypeID++; }
-		public DataType(int size, int align) { this.size = size; this.align = align; this.typeID = lastTypeID++; }
+		public DataType(int size, int align)
+		{
+			this.size = size;
+			this.align = align;
+			this.isBaseType = true;
+			this.typeID = lastTypeID++;
+		}
 		
 		public virtual DataType getMember(string name) => null;
 		public virtual DataType getChild(string name) => null;
@@ -40,7 +47,7 @@ namespace Jolly
 		public DataType referenced;
 		
 		public DataTypeReference(DataType referenced)
-			{ this.referenced = referenced; }
+			{ this.referenced = referenced; this.isBaseType = true; }
 		
 		public override bool Equals(object obj)
 		{

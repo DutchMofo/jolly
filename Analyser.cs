@@ -114,7 +114,7 @@ static class Analyser
 				NodeOperator o = (NodeOperator)node;
 				Debug.Assert(o.operation == OT.GET_MEMBER);
 				operatorGetMember(o);
-				definitionInstruction = o.result;
+				definitionInstruction = o;
 			} },
 			{ NT.BASETYPE, node => {
 				definitionInstruction = node;
@@ -129,10 +129,10 @@ static class Analyser
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
-				tToRef.target.dataType = new DataTypeReference(tToRef.target.dataType);
-				DataType.makeUnique(ref tToRef.target.dataType);
+				tToRef.dataType = new DataTypeReference(tToRef.target.dataType);
+				DataType.makeUnique(ref tToRef.dataType);
 				tToRef.typeKind = tToRef.target.typeKind;
-				definitionInstruction = tToRef.target;
+				definitionInstruction = tToRef;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
@@ -155,7 +155,6 @@ static class Analyser
 				instructions.Add(new InstructionCall());
 			} },
 			{ NT.MEMBER_NAME, node => { } },
-			{ NT.RESULT, node => { } },
 			{ NT.BASETYPE, node => { } },
 			{ NT.LITERAL, node => { } },
 			{ NT.NAME, getTypeFromName },
@@ -220,20 +219,22 @@ static class Analyser
 				if(target.referenced != op.b.dataType ) {
 					throw Jolly.addError(op.a.location, "Cannot assign this value type");
 				}
-				op.result.dataType = op.b.dataType;
+				op.dataType = op.b.dataType;
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.REFERENCE, op => {
 				load(ref op.a);
 				var reference = (DataType)new DataTypeReference(op.a.dataType);
 				DataType.makeUnique(ref reference);
-				op.result.dataType = reference;
+				op.dataType = reference;
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.CAST, op => {
-				load(ref op.a);
 				load(ref op.b);
-				op.result.dataType = op.b.dataType;
+				if(op.a.typeKind != TypeKind.STATIC) {
+					throw Jolly.addError(op.a.location, "Cannot cast to this");
+				}
+				op.dataType = op.a.dataType;
 				instructions.Add(new InstructionOperator(op));
 			} },
 		};
@@ -259,8 +260,10 @@ static class Analyser
 			DataType result = varType.getMember(b.text);
 			
 			var refType = varType as DataTypeReference;
-			if(result == null && refType != null) {
-				var resultNode = new NodeResult(new SourceLocation()) { dataType = refType };
+			if(result == null && refType != null)
+			{
+				
+				var resultNode = new NodeOperator(new SourceLocation(), OT.READ, op.a, null) { dataType = refType };
 				
 				instructions.Add(new InstructionOperator() {
 					instruction = IT.LOAD,
@@ -276,15 +279,15 @@ static class Analyser
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
 			}
 			
-			op.result.dataType = new DataTypeReference(result);
-			DataType.makeUnique(ref op.result.dataType);
+			op.dataType = new DataTypeReference(result);
+			DataType.makeUnique(ref op.dataType);
 			instructions.Add(new InstructionOperator(op));
 		}
 		else
 		{
 			/* Get static member */
-			op.result.dataType = op.a.dataType.getChild(b.text);
-			if(op.result.dataType == null) {
+			op.dataType = op.a.dataType.getChild(b.text);
+			if(op.dataType == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
 		}
@@ -297,27 +300,28 @@ static class Analyser
 		if(op.a.dataType != op.b.dataType ) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
-		if(op.a.typeKind == TypeKind.STATIC | op.b.typeKind == TypeKind.STATIC) {
-			throw Jolly.addError(op.location, "ERR STATIC TYPE AND STUFF");
-		}
-		op.result.dataType = op.a.dataType;
+		op.dataType = op.a.dataType;
 		instructions.Add(new InstructionOperator(op));
 	}
 	
 	static void load(ref Node node)
 	{
 		var refTo = node.dataType as DataTypeReference;
-		// TODO: Should I check for static type's here?
 		if(refTo != null)
 		{
-			var result = new NodeResult(node.location) { dataType = refTo.referenced };
-			result.typeKind = node.typeKind;
+			if(node.typeKind == TypeKind.STATIC) {
+				throw Jolly.addError(node.location, "Cannot be used as value");
+			}
+			
+			if(!refTo.referenced.isBaseType)
+				return;
+			
+			node.dataType = refTo.referenced;
 			instructions.Add(new InstructionOperator() {
 				instruction = IT.LOAD,
 				aType = refTo,
 				resultType = refTo.referenced
 			});
-			node = result;
 		}
 	}
 	

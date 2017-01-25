@@ -32,12 +32,12 @@ namespace Jolly
 		}
 		public IT instruction;
 	}
-	
+		
 	class InstructionAllocate : Instruction
 	{
 		public InstructionAllocate(DataType type) { this.type = type; }
 		public DataType type;
-		public override string ToString() => "return null";
+		public override string ToString() => "allocate " + type;
 	}
 	
 	class InstructionReturn : Instruction
@@ -67,11 +67,12 @@ namespace Jolly
 		};
 		
 		public InstructionOperator() {}
-		public InstructionOperator(NodeOperator op) {
+		public InstructionOperator(NodeOperator op)
+		{
 			instruction = removeThis[op.operation];
 			aType = op.a.dataType;
 			bType = op.b?.dataType;
-			resultType = op.result.dataType;
+			resultType = op.dataType;
 		}
 		public DataType aType, bType, resultType;
 		public override string ToString() => "{0} = {1} {2}, {3}".fill(resultType, instruction, aType, bType);
@@ -80,7 +81,7 @@ namespace Jolly
 	class InstructionStruct : Instruction
 	{
 		public DataTypeStruct structType;
-		public override string ToString() => "@name struct {{ {0} }}".fill(structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
+		public override string ToString() => "@{0} = struct {{ {1} }}".fill(structType.name, structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
 	}
 	
 	class InstructionFunction : Instruction

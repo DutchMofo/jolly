@@ -46,7 +46,6 @@ namespace Jolly
 			LITERAL,
 			LOOP_CONTROL,
 			OPERATOR,
-			RESULT,
 			RETURN,
 			USING,
 			MEMBER_DEFINITION,
@@ -102,21 +101,13 @@ namespace Jolly
 		public List<Node> values = new List<Node>();
 		public bool closed;
 	}
-	
-	class NodeResult : Node
-	{
-		public NodeResult(SourceLocation loc, NT type = NT.RESULT)
-			: base(type, loc) {  }
-		// public Node resultData;
-	}
 		
 	class NodeOperator : Node
 	{
-		public NodeOperator(SourceLocation loc, OperatorType operation, Node a, Node b, Node result)
+		public NodeOperator(SourceLocation loc, OperatorType operation, Node a, Node b)
 			: base(NodeType.OPERATOR, loc)
 		{
 			this.operation = operation;
-			this.result = result;
 			this.a = a;
 			this.b = b;
 		}
@@ -124,10 +115,10 @@ namespace Jolly
 		public override string ToString() { return base.ToString() + " " + operation.ToString(); }
 		
 		public OperatorType operation;
-		public Node a, b, result;
+		public Node a, b;
 		
 		public override string toDebugText()
-			=>  "{0} = {1} {2} {3}".fill(result.dataType, operation, a.dataType, b?.dataType);
+			=>  "{0} = {1} {2} {3}".fill(dataType, operation, a.dataType, b?.dataType);
 	}
 	
 	class NodeLiteral : Node
