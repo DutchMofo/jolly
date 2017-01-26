@@ -223,11 +223,10 @@ static class Analyser
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.REFERENCE, op => {
-				load(ref op.a);
-				var reference = (DataType)new DataTypeReference(op.a.dataType);
-				DataType.makeUnique(ref reference);
-				op.dataType = reference;
-				instructions.Add(new InstructionOperator(op));
+				if(op.typeKind != TypeKind.VALUE) {
+					throw Jolly.addError(op.location, "Cannot get a reference to this");
+				}
+				op.typeKind = TypeKind.ADDRES;
 			} },
 			{ OT.CAST, op => {
 				load(ref op.b);
@@ -313,7 +312,7 @@ static class Analyser
 				throw Jolly.addError(node.location, "Cannot be used as value");
 			}
 			
-			if(!refTo.referenced.isBaseType)
+			if(!refTo.referenced.isBaseType | node.typeKind == TypeKind.ADDRES)
 				return;
 			
 			node.dataType = refTo.referenced;

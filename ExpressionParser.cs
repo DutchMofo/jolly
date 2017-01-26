@@ -310,8 +310,8 @@ class ExpressionParser
 				}
 				else
 				{
-					variable.typeKind = TypeKind.ADDRES;
-					if(!scope.Add(token.text, null, TypeKind.ADDRES, variable)) {
+					variable.typeKind = TypeKind.VALUE;
+					if(!scope.Add(token.text, null, TypeKind.VALUE, variable)) {
 						throw Jolly.addError(token.location, "Trying to redefine variable");
 					}	
 				}
