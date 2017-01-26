@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using System.Diagnostics;
 
 namespace Jolly
 {	
@@ -16,28 +17,34 @@ namespace Jolly
 		IS_PURE		= 1<<6,
 	};
 	
-	class TableItem
+	struct Symbol
 	{
-		public int index;
-		public Node node;
 		public DataType dataType;
 		public TypeKind typeKind;
 	}
 	
-	class TableFolder
+	class SymbolTable
 	{
-		TableFolder parent;
-		public NameFlags flags;
-		public DataType dataType;
-		public Dictionary<string, TableItem> children = new Dictionary<string, TableItem>();
+		public virtual Symbol? getDefinition(string name) { Debug.Assert(false); return null; }
+		public virtual bool addDefinition(string name) { Debug.Assert(false); return false; }
 		
-		public TableFolder(TableFolder parent)
+		public virtual void finishDefinition(string name, DataType type) { Debug.Assert(false); }
+	}
+	
+	class Scope : SymbolTable
+	{
+		Scope parent;
+		public DataType dataType;
+		public int childVariableCount;
+		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
+		
+		public Scope(Scope parent)
 			 { this.parent = parent; }
 		
-		public TableItem searchItem(string name)
+		public Symbol? searchItem(string name)
 		{
-			TableFolder iterator = this;
-			TableItem item;
+			Scope iterator = this;
+			Symbol item;
 			do {
 				if(iterator.children.TryGetValue(name, out item))
 					return item;
@@ -46,65 +53,33 @@ namespace Jolly
 			return null;
 		}
 		
-		public TableItem getChild(string name)
+		public override void finishDefinition(string name, DataType type)
 		{
-			TableItem item;
-			children.TryGetValue(name, out item);
-			return item;
+			// WTF c# why doesn't children[name].dataType = type; work
+			var t = children[name];
+			t.dataType = type;
+			children[name] = t;
 		}
 		
-		public bool Add(string childName, DataType child, TypeKind typeKind, Node node)
+		public override Symbol? getDefinition(string name)
 		{
-			TableFolder iterator = this;
+			Symbol item;
+			if(children.TryGetValue(name, out item))
+				return item;
+			return null;
+		}
+		
+		public bool Add(string childName, DataType child, TypeKind typeKind)
+		{
+			Scope iterator = this;
 			do {
 				if(iterator.children.ContainsKey(childName))
 					return false;
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			children.Add(childName, new TableItem{ dataType = child, typeKind = typeKind, index = children.Count, node = node });
+			children.Add(childName, new Symbol{ dataType = child, typeKind = typeKind });
 			return true;
 		}
-		
-		/*
-		public override void calculateSize(Stack<TableFolder> typeStack)
-		{
-			if(typeStack.Contains(this)) {
-				Jolly.addError(new SourceLocation(), "Recursive type");
-				throw new ParseException();
-			}
-			typeStack.Push(this);
-			
-			if((flags & NameFlags.UNION) != 0)
-			{
-				foreach(var child in children.Values)
-				{
-					child.calculateSize(typeStack);
-					// child.offset = 0; // Not nessesary
-					if(child.type.size > type.size)
-						type.size = child.type.size;
-					if(child.type.align > type.align)
-						type.align = child.type.align;
-				}
-			}
-			else
-			{
-				int _offset = 0;
-				foreach(var child in children.Values)
-				{
-					child.calculateSize(typeStack);	
-					if(child.type.size == 0)
-						continue;
-					if(child.type.align > type.align)
-						type.align = child.type.align;
-					child.offset = _offset / child.type.align * child.type.align - _offset;
-					_offset = child.offset + child.type.size; 
-				}
-				if(type.align > 0)
-					type.size = ((_offset-1) / type.align + 1) * type.align;
-			}
-            System.Diagnostics.Debug.Assert(typeStack.Pop() == this);
-		}
-		*/
 	}
 }

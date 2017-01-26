@@ -27,9 +27,9 @@ namespace Jolly
 			USERTYPE,
 			
 			MODIFY_TYPE,
-			SCOPE_END,
 			NAME,
 			MEMBER_NAME,
+			MEMBER_TUPPLE_NAME,
 			
 			ALIAS,
 			BLOCK,
@@ -82,15 +82,41 @@ namespace Jolly
 	
 	class NodeSymbol : Node
 	{
-		public NodeSymbol(SourceLocation loc, string name, TableFolder definitionScope, NT type = NT.NAME)
-			: base(type, loc) { this.text = name; this.definitionScope = definitionScope; }
+		public NodeSymbol(SourceLocation loc, string name, Scope definitionScope, NT type = NT.NAME)
+			: base(type, loc) { this.text = name; this.scope = definitionScope; }
 		
-		public TableFolder definitionScope;
+		public Scope scope;
+		
 		public int memberCount;
 		public string text;
 		
 		public override string toDebugText()
 			=> "define " + text;
+	}
+	
+	class NodeFunctionCall : NodeSymbol
+	{
+		public NodeFunctionCall(SourceLocation loc, string function, Scope definitionScope, Node[] a)
+			: base(loc, function, definitionScope, NT.FUNCTION_CALL)
+		{
+			arguments = a;
+		}
+		
+		public Node[] arguments;
+		
+		public override string toDebugText()
+			=> "call " + text;
+	}
+	
+	class NodeFunction : NodeSymbol
+	{
+		public NodeFunction(SourceLocation loc, string name, Scope definitionScope)
+			: base(loc, name, definitionScope, NodeType.FUNCTION) {  }
+			
+		public int returnDefinitionCount, argumentDefinitionCount;
+		
+		public override string toDebugText()
+			=> "function " + text;
 	}
 			
 	class NodeTupple : Node
@@ -125,32 +151,5 @@ namespace Jolly
 	{
 		public NodeLiteral(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
 		public object data;
-	}
-	
-	class NodeFunctionCall : Node
-	{
-		public NodeFunctionCall(SourceLocation loc, string f, Node[] a)
-			: base(NodeType.FUNCTION_CALL, loc)
-		{
-			functionName = f;
-			arguments = a;
-		}
-		
-		public string functionName;
-		public Node[] arguments;
-		
-		public override string toDebugText()
-			=> "call " + functionName;
-	}
-	
-	class NodeFunction : NodeSymbol
-	{
-		public NodeFunction(SourceLocation loc, string name, TableFolder definitionScope)
-			: base(loc, name, definitionScope, NodeType.FUNCTION) {  }
-			
-		public int returnDefinitionCount, argumentDefinitionCount;
-		
-		public override string toDebugText()
-			=> "function " + text;
 	}
 }

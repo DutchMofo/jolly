@@ -11,25 +11,45 @@ using IT = Instruction.Type;
 
 static class Analyser
 {
-	[ThreadStatic] static Stack<NodeSymbol> scopeStack;
 	[ThreadStatic] static List<Instruction> instructions;
 	[ThreadStatic] static List<Node> program;
 	// Used to store the intermediary node nessasary for looking up the correct datatype
 	// of the variable about to be defined
 	[ThreadStatic] static Node definitionInstruction;
 	[ThreadStatic] static int cursor;
-		
+	
+	struct Enclosure
+	{
+		public Enclosure(Node n, int e) { node = n; end = e; }
+		public Node node;
+		public int end;
+	}
+	
+	[ThreadStatic] static Stack<Enclosure> enclosureStack;
+	
+	static void incrementCursor()
+	{
+		cursor += 1;
+		while(enclosureStack.Count > 0 && enclosureStack.Peek().end < cursor)
+			enclosureEnd(enclosureStack.Pop());
+	}
+	
+	static void enclosureEnd(Enclosure enclosure)
+	{
+		"".ToString();
+	}
+	
 	public static List<Instruction> analyse(List<Node> program)
 	{
 		Analyser.program = program;
-		scopeStack = new Stack<NodeSymbol>(16);
 		// instructions = new List<Node>(program.Count);
-		instructions = new List<Instruction>(program.Count);
-				
+		instructions = new List<Instruction>();
+		enclosureStack = new Stack<Enclosure>(16);
+		
 		cursor = 0;
 		for(Node node = program[cursor];
 			cursor < program.Count;
-			cursor += 1)
+			incrementCursor())
 		{
 			node = program[cursor];
 			Action<Node> action;
@@ -41,7 +61,7 @@ static class Analyser
 		cursor = 0;
 		for(Node node = program[cursor];
 			cursor < program.Count;
-			cursor += 1)
+			incrementCursor())
 		{
 			int debug = cursor;
 			node = program[cursor];
@@ -68,13 +88,12 @@ static class Analyser
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.MEMBER_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
-			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.FUNCTION, node => {
-				int startCursor = cursor;
 				NodeFunction function = (NodeFunction)node;
-				for(int i = 1; i <= function.returnDefinitionCount; i += 1)
+				int startCursor = cursor, end = (cursor += 1) + function.returnDefinitionCount;
+				for(; cursor < end; incrementCursor())
 				{
-					node = program[cursor + i];
+					node = program[cursor];
 					Action<Node> action;
 					if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 						action(node);
@@ -82,15 +101,14 @@ static class Analyser
 						throw Jolly.unexpected(node);
 					}
 				}
-				cursor += function.returnDefinitionCount + 1;
 				var returns = (definitionInstruction.nodeType == NT.TUPPLE) ?
 					((NodeTupple)definitionInstruction).values.Select(n => n.dataType ).ToArray() :
 					new DataType[] { definitionInstruction.dataType };
 				definitionInstruction = null;
 				
-				int end = cursor + function.argumentDefinitionCount;
+				end = cursor + function.argumentDefinitionCount - 1;
 				List<DataType> fuckit = new List<DataType>();
-				for(; cursor < end; cursor += 1)
+				for(; cursor < end; incrementCursor())
 				{
 					var definition = program[cursor] as NodeSymbol;
 					if(definition == null) {
@@ -98,14 +116,16 @@ static class Analyser
 					}
 					fuckit.Add(defineMemberOrVariable(definition));
 				}
-				
+				cursor -= 1;
 				var arguments = fuckit.ToArray();
 				
 				function.dataType = new DataTypeFunction(returns, arguments) { name = function.text };
+				DataType.makeUnique(ref function.dataType);
+				function.scope.finishDefinition(function.text, function.dataType);
 				cursor = startCursor + function.memberCount;			
 			} },
 			{ NT.STRUCT, node => {
-				scopeStack.Push((NodeSymbol)node);
+				enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 			} },
 		},
 		// Used to load the type before defining a variable
@@ -125,6 +145,7 @@ static class Analyser
 				definitionInstruction = node;
 			} },
 			{ NT.TUPPLE, node => {
+				// enclosureStack.Push(new Enclosure(node, ));
 				definitionInstruction = node;
 			} },
 			{ NT.MODIFY_TYPE, node => {
@@ -136,14 +157,13 @@ static class Analyser
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
-			{ NT.SCOPE_END, node => scopeEnd(scopeStack.Pop()) },
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
-				scopeStack.Push(function);
-				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
+				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
 				
+				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 			} },
 			{ NT.OPERATOR, node => {
@@ -151,8 +171,10 @@ static class Analyser
 				operatorAnalysers[o.operation](o);
 			} },
 			{ NT.FUNCTION_CALL, node => {
-				// TODO: Validate datatype's
-				instructions.Add(new InstructionCall());
+				var functionCall = (NodeFunctionCall)node;
+				// getTypeFromName(functionCall);
+				
+				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray(), name = functionCall.text });
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.BASETYPE, node => { } },
@@ -173,9 +195,10 @@ static class Analyser
 			return null;
 		NodeSymbol symbol = (NodeSymbol)node;
 		
-		for(int i = 1; i <= symbol.memberCount; i += 1)
+		int end = symbol.memberCount + cursor;
+		for(cursor += 1; cursor <= end; incrementCursor())
 		{
-			node = program[cursor + i];
+			node = program[cursor];
 			Action<Node> action;
 			if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
@@ -183,7 +206,7 @@ static class Analyser
 				throw Jolly.unexpected(node);
 			}
 		}
-		cursor += symbol.memberCount;
+		cursor -= 1;
 		
 		Debug.Assert(definitionInstruction.dataType != null);
 		symbol.dataType = definitionInstruction.dataType;
@@ -191,15 +214,12 @@ static class Analyser
 		if(symbol.typeKind != TypeKind.STATIC) {
 			DataType refToData = new DataTypeReference(symbol.dataType);
 			DataType.makeUnique(ref refToData);
-			symbol.definitionScope.children[symbol.text].dataType = refToData;
+			symbol.scope.finishDefinition(symbol.text, refToData);
 			instructions.Add(new InstructionAllocate(symbol.dataType));
 		} else {
-			var structType = (DataTypeStruct)symbol.definitionScope.dataType;
-			structType.members[structType.memberMap[symbol.text]] = symbol.dataType;
+			symbol.scope.dataType.finishDefinition(symbol.text, symbol.dataType);
 		}
-		
 		return symbol.dataType;
-		// definitionInstruction = null; // Just to be sure
 	}
 	
 	static readonly Dictionary<OT, Action<NodeOperator>>
@@ -223,9 +243,10 @@ static class Analyser
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.REFERENCE, op => {
-				if(op.typeKind != TypeKind.VALUE) {
+				if(op.a.typeKind != TypeKind.VALUE | !(op.a.dataType is DataTypeReference)) {
 					throw Jolly.addError(op.location, "Cannot get a reference to this");
 				}
+				op.dataType = op.a.dataType;
 				op.typeKind = TypeKind.ADDRES;
 			} },
 			{ OT.CAST, op => {
@@ -233,6 +254,7 @@ static class Analyser
 				if(op.a.typeKind != TypeKind.STATIC) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
+				op.typeKind = op.b.typeKind;
 				op.dataType = op.a.dataType;
 				instructions.Add(new InstructionOperator(op));
 			} },
@@ -243,25 +265,20 @@ static class Analyser
 		Node a = op.a;
 		NodeSymbol b = op.b as NodeSymbol;
 		
-		if(a.dataType == null) {
-			throw Jolly.addError(a.location, "Can't load type");
-		}
 		if(b == null) {
 			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		Debug.Assert(a.typeKind != TypeKind.VALUE);
 		Debug.Assert(a.typeKind != TypeKind.UNDEFINED);
 		
 		if(a.typeKind != TypeKind.STATIC)
 		{
 			var varType = ((DataTypeReference)a.dataType).referenced;
-			DataType result = varType.getMember(b.text);
+			var definition = varType.getDefinition(b.text);
 			
 			var refType = varType as DataTypeReference;
-			if(result == null && refType != null)
+			if(definition == null && refType != null)
 			{
-				
 				var resultNode = new NodeOperator(new SourceLocation(), OT.READ, op.a, null) { dataType = refType };
 				
 				instructions.Add(new InstructionOperator() {
@@ -270,25 +287,27 @@ static class Analyser
 					resultType = refType
 				});
 				// instructions.Add(new NodeOperator(new SourceLocation(), OT.DEREFERENCE, op.a, null, resultNode));
-				result = refType.referenced.getMember(b.text);
+				definition = refType.referenced.getDefinition(b.text);
 				op.a = resultNode;
 			}
 			
-			if(result == null) {
+			if(definition == null) {
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
 			}
 			
-			op.dataType = new DataTypeReference(result);
+			op.dataType = new DataTypeReference(definition.Value.dataType);
 			DataType.makeUnique(ref op.dataType);
 			instructions.Add(new InstructionOperator(op));
 		}
 		else
 		{
-			/* Get static member */
-			op.dataType = op.a.dataType.getChild(b.text);
-			if(op.dataType == null) {
+			// Get static member
+			var definition = ((DataTypeStruct)op.a.dataType).structScope.getDefinition(b.text);
+			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
+			op.typeKind = definition.Value.typeKind;
+			op.dataType = definition.Value.dataType;
 		}
 	}
 	
@@ -312,9 +331,9 @@ static class Analyser
 				throw Jolly.addError(node.location, "Cannot be used as value");
 			}
 			
-			if(!refTo.referenced.isBaseType | node.typeKind == TypeKind.ADDRES)
+			if(!refTo.referenced.isBaseType | node.typeKind == TypeKind.ADDRES) {
 				return;
-			
+			}
 			node.dataType = refTo.referenced;
 			instructions.Add(new InstructionOperator() {
 				instruction = IT.LOAD,
@@ -326,20 +345,20 @@ static class Analyser
 	
 	static void getTypeFromName(Node node)
 	{
-		if(node.nodeType == NT.NAME & node.dataType == null)
+		if((node.nodeType == NT.NAME | node.nodeType == NT.FUNCTION_CALL) & node.dataType == null)
 		{
 			Debug.Assert(node.dataType == null);
 			NodeSymbol name = (NodeSymbol)node;
-			var item = name.definitionScope.searchItem(name.text);
+			var definition = name.scope.searchItem(name.text);
 			
-			if(item == null) {
+			if(definition == null) {
 				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 			}
-			Debug.Assert(item.dataType != null);
-			Debug.Assert(item.typeKind != TypeKind.UNDEFINED);
+			Debug.Assert(definition.Value.dataType != null);
+			Debug.Assert(definition.Value.typeKind != TypeKind.UNDEFINED);
 			
-			node.dataType = item.dataType;
-			node.typeKind = item.typeKind;
+			node.dataType = definition.Value.dataType;
+			node.typeKind = definition.Value.typeKind;
 		}
 	}
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+// using System.Diagnostics;
 using System.IO;
 
 namespace Jolly
@@ -42,6 +43,30 @@ namespace Jolly
 		}
 	}
 	
+/*	// Hacky way of checking for double items in a list
+	class List<T> : System.Collections.Generic.List<T>
+	{
+		HashSet<T> unique = new HashSet<T>();
+		new public void Add(T item)
+		{
+			if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
+			base.Add(item);
+		}
+		
+		new public void AddRange(IEnumerable<T> items)
+		{
+			foreach(var item in items)
+				if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
+			base.AddRange(items);
+		}
+		
+		new public void Insert(int index, T item)
+		{
+			if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
+			base.Insert(index, item);
+		}
+	}*/
+	
 	class Jolly
 	{
 		static int errorCount = 0;
@@ -70,8 +95,8 @@ namespace Jolly
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 		
-			List<Node> program = new List<Node>(tokens.Length / 2);
-			var globalScope = new TableFolder(null);
+			List<Node> program = new List<Node>();
+			var globalScope = new Scope(null);
 			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
 			
 			var instructions = Analyser.analyse(program);

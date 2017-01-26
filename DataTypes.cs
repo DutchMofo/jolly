@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace Jolly
 {
-	class DataType
+	class DataType : SymbolTable
 	{
 		static int lastTypeID;
 		static Dictionary<DataType, DataType>
@@ -33,8 +33,7 @@ namespace Jolly
 			this.typeID = lastTypeID++;
 		}
 		
-		public virtual DataType getMember(string name) => null;
-		public virtual DataType getChild(string name) => null;
+		public override Symbol? getDefinition(string name) => null;
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
@@ -62,46 +61,53 @@ namespace Jolly
 		public override string ToString() => referenced + "*";
 	}
 	
-	class DataTypeArray : DataType
-	{
-		public DataType collectionType;
-		public int length;
+	// class DataTypeArray : DataType
+	// {
+	// 	public DataType collectionType;
+	// 	public int length;
 				
-		public override bool Equals(object obj)
-		{
-			var arr = obj as DataTypeArray;
-			if(arr != null)
-				return arr.length == length && arr.collectionType == collectionType;
-			return false;
-		}
-		public override int GetHashCode()
-			=> collectionType.GetHashCode() & length;
+	// 	public override bool Equals(object obj)
+	// 	{
+	// 		var arr = obj as DataTypeArray;
+	// 		if(arr != null)
+	// 			return arr.length == length && arr.collectionType == collectionType;
+	// 		return false;
+	// 	}
+	// 	public override int GetHashCode()
+	// 		=> collectionType.GetHashCode() & length;
 			
-		public override string ToString() => collectionType + "[]";
-	}
+	// 	public override string ToString() => collectionType + "[]";
+	// }
 	
 	class DataTypeStruct : DataType
 	{
-		public TableFolder structScope;
+		public Scope structScope;
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
 		
-		public override DataType getMember(string name)
+		public override Symbol? getDefinition(string name)
 		{
 			int index;
-			if(memberMap.TryGetValue(name, out index))
-				return members[index];
+			if(memberMap.TryGetValue(name, out index)) {
+				return new Symbol { dataType = members[index], typeKind = TypeKind.VALUE };
+			}
 			return null;
 		}
 		
-		public override DataType getChild(string name)
+		public override bool addDefinition(string name)
 		{
-			TableItem cache;
-			if(structScope.children.TryGetValue(name, out cache))
-				return cache.dataType;
-			return null;
+			if(memberMap.ContainsKey(name)) {
+				return false;
+			}
+			memberMap[name] = memberMap.Count;
+			return true;
 		}
 		
+		public override void finishDefinition(string name, DataType type)
+		{
+			members[ memberMap[name] ] = type;
+		}
+				
 		public override string ToString() => name;
 	}
 	

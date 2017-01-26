@@ -48,8 +48,9 @@ namespace Jolly
 	class InstructionCall : Instruction
 	{
 		public InstructionCall() { instruction = IT.CALL; }
-		public InstructionFunction function;
-		public override string ToString() => "call null";
+		public DataType[] arguments;
+		public string name;
+		public override string ToString() => "call @{0}({1})".fill(name, (arguments.Length > 0) ? arguments.Select(t=>t.ToString()).Aggregate((a,b)=>a+", "+b) : "");
 	}
 	
 	class InstructionOperator : Instruction

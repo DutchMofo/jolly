@@ -73,29 +73,37 @@ enum OperatorType
 	COMMA,
 };
 
-enum DefineMode
+enum DefineMode : byte
 {
 	NONE,
 	MEMBER,
 	ARGUMENT,
-	FUNCTION_VARIABLE,
+	FUNCTION_OR_VARIABLE,
 	DITTO,
 }
-	
+
+enum EnclosureKind : byte
+{
+	UNDEFINED = 0,
+	TUPPLE,
+	MEMBER_TUPPLE,
+	FUNCTION_CALL,
+}
+
 struct Op
 {
 	public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
 	{
 		this.leftToRight = leftToRight;
 		this.precedence = precedence;
-		this.isFunctionCall = false;
+		this.enclosureKind = EnclosureKind.UNDEFINED;
 		this.operation = operation;
 		this.location = location;
 		this.valCount = valCount;
 	}
+	public EnclosureKind enclosureKind;
 	public byte precedence, valCount;
 	public SourceLocation location;
-	public bool isFunctionCall;
 	public bool leftToRight;
 	public OT operation;
 }
@@ -104,16 +112,14 @@ struct Op
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
-	public ExpressionParser(TableFolder scope, Token[] tokens, Token.Type terminator, int cursor, int end, List<Node> program, ScopeParser parser)
+	public ExpressionParser(Scope scope, Token[] tokens, Token.Type terminator, int cursor, List<Node> program)
 	{
-		startNodeCount = program.Count;
+		this.startNodeCount = program.Count;
 		this.terminator = terminator;
 		this.expression = program;
 		this.cursor = cursor;
 		this.tokens = tokens;
-		this.parser = parser;
 		this.scope = scope;
-		this.end = end;
 	}
 	
 	const byte VALUE_KIND = 1, OPERATOR_KIND = 2, SEPARATOR_KIND = 3;
@@ -122,13 +128,12 @@ class ExpressionParser
 		 currentTokenKind = VALUE_KIND;	// Is the current token being parsed an operator or a value
 	DefineMode defineMode;				// Are we defining variables
 	
-	int end, cursor, startNodeCount;
 	Dictionary<TT, Op> opLookup;
-	ScopeParser parser;
-	TableFolder scope;
+	int cursor, startNodeCount;
 	Token[] tokens;
 	TT terminator;
 	Token token;
+	Scope scope;
 
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
@@ -245,7 +250,9 @@ class ExpressionParser
 		if(prevTokenKind == VALUE_KIND) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new NodeSymbol(token.location, token.text, scope));
+		var symbol = new NodeSymbol(token.location, token.text, scope);
+		expression.Add(symbol);
+		values.Push(symbol);
 	}
 	
 	void parseDefineIdentifier()
@@ -261,7 +268,7 @@ class ExpressionParser
 			Token nextToken = tokens[cursor + 1];
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
-				if(defineMode != DefineMode.FUNCTION_VARIABLE) {
+				if(defineMode != DefineMode.FUNCTION_OR_VARIABLE) {
 					throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 				}
 				
@@ -271,13 +278,13 @@ class ExpressionParser
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
-				if(!scope.Add(token.text, null, TypeKind.STATIC, functionNode)) {
+				if(!scope.Add(token.text, null, TypeKind.STATIC)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var theFunctionScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
-				cursor = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, nextToken.partnerIndex, expression, parser)
+				var theFunctionScope = new Scope(scope);
+				cursor = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression)
 					.parseExpression(DefineMode.ARGUMENT);
 				
 				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
@@ -290,7 +297,6 @@ class ExpressionParser
 				new BlockParser(cursor + 2, brace.partnerIndex, theFunctionScope, tokens, expression).parseBlock();
 				cursor = brace.partnerIndex - 1;
 				
-				expression.Add(ScopeParser.scopeEnd);
 				functionNode.memberCount = expression.Count - startNodeCount;
 				
 				terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
@@ -301,7 +307,7 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = (DataTypeStruct)parser.scopeHead.dataType;
+					var structType = (DataTypeStruct)scope.dataType;
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}
@@ -310,22 +316,32 @@ class ExpressionParser
 				}
 				else
 				{
+					scope.childVariableCount += 1;
 					variable.typeKind = TypeKind.VALUE;
-					if(!scope.Add(token.text, null, TypeKind.VALUE, variable)) {
+					if(!scope.Add(token.text, null, TypeKind.VALUE)) {
 						throw Jolly.addError(token.location, "Trying to redefine variable");
-					}	
+					}
 				}
 				variable.memberCount = expression.Count - startNodeCount;
 				
-				expression.Insert(startNodeCount, variable);
+				if(variable.memberCount == 0) {
+					variable.memberCount = 1;
+					expression.Add(variable);
+					expression.Add(prev);
+				} else {
+					expression.Insert(startNodeCount, variable);
+				}
 				values.Push(new NodeSymbol(token.location, token.text, scope));
 				
-				if(defineMode == DefineMode.FUNCTION_VARIABLE)
+				if(defineMode == DefineMode.FUNCTION_OR_VARIABLE)
 					defineMode = DefineMode.DITTO;
 			}
 		}
-		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION)
-			values.Push(new NodeSymbol(token.location, token.text, scope));
+		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
+			var symbol = new NodeSymbol(token.location, token.text, scope);
+			expression.Add(symbol);
+			values.Push(symbol);
+		}
 	} // parseDefineIdentifier()
 	
 	void parseComma()
@@ -334,7 +350,7 @@ class ExpressionParser
 			throw Jolly.unexpected(token);
 		}
 		
-		while(operators.Count > 0)
+		while(operators.Count > 0 && operators.Peek().valCount > 0)
 			pushOperator(operators.Pop());
 		
 		if(defineMode == DefineMode.ARGUMENT)
@@ -397,8 +413,7 @@ class ExpressionParser
 	
 	void parseBracketClose()
 	{
-		// TODO: Should this be a operator kind?
-		currentTokenKind = OPERATOR_KIND;
+		currentTokenKind = VALUE_KIND;
 		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
@@ -407,13 +422,17 @@ class ExpressionParser
 			}
 			pushOperator(op);
 		}
+		
+		Debug.Assert(false);
 	}
 	
 	void parseParenthesisOpen()
 	{
 		currentTokenKind = OPERATOR_KIND;
 		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
-			isFunctionCall = (prevTokenKind == VALUE_KIND),
+			enclosureKind = (prevTokenKind == VALUE_KIND) ?  EnclosureKind.FUNCTION_CALL :
+				(prevTokenKind == OPERATOR_KIND && operators.Peek().operation == OT.GET_MEMBER) ? EnclosureKind.MEMBER_TUPPLE :
+				EnclosureKind.TUPPLE,
 		});
 	} // parseParenthesisOpen()
 	
@@ -427,7 +446,7 @@ class ExpressionParser
 			pushOperator(op);
 		}
 		
-		if(op.isFunctionCall)
+		if(op.enclosureKind == EnclosureKind.FUNCTION_CALL)
 		{
 			Node[] arguments;
 			Node symbol = values.Pop();
@@ -439,7 +458,7 @@ class ExpressionParser
 			}
 			Debug.Assert(symbol.nodeType == NT.NAME);
 			
-			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
+			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, scope, arguments);
 			expression.Add(node);
 			values.Push(node);
 		} else {
@@ -447,8 +466,8 @@ class ExpressionParser
 			Node prevVal = values.PeekOrDefault();
 			if(prevVal?.nodeType == NT.TUPPLE) {
 				var tup = ((NodeTupple)prevVal);
-				expression.AddRange(tup.values);
 				tup.closed = true;
+				expression.Add(tup);
 			}
 		}
 	} // parseParenthesisClose()
@@ -459,8 +478,9 @@ class ExpressionParser
 			throw Jolly.unexpected(token);
 		}
 		Node prev = values.Pop();
-		expression.Add(prev);
-		values.Push(new NodeModifyType(token.location, prev, NodeModifyType.TO_REFERENCE));
+		var mod = new NodeModifyType(token.location, prev, NodeModifyType.TO_REFERENCE);
+		expression.Add(mod);
+		values.Push(mod);
 	}
 	
 	void pushOperator(Op _op)
@@ -493,8 +513,6 @@ class ExpressionParser
 			if(_op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
 			}
-			expression.Add(a);
-			expression.Add(b);
 		}
 		else
 		{

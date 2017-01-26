@@ -10,14 +10,13 @@ namespace Jolly
 		protected Token token;
 		protected Token[] tokens;
 		protected int cursor, end;
-		protected TableFolder scope;
+		protected Scope scope;
 		protected List<Node> program;
-		protected DefineMode defineMode = DefineMode.FUNCTION_VARIABLE;
+		protected DefineMode defineMode = DefineMode.FUNCTION_OR_VARIABLE;
 		
 		public NodeSymbol scopeHead;
-		public static readonly Node scopeEnd = new Node(NT.SCOPE_END, new SourceLocation());
 		
-		public ScopeParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
+		public ScopeParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
 		{
 			this.program = program;
 			this.tokens = tokens;
@@ -41,12 +40,12 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			TableFolder structScope = new TableFolder(scope) { flags = NameFlags.IS_TYPE };
+			Scope structScope = new Scope(scope);
 			var structType = new DataTypeStruct() { name = name.text, structScope = structScope };
 			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
-				{ dataType = structType };
+				{ dataType = structScope.dataType = structType };
 			
-			if(!scope.Add(name.text, structType, TypeKind.STATIC, structNode)) {
+			if(!scope.Add(name.text, structType, TypeKind.STATIC)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
 			program.Add(structNode);
@@ -55,7 +54,6 @@ namespace Jolly
 				.parseBlock();
 			
 			structType.members = new DataType[structType.memberMap.Count];
-			structScope.dataType = structType;
 			cursor = brace.partnerIndex;
 			
 			return true;
@@ -223,20 +221,14 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, end, program, this);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program);
 			cursor = parser.parseExpression(DefineMode.NONE);
 			
 			program.Add(new Node(NT.RETURN, token.location));
 			
 			return true;
 		}
-		
-		protected void parseExpression()
-		{
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, end, program, this);
-			cursor = parser.parseExpression(defineMode);
-		}
-		
+				
 		protected virtual void _parse()
 		{
 			if( 
@@ -244,7 +236,8 @@ namespace Jolly
 				// parseNamespace() ||
 				false)
 				return;
-			parseExpression();
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
+			cursor = parser.parseExpression(defineMode);
 		}
 		
 		public void parseBlock()
@@ -257,7 +250,6 @@ namespace Jolly
 				_parse();
 			}
 			if(scopeHead != null) {
-				program.Add(scopeEnd);
 				scopeHead.memberCount = program.Count - startNodeCount;
 			}
 		}
@@ -265,7 +257,7 @@ namespace Jolly
 	
 	class BlockParser : ScopeParser
 	{
-		public BlockParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
+		public BlockParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()
@@ -279,13 +271,14 @@ namespace Jolly
 				// parseBraceOpen()	||
 				false)
 				return;
-			parseExpression();
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
+			cursor = parser.parseExpression(defineMode);
 		}
 	}
 	
 	class StructParser : ScopeParser
 	{
-		public StructParser(int cursor, int end, TableFolder scope, Token[] tokens, List<Node> program)
+		public StructParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()
@@ -295,7 +288,8 @@ namespace Jolly
 				// parseUnion()	||
 				false)
 				return;
-			parseExpression();
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
+			cursor = parser.parseExpression(defineMode);
 		}
 	}
 }

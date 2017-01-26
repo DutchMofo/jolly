@@ -4,7 +4,7 @@ Problem.InnerProblem damm;
 Problem*, int initProblem(Problem* problem)
 {
 	damm.counter = damm.counter + 1;
-	problem.name = "Oke";
+	// problem.(name, it) = ("Oke", damm);
 	return problem, damm.counter;
 }
 
