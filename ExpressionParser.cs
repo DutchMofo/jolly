@@ -82,11 +82,12 @@ enum DefineMode : byte
 	DITTO,
 }
 
+// TODO: Don't really need this anymore.
 enum EnclosureKind : byte
 {
 	UNDEFINED = 0,
-	TUPPLE,
-	MEMBER_TUPPLE,
+	TUPLE,
+	MEMBER_TUPLE,
 	FUNCTION_CALL,
 }
 
@@ -265,8 +266,9 @@ class ExpressionParser
 			while(operators.Count > 0)
 				pushOperator(operators.Pop());
 						
-			// Define
+			Node prev = values.Pop();
 			Token nextToken = tokens[cursor + 1];
+			// Define
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
 				if(defineMode != DefineMode.FUNCTION_OR_VARIABLE) {
@@ -275,7 +277,7 @@ class ExpressionParser
 				
 				var functionType = new DataTypeFunction();
 				var functionNode = new NodeFunction(token.location, token.text, scope)
-					{ dataType = functionType };
+					{ dataType = functionType, returns = prev };
 				expression.Insert(startNodeCount, functionNode);
 				expression.AddRange(values);
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
@@ -290,6 +292,8 @@ class ExpressionParser
 				cursor = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression, DefineMode.ARGUMENT)
 					.parseExpression();
 				
+				functionType.arguments = new DataType[functionScope.variableCount];
+				functionType.returns = new DataType[(prev as NodeTuple)?.values.Count ?? 1];
 				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
 				
 				Token brace = tokens[cursor + 1];
@@ -306,7 +310,6 @@ class ExpressionParser
 			}
 			else
 			{ // Variable
-				Node prev = values.Pop();
 				var variable = new NodeVariableDefinition(token.location, token.text, scope, prev);
 				
 				if(defineMode == DefineMode.MEMBER)
@@ -335,7 +338,8 @@ class ExpressionParser
 				} else {
 					expression.Insert(startNodeCount, variable);
 				}
-				values.Push(new NodeSymbol(token.location, token.text, scope));
+				
+				values.Push(variable);
 				
 				if(defineMode == DefineMode.FUNCTION_OR_VARIABLE)
 					defineMode = DefineMode.DITTO;
@@ -439,8 +443,8 @@ class ExpressionParser
 		currentTokenKind = OPERATOR_KIND;
 		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
 			enclosureKind = (prevTokenKind == VALUE_KIND) ?  EnclosureKind.FUNCTION_CALL :
-				(prevTokenKind == OPERATOR_KIND && operators.Peek().operation == OT.GET_MEMBER) ? EnclosureKind.MEMBER_TUPPLE :
-				EnclosureKind.TUPPLE,
+				(prevTokenKind == OPERATOR_KIND && operators.Peek().operation == OT.GET_MEMBER) ? EnclosureKind.MEMBER_TUPLE :
+				EnclosureKind.TUPLE,
 		});
 	} // parseParenthesisOpen()
 	
@@ -459,7 +463,7 @@ class ExpressionParser
 			Node[] arguments;
 			Node symbol = values.Pop();
 			if(symbol.nodeType != NT.NAME) {
-				arguments = (symbol.nodeType == NT.TUPPLE) ? ((NodeTupple)symbol).values.ToArray() : new Node[] { symbol };
+				arguments = (symbol.nodeType == NT.TUPLE) ? ((NodeTuple)symbol).values.ToArray() : new Node[] { symbol };
 				symbol = values.Pop(); 
 			} else {
 				arguments = new Node[0];
@@ -472,8 +476,8 @@ class ExpressionParser
 		} else {
 			// Close list so you can't add to it: (a, b), c
 			Node prevVal = values.PeekOrDefault();
-			if(prevVal?.nodeType == NT.TUPPLE) {
-				var tup = ((NodeTupple)prevVal);
+			if(prevVal?.nodeType == NT.TUPLE) {
+				var tup = ((NodeTuple)prevVal);
 				tup.closed = true;
 				expression.Add(tup);
 			}
@@ -506,12 +510,12 @@ class ExpressionParser
 			
 			if(_op.operation == OT.COMMA)
 			{
-				NodeTupple list = a as NodeTupple;
-				if(a.nodeType == NT.TUPPLE && !list.closed) {
+				NodeTuple list = a as NodeTuple;
+				if(a.nodeType == NT.TUPLE && !list.closed) {
 					list.values.Add(b);
 					values.Push(a);
 				}  else {
-					list = new NodeTupple(_op.location);
+					list = new NodeTuple(_op.location);
 					list.values.Add(a);
 					list.values.Add(b);
 					values.Push(list);

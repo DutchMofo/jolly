@@ -30,10 +30,10 @@ namespace Jolly
 			RETURN_VALUES,
 			NAME,
 			MODIFY_TYPE,
-			TUPPLE,
+			TUPLE,
 			MEMBER_NAME,
 			GLOBAL,
-			MEMBER_TUPPLE_NAME,
+			MEMBER_TUPLE_NAME,
 			
 			ALIAS,
 			BLOCK,
@@ -123,8 +123,9 @@ namespace Jolly
 	{
 		public NodeFunction(SourceLocation loc, string name, Scope definitionScope)
 			: base(loc, name, definitionScope, NodeType.FUNCTION) {  }
-			
-		public int returnDefinitionCount, argumentDefinitionCount;
+		
+		public Node returns;
+		public int returnDefinitionCount, argumentDefinitionCount, finishedArguments;
 		
 		public override string toDebugText()
 			=> "function " + text;
@@ -137,10 +138,10 @@ namespace Jolly
 		public int memberCount;
 	}
 		
-	class NodeTupple : Node
+	class NodeTuple : Node
 	{
-		public NodeTupple(SourceLocation loc)
-			: base(NodeType.TUPPLE, loc) { }
+		public NodeTuple(SourceLocation loc)
+			: base(NodeType.TUPLE, loc) { }
 		
 		public List<Node> values = new List<Node>();
 		public bool closed;

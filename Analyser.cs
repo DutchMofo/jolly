@@ -12,7 +12,7 @@ using IT = Instruction.Type;
 static class Analyser
 {
 	static Stack<Enclosure> enclosureStack;
-	static Enclosure currentEnclosure;
+	static Enclosure enclosure;
 	static List<Instruction> instructions;
 	static List<Node> program;
 	static int cursor;
@@ -27,53 +27,64 @@ static class Analyser
 	static void incrementCursor()
 	{
 		cursor += 1;
-		while(currentEnclosure.end < cursor) {
+		while(enclosure.end < cursor) {
 			var popped = enclosureStack.Pop();
-			currentEnclosure = enclosureStack.Peek();
+			enclosure = enclosureStack.Peek();
 			enclosureEnd(popped);
 		}
 	}
 	
 	static void pushEnclosure(Enclosure enclosure)
 	{
-		currentEnclosure = enclosure;
+		Analyser.enclosure = enclosure;
 		enclosureStack.Push(enclosure);
 	}
 	
-	static void enclosureEnd(Enclosure enclosure)
+	static void enclosureEnd(Enclosure poppedEnclosure)
 	{
-		switch(enclosure.node.nodeType)
+		switch(poppedEnclosure.node.nodeType)
 		{
 		case NT.VARIABLE_DEFINITION: {
-			var symbol = (NodeVariableDefinition)enclosure.node;
+			var symbol = (NodeVariableDefinition)poppedEnclosure.node;
 			
-			switch(currentEnclosure.node.nodeType)
+			switch(enclosure.node.nodeType)
 			{
 			case NT.STRUCT: {
-				Debugger.Break();
 				symbol.scope.dataType.finishDefinition(symbol.text, symbol.typeFrom.dataType);
 				
 			} break;
 			case NT.ARGUMENTS: {
 				var function = (NodeFunction)enclosureStack.ElementAt(1).node;
-				
-			} break;	
+				var functionType = (DataTypeFunction)function.dataType;
+				functionType.arguments[function.finishedArguments] = symbol.typeFrom.dataType;
+				function.finishedArguments += 1;
+			} goto case NT.FUNCTION; // Define the actual variable
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
-				DataType refToData = new DataTypeReference(symbol.typeFrom.dataType);
-				DataType.makeUnique(ref refToData);
-				symbol.scope.finishDefinition(symbol.text, refToData);
+				symbol.dataType = new DataTypeReference(symbol.typeFrom.dataType);
+				DataType.makeUnique(ref symbol.dataType);
+				symbol.scope.finishDefinition(symbol.text, symbol.dataType);
 				instructions.Add(new InstructionAllocate(symbol.typeFrom.dataType));
 			} break;
 			default: Debug.Assert(false); break;
 			}
 		} break;
 		case NT.STRUCT: {
-			var structN = (NodeSymbol)enclosure.node;
+			var structN = (NodeSymbol)poppedEnclosure.node;
 				
 		} break;
 		case NT.RETURN_VALUES: {
-			var function = (NodeFunction)currentEnclosure.node;
+			var function = (NodeFunction)enclosure.node;
+			var functionType = (DataTypeFunction)function.dataType;
+			var tuple = function.returns as NodeTuple;
+			if(tuple != null) {
+				for(int i = 0; i < tuple.values.Count; i += 1) {
+					functionType.returns[i] = tuple.values[i].dataType;
+				}
+			} else {
+				functionType.returns[0] = function.returns.dataType;
+			}
+			
 			if(function.argumentDefinitionCount > 0) {
 				pushEnclosure(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
 			} else {
@@ -82,12 +93,12 @@ static class Analyser
 		} break;
 		case NT.ARGUMENTS: {
 			// Make function type unique
-			DataType.makeUnique(ref currentEnclosure.node.dataType);
+			DataType.makeUnique(ref enclosure.node.dataType);
 			// Skip to end of function enclosure
-			cursor = currentEnclosure.end;
+			cursor = enclosure.end;
 		} break;
 		case NT.FUNCTION: break;
-		default: throw Jolly.unexpected(enclosure.node);
+		default: throw Jolly.unexpected(poppedEnclosure.node);
 		}
 	}
 	
@@ -154,8 +165,8 @@ static class Analyser
 						throw Jolly.unexpected(node);
 					}
 				}
-				var returns = (definitionInstruction.nodeType == NT.TUPPLE) ?
-					((NodeTupple)definitionInstruction).values.Select(n => n.dataType ).ToArray() :
+				var returns = (definitionInstruction.nodeType == NT.TUPLE) ?
+					((NodeTuple)definitionInstruction).values.Select(n => n.dataType ).ToArray() :
 					new DataType[] { definitionInstruction.dataType };
 				definitionInstruction = null;
 				
@@ -188,7 +199,7 @@ static class Analyser
 			{ NT.BASETYPE, node => { } },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
-			{ NT.TUPPLE, node => {
+			{ NT.TUPLE, node => {
 				// enclosureStack.Push(new Enclosure(node, ));
 			} },
 			{ NT.MODIFY_TYPE, node => {
