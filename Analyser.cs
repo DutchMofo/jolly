@@ -11,12 +11,11 @@ using IT = Instruction.Type;
 
 static class Analyser
 {
-	[ThreadStatic] static List<Instruction> instructions;
-	[ThreadStatic] static List<Node> program;
-	// Used to store the intermediary node nessasary for looking up the correct datatype
-	// of the variable about to be defined
-	[ThreadStatic] static Node definitionInstruction;
-	[ThreadStatic] static int cursor;
+	static Stack<Enclosure> enclosureStack;
+	static Enclosure currentEnclosure;
+	static List<Instruction> instructions;
+	static List<Node> program;
+	static int cursor;
 	
 	struct Enclosure
 	{
@@ -25,26 +24,86 @@ static class Analyser
 		public int end;
 	}
 	
-	[ThreadStatic] static Stack<Enclosure> enclosureStack;
-	
 	static void incrementCursor()
 	{
 		cursor += 1;
-		while(enclosureStack.Count > 0 && enclosureStack.Peek().end < cursor)
-			enclosureEnd(enclosureStack.Pop());
+		while(currentEnclosure.end < cursor) {
+			var popped = enclosureStack.Pop();
+			currentEnclosure = enclosureStack.Peek();
+			enclosureEnd(popped);
+		}
+	}
+	
+	static void pushEnclosure(Enclosure enclosure)
+	{
+		currentEnclosure = enclosure;
+		enclosureStack.Push(enclosure);
 	}
 	
 	static void enclosureEnd(Enclosure enclosure)
 	{
-		"".ToString();
+		switch(enclosure.node.nodeType)
+		{
+		case NT.VARIABLE_DEFINITION: {
+			var symbol = (NodeVariableDefinition)enclosure.node;
+			
+			switch(currentEnclosure.node.nodeType)
+			{
+			case NT.STRUCT: {
+				Debugger.Break();
+				symbol.scope.dataType.finishDefinition(symbol.text, symbol.typeFrom.dataType);
+				
+			} break;
+			case NT.ARGUMENTS: {
+				var function = (NodeFunction)enclosureStack.ElementAt(1).node;
+				
+			} break;	
+			case NT.FUNCTION:
+			case NT.GLOBAL: {
+				DataType refToData = new DataTypeReference(symbol.typeFrom.dataType);
+				DataType.makeUnique(ref refToData);
+				symbol.scope.finishDefinition(symbol.text, refToData);
+				instructions.Add(new InstructionAllocate(symbol.typeFrom.dataType));
+			} break;
+			default: Debug.Assert(false); break;
+			}
+		} break;
+		case NT.STRUCT: {
+			var structN = (NodeSymbol)enclosure.node;
+				
+		} break;
+		case NT.RETURN_VALUES: {
+			var function = (NodeFunction)currentEnclosure.node;
+			if(function.argumentDefinitionCount > 0) {
+				pushEnclosure(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
+			} else {
+				goto case NT.ARGUMENTS;
+			}
+		} break;
+		case NT.ARGUMENTS: {
+			// Make function type unique
+			DataType.makeUnique(ref currentEnclosure.node.dataType);
+			// Skip to end of function enclosure
+			cursor = currentEnclosure.end;
+		} break;
+		case NT.FUNCTION: break;
+		default: throw Jolly.unexpected(enclosure.node);
+		}
 	}
 	
-	public static List<Instruction> analyse(List<Node> program)
+	static readonly Node
+		global = new Node(NT.GLOBAL, new SourceLocation()),
+		return_values = new Node(NT.RETURN_VALUES, new SourceLocation()),
+		arguments = new Node(NT.ARGUMENTS, new SourceLocation());
+	
+	public static List<Instruction> analyse(List<Node> program, Scope globalScope)
 	{
 		Analyser.program = program;
 		// instructions = new List<Node>(program.Count);
 		instructions = new List<Instruction>();
 		enclosureStack = new Stack<Enclosure>(16);
+		
+		pushEnclosure(new Enclosure(global, int.MaxValue));
 		
 		cursor = 0;
 		for(Node node = program[cursor];
@@ -63,7 +122,6 @@ static class Analyser
 			cursor < program.Count;
 			incrementCursor())
 		{
-			int debug = cursor;
 			node = program[cursor];
 			Action<Node> action;
 			if(!analysers.TryGetValue(node.nodeType, out action)) {
@@ -74,15 +132,7 @@ static class Analyser
 		
 		return instructions;
 	}
-	
-	static void scopeEnd(Node scopeHeader)
-	{ 
-		if(scopeHeader.nodeType == NT.STRUCT) {
-			var structType = (DataTypeStruct)scopeHeader.dataType;
-			instructions.Add(new InstructionStruct() { structType = structType });
-		}
-	}
-	
+		
 	static readonly Dictionary<NT, Action<Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
@@ -90,7 +140,10 @@ static class Analyser
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
-				int startCursor = cursor, end = (cursor += 1) + function.returnDefinitionCount;
+				pushEnclosure(new Enclosure(function, function.memberCount + cursor));
+				pushEnclosure(new Enclosure(return_values, function.returnDefinitionCount + cursor));
+				
+				/*int startCursor = cursor, end = (cursor += 1) + function.returnDefinitionCount;
 				for(; cursor < end; incrementCursor())
 				{
 					node = program[cursor];
@@ -114,7 +167,7 @@ static class Analyser
 					if(definition == null) {
 						throw Jolly.unexpected(node);
 					}
-					fuckit.Add(defineMemberOrVariable(definition));
+					// fuckit.Add(defineMemberOrVariable(definition));
 				}
 				cursor -= 1;
 				var arguments = fuckit.ToArray();
@@ -122,38 +175,27 @@ static class Analyser
 				function.dataType = new DataTypeFunction(returns, arguments) { name = function.text };
 				DataType.makeUnique(ref function.dataType);
 				function.scope.finishDefinition(function.text, function.dataType);
-				cursor = startCursor + function.memberCount;			
+				cursor = startCursor + function.memberCount;*/	
 			} },
 			{ NT.STRUCT, node => {
-				enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
+				pushEnclosure(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 			} },
-		},
-		// Used to load the type before defining a variable
-		variableDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
 			{ NT.OPERATOR, node => {
 				NodeOperator o = (NodeOperator)node;
 				Debug.Assert(o.operation == OT.GET_MEMBER);
 				operatorGetMember(o);
-				definitionInstruction = o;
 			} },
-			{ NT.BASETYPE, node => {
-				definitionInstruction = node;
-			} },
+			{ NT.BASETYPE, node => { } },
 			{ NT.MEMBER_NAME, node => { } },
-			{ NT.NAME, node => {
-				getTypeFromName(node);
-				definitionInstruction = node;
-			} },
+			{ NT.NAME, getTypeFromName },
 			{ NT.TUPPLE, node => {
 				// enclosureStack.Push(new Enclosure(node, ));
-				definitionInstruction = node;
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
 				tToRef.dataType = new DataTypeReference(tToRef.target.dataType);
 				DataType.makeUnique(ref tToRef.dataType);
 				tToRef.typeKind = tToRef.target.typeKind;
-				definitionInstruction = tToRef;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<Node>>() {
@@ -161,8 +203,8 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
-				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
-				
+				// pushEnclosure(new Enclosure(function, function.memberCount + cursor));
+				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 			} },
@@ -189,37 +231,13 @@ static class Analyser
 	static void skipSymbol(Node node)
 		=> cursor += (node as NodeSymbol).memberCount;
 	
-	static DataType defineMemberOrVariable(Node node)
+	static void defineMemberOrVariable(Node node)
 	{
-		if(node.dataType != null)
-			return null;
-		NodeSymbol symbol = (NodeSymbol)node;
-		
-		int end = symbol.memberCount + cursor;
-		for(cursor += 1; cursor <= end; incrementCursor())
-		{
-			node = program[cursor];
-			Action<Node> action;
-			if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
-				action(node);
-			} else {
-				throw Jolly.unexpected(node);
-			}
+		if(node.dataType != null) {
+			skipSymbol(node);
+			return;
 		}
-		cursor -= 1;
-		
-		Debug.Assert(definitionInstruction.dataType != null);
-		symbol.dataType = definitionInstruction.dataType;
-		
-		if(symbol.typeKind != TypeKind.STATIC) {
-			DataType refToData = new DataTypeReference(symbol.dataType);
-			DataType.makeUnique(ref refToData);
-			symbol.scope.finishDefinition(symbol.text, refToData);
-			instructions.Add(new InstructionAllocate(symbol.dataType));
-		} else {
-			symbol.scope.dataType.finishDefinition(symbol.text, symbol.dataType);
-		}
-		return symbol.dataType;
+		pushEnclosure(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 	}
 	
 	static readonly Dictionary<OT, Action<NodeOperator>>

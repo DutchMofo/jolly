@@ -221,8 +221,8 @@ namespace Jolly
 			if(token.type != TT.RETURN)
 				return false;
 			
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program);
-			cursor = parser.parseExpression(DefineMode.NONE);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program, DefineMode.NONE);
+			cursor = parser.parseExpression();
 			
 			program.Add(new Node(NT.RETURN, token.location));
 			
@@ -236,8 +236,8 @@ namespace Jolly
 				// parseNamespace() ||
 				false)
 				return;
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
-			cursor = parser.parseExpression(defineMode);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program, defineMode);
+			cursor = parser.parseExpression();
 		}
 		
 		public void parseBlock()
@@ -271,8 +271,8 @@ namespace Jolly
 				// parseBraceOpen()	||
 				false)
 				return;
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
-			cursor = parser.parseExpression(defineMode);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program, defineMode);
+			cursor = parser.parseExpression();
 		}
 	}
 	
@@ -288,8 +288,8 @@ namespace Jolly
 				// parseUnion()	||
 				false)
 				return;
-			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program);
-			cursor = parser.parseExpression(defineMode);
+			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor, program, defineMode);
+			cursor = parser.parseExpression();
 		}
 	}
 }

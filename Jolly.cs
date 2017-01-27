@@ -99,7 +99,7 @@ namespace Jolly
 			var globalScope = new Scope(null);
 			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
 			
-			var instructions = Analyser.analyse(program);
+			var instructions = Analyser.analyse(program, globalScope);
 			
 			instructions.forEach(n => Console.WriteLine(n));
             System.Diagnostics.Debugger.Break();

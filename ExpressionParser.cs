@@ -112,9 +112,10 @@ struct Op
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
-	public ExpressionParser(Scope scope, Token[] tokens, Token.Type terminator, int cursor, List<Node> program)
+	public ExpressionParser(Scope scope, Token[] tokens, Token.Type terminator, int cursor, List<Node> program, DefineMode defineMode)
 	{
 		this.startNodeCount = program.Count;
+		this.defineMode = defineMode;
 		this.terminator = terminator;
 		this.expression = program;
 		this.cursor = cursor;
@@ -139,13 +140,14 @@ class ExpressionParser
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
 	
-	public int parseExpression(DefineMode defineMode)
+	public int parseExpression()
 	{
-		this.defineMode = defineMode;
-		if(this.defineMode != DefineMode.NONE)
+		if(defineMode != DefineMode.NONE)
 			parseDefinition();
 		
-		this.defineMode = DefineMode.NONE;
+		// TODO: Make sure you can only define inside of a struct.
+		
+		defineMode = DefineMode.NONE;
 		opLookup = Lookup.EXPRESSION_OP;
 		
 		for(token = tokens[cursor];
@@ -257,13 +259,12 @@ class ExpressionParser
 	
 	void parseDefineIdentifier()
 	{
-		Node prev = values.PeekOrDefault();
 		if(prevTokenKind == VALUE_KIND)
 		{
 			// Pop eventual period and comma operators
 			while(operators.Count > 0)
 				pushOperator(operators.Pop());
-			
+						
 			// Define
 			Token nextToken = tokens[cursor + 1];
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
@@ -272,7 +273,9 @@ class ExpressionParser
 					throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 				}
 				
-				var functionNode = new NodeFunction(token.location, token.text, scope);
+				var functionType = new DataTypeFunction();
+				var functionNode = new NodeFunction(token.location, token.text, scope)
+					{ dataType = functionType };
 				expression.Insert(startNodeCount, functionNode);
 				expression.AddRange(values);
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
@@ -283,9 +286,9 @@ class ExpressionParser
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
 				
-				var theFunctionScope = new Scope(scope);
-				cursor = new ExpressionParser(theFunctionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression)
-					.parseExpression(DefineMode.ARGUMENT);
+				var functionScope = new Scope(scope);
+				cursor = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression, DefineMode.ARGUMENT)
+					.parseExpression();
 				
 				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
 				
@@ -294,7 +297,7 @@ class ExpressionParser
 					throw Jolly.unexpected(brace);
 				}
 				
-				new BlockParser(cursor + 2, brace.partnerIndex, theFunctionScope, tokens, expression).parseBlock();
+				new BlockParser(cursor + 2, brace.partnerIndex, functionScope, tokens, expression).parseBlock();
 				cursor = brace.partnerIndex - 1;
 				
 				functionNode.memberCount = expression.Count - startNodeCount;
@@ -303,7 +306,8 @@ class ExpressionParser
 			}
 			else
 			{ // Variable
-				var variable = new NodeSymbol(token.location, token.text, scope, NT.VARIABLE_DEFINITION);
+				Node prev = values.Pop();
+				var variable = new NodeVariableDefinition(token.location, token.text, scope, prev);
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
@@ -316,7 +320,7 @@ class ExpressionParser
 				}
 				else
 				{
-					scope.childVariableCount += 1;
+					scope.variableCount += 1;
 					variable.typeKind = TypeKind.VALUE;
 					if(!scope.Add(token.text, null, TypeKind.VALUE)) {
 						throw Jolly.addError(token.location, "Trying to redefine variable");
@@ -337,10 +341,14 @@ class ExpressionParser
 					defineMode = DefineMode.DITTO;
 			}
 		}
-		else if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
-			var symbol = new NodeSymbol(token.location, token.text, scope);
-			expression.Add(symbol);
-			values.Push(symbol);
+		else
+		{
+			Node prev = values.PeekOrDefault();
+			if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
+				var symbol = new NodeSymbol(token.location, token.text, scope);
+				expression.Add(symbol);
+				values.Push(symbol);
+			}
 		}
 	} // parseDefineIdentifier()
 	

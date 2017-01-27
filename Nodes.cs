@@ -26,9 +26,13 @@ namespace Jolly
 			ENUM,
 			USERTYPE,
 			
-			MODIFY_TYPE,
+			ARGUMENTS,
+			RETURN_VALUES,
 			NAME,
+			MODIFY_TYPE,
+			TUPPLE,
 			MEMBER_NAME,
+			GLOBAL,
 			MEMBER_TUPPLE_NAME,
 			
 			ALIAS,
@@ -42,7 +46,6 @@ namespace Jolly
 			IF,
 			IF_ELSE,
 			LABEL,
-			TUPPLE,
 			LITERAL,
 			LOOP_CONTROL,
 			OPERATOR,
@@ -86,12 +89,20 @@ namespace Jolly
 			: base(type, loc) { this.text = name; this.scope = definitionScope; }
 		
 		public Scope scope;
-		
-		public int memberCount;
 		public string text;
+		public int memberCount;
 		
 		public override string toDebugText()
 			=> "define " + text;
+	}
+	
+	class NodeVariableDefinition : NodeSymbol
+	{
+		public NodeVariableDefinition(SourceLocation loc, string name, Scope definitionScope, Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
+			: base(loc, name, definitionScope, type)
+		{ this.typeFrom = typeFrom; }
+		
+		public Node typeFrom;
 	}
 	
 	class NodeFunctionCall : NodeSymbol
@@ -118,7 +129,14 @@ namespace Jolly
 		public override string toDebugText()
 			=> "function " + text;
 	}
-			
+	
+	class NodeEnclosure : Node
+	{
+		public NodeEnclosure(SourceLocation loc, NT type)
+			: base(type, loc) { }
+		public int memberCount;
+	}
+		
 	class NodeTupple : Node
 	{
 		public NodeTupple(SourceLocation loc)

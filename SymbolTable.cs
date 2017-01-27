@@ -35,7 +35,7 @@ namespace Jolly
 	{
 		Scope parent;
 		public DataType dataType;
-		public int childVariableCount;
+		public int variableCount;
 		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
 		
 		public Scope(Scope parent)

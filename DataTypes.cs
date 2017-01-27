@@ -113,13 +113,6 @@ namespace Jolly
 	
 	class DataTypeFunction : DataType
 	{
-		public DataTypeFunction(DataType[] returns, DataType[] arguments)
-		{
-			Debug.Assert(returns.Length > 0);
-			this.arguments = arguments;
-			this.returns = returns;
-		}
-		
 		public DataType[] returns, arguments;
 		
 		public override bool Equals(object obj)
