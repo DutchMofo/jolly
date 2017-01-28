@@ -1,10 +1,10 @@
-
 Problem.InnerProblem damm;
 
 Problem*, int initProblem(Problem* problem)
 {
-	problem.(name, it, it.(counter)) = ("Oke", damm, 10);
-	//					   ^ Not viewed as tupple
+	// problem.(name, it, it.(counter)) = ("Oke", damm, 10);
+	//					      ^ Not viewed as tupple
+	problem.(name, it, it.counter) = ("Oke", damm, 10);
 	return problem, damm.counter;
 }
 

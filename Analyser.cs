@@ -60,6 +60,9 @@ static class Analyser
 			} goto case NT.FUNCTION; // Define the actual variable
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
+				if((symbol.typeFrom.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
+					throw Jolly.addError(symbol.typeFrom.location, "The type {0} is not instantiable.".fill(symbol.typeFrom.dataType));
+				}
 				symbol.dataType = new DataTypeReference(symbol.typeFrom.dataType);
 				DataType.makeUnique(ref symbol.dataType);
 				closure.scope.finishDefinition(symbol.text, symbol.dataType);
@@ -172,6 +175,9 @@ static class Analyser
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
+				if((tToRef.target.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
+					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.dataType));
+				}
 				tToRef.dataType = new DataTypeReference(tToRef.target.dataType);
 				DataType.makeUnique(ref tToRef.dataType);
 				tToRef.typeKind = tToRef.target.typeKind;
@@ -322,15 +328,13 @@ static class Analyser
 			var refType = varType as DataTypeReference;
 			if(definition == null && refType != null)
 			{
-				var resultNode = new NodeOperator(new SourceLocation(), OT.READ, a, null) { dataType = refType };
-				
+				load(a);
 				instructions.Add(new InstructionOperator() {
 					instruction = IT.LOAD,
 					aType = a.dataType,
 					resultType = refType
 				});
 				definition = refType.referenced.getDefinition(b.text);
-				a = resultNode;
 			}
 			
 			if(definition == null) {
@@ -381,7 +385,7 @@ static class Analyser
 				throw Jolly.addError(node.location, "Cannot be used as value");
 			}
 			
-			if(!refTo.referenced.isBaseType | node.typeKind == TypeKind.ADDRES) {
+			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.typeKind == TypeKind.ADDRES) {
 				return;
 			}
 			node.dataType = refTo.referenced;

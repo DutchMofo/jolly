@@ -113,7 +113,7 @@ namespace Jolly
 			: base(loc, name, type) { this.scope = scope; }
 		
 		public Scope scope;
-		public virtual Symbol? getDefinition(string name)
+		public Symbol? getDefinition(string name)
 			=> scope.searchItem(name);
 	}
 	
@@ -128,15 +128,12 @@ namespace Jolly
 		
 	class NodeTuple : NodeScope
 	{
-		public NodeTuple(SourceLocation loc, Scope scope)
-			: base(loc, NodeType.TUPLE, scope, null) { }
+		public NodeTuple(SourceLocation loc, Scope scope, NT tupType)
+			: base(loc, tupType, scope, null) { }
 		
 		public List<Node> values = new List<Node>();
 		public Node scopeFrom;
 		public bool closed;
-		
-		public override Symbol? getDefinition(string name)
-			=> (nodeType == NT.MEMBER_TUPLE) ? scopeFrom.dataType.getDefinition(name) : scope.searchItem(name);
 			
 	}
 		

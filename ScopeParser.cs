@@ -4,6 +4,7 @@ namespace Jolly
 {
     using TT = Token.Type;
     using NT = Node.NodeType;
+	using DefineMode = ExpressionParser.DefineMode;
 	
     class ScopeParser
 	{

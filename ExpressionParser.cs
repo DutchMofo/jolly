@@ -74,42 +74,13 @@ enum OperatorType
 	COMMA,
 };
 
-enum DefineMode : byte
-{
-	NONE,
-	MEMBER,
-	ARGUMENT,
-	FUNCTION_OR_VARIABLE,
-	DITTO,
-}
-
-struct Op
-{
-	public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
-	{
-		this.leftToRight = leftToRight;
-		this.precedence = precedence;
-		this.operation = operation;
-		this.location = location;
-		this.valCount = valCount;
-		this.startNodeCount = 0;
-		this.parenthType = 0;
-	}
-	public byte precedence, valCount;
-	public SourceLocation location;
-	public int startNodeCount;
-	public byte parenthType;
-	public bool leftToRight;
-	public OT operation;
-}
-
 // Parses an expression using a modified Shunting-yard algorithm.
 // Throws a ParseException when it's not a valid expression.
 class ExpressionParser
 {
 	public ExpressionParser(Scope scope, Token[] tokens, Token.Type terminator, int cursor, List<Node> program, DefineMode defineMode)
 	{
-		this.startNodeCount = program.Count;
+		enclosureStack.Push(new Enclosure(EnclosureKind.NONE, program.Count));
 		this.defineMode = defineMode;
 		this.terminator = terminator;
 		this.expression = program;
@@ -118,24 +89,76 @@ class ExpressionParser
 		this.scope = scope;
 	}
 	
-	const byte VALUE_KIND = 1, OPERATOR_KIND = 2, SEPARATOR_KIND = 3;
+	public enum DefineMode : byte
+	{
+		NONE,
+		MEMBER,
+		ARGUMENT,
+		FUNCTION_OR_VARIABLE,
+		DITTO,
+	}
+	
+	enum TokenKind : byte
+	{
+		VALUE = 1,
+		OPERATOR = 2,
+		SEPARATOR = 3,
+	}
+	
+	public enum EnclosureKind : byte
+	{
+		NONE = 0,
+		LOGIC_OR,
+		LOGIC_AND,
+		TERNARY_TRUE,
+		TERNARY_FALSE,
+		NULLCOALESCE,
+		TUPLE,
+		MEMBER_TUPLE,
+		SUBSCRIPT,
+		PARENTHS,
+		FUNCTION_CALL,
+	}
+	
+	struct Enclosure
+	{
+		public Enclosure(EnclosureKind kind, int startNodeCount)
+			{ this.kind = kind; this.startNodeCount = startNodeCount; }
+		public EnclosureKind kind;
+		public int startNodeCount;
+	}
+	
+	public struct Op
+	{
+		public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
+		{
+			this.leftToRight = leftToRight;
+			this.precedence = precedence;
+			this.operation = operation;
+			this.location = location;
+			this.valCount = valCount;
+		}
+		public byte precedence, valCount;
+		public SourceLocation location;
+		public bool leftToRight;
+		public OT operation;
+	}
 
-	byte prevTokenKind = 0,				// Was the previous parsed token an operator or a value
-		 currentTokenKind = VALUE_KIND;	// Is the current token being parsed an operator or a value
-	DefineMode defineMode;				// Are we defining variables
+	TokenKind prevTokenKind = 0,					// Was the previous parsed token an operator or a value
+			  currentTokenKind = TokenKind.VALUE;	// Is the current token being parsed an operator or a value
+	DefineMode defineMode;							// Are we defining variables
 	
 	Dictionary<TT, Op> opLookup;
-	int cursor, startNodeCount;
 	Token[] tokens;
 	TT terminator;
 	Token token;
 	Scope scope;
+	int cursor;
 
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
-	
-	const byte FUNCTION_CALL = 1, MEMBER_TUPLE = 2, TUPLE = 3;
+	Stack<Enclosure> enclosureStack = new Stack<Enclosure>();
 	
 	public int parseExpression()
 	{
@@ -172,15 +195,20 @@ class ExpressionParser
 					throw Jolly.unexpected(token);
 			}
 			prevTokenKind = currentTokenKind;
-			currentTokenKind = VALUE_KIND;
+			currentTokenKind = TokenKind.VALUE;
 		}
 		
 		if(token.type != terminator) {
 			throw Jolly.unexpected(token);
 		}
 		
-		while(operators.Count > 0)
+		while(operators.Count > 0) {
 			pushOperator(operators.Pop());
+		}
+		
+		while(enclosureStack.Count > 1) {
+			enclosureEnd(enclosureStack.Pop());
+		}
 		
 		return cursor;
 	} // parseExpression()
@@ -212,13 +240,13 @@ class ExpressionParser
 					return;
 			}
 			prevTokenKind = currentTokenKind;
-			currentTokenKind = VALUE_KIND;
+			currentTokenKind = TokenKind.VALUE;
 		}
 	} // parseDefinition()
 	
 	void parseLiteral()
 	{
-		if(prevTokenKind == VALUE_KIND) {
+		if(prevTokenKind == TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
 		NodeLiteral lit;
@@ -238,7 +266,7 @@ class ExpressionParser
 	
 	void parseBasetype()
 	{
-		if(prevTokenKind == VALUE_KIND) {
+		if(prevTokenKind == TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
 		values.Push(new Node(token.location, NT.BASETYPE) { dataType = Lookup.getBaseType(token.type), typeKind = TypeKind.STATIC });
@@ -246,17 +274,16 @@ class ExpressionParser
 	
 	void parseIdentifier()
 	{
-		if(prevTokenKind == VALUE_KIND) {
+		if(prevTokenKind == TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
 		var symbol = new NodeSymbol(token.location, token.text);
-		expression.Add(symbol);
 		values.Push(symbol);
 	}
 	
 	void parseDefineIdentifier()
 	{
-		if(prevTokenKind == VALUE_KIND)
+		if(prevTokenKind == TokenKind.VALUE)
 		{
 			// Pop eventual period and comma operators
 			while(operators.Count > 0)
@@ -264,6 +291,7 @@ class ExpressionParser
 						
 			Node prev = values.Pop();
 			Token nextToken = tokens[cursor + 1];
+			int startNodeCount = enclosureStack.Peek().startNodeCount;
 			// Define
 			if(nextToken.type == TT.PARENTHESIS_OPEN)
 			{ // Function
@@ -276,7 +304,7 @@ class ExpressionParser
 				var functionNode = new NodeFunction(token.location, functionScope, token.text)
 					{ dataType = functionType, returns = prev };
 				expression.Insert(startNodeCount, functionNode);
-				expression.AddRange(values);
+				expression.Add(prev);
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
@@ -346,7 +374,6 @@ class ExpressionParser
 			Node prev = values.PeekOrDefault();
 			if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
 				var symbol = new NodeSymbol(token.location, token.text);
-				expression.Add(symbol);
 				values.Push(symbol);
 			}
 		}
@@ -354,7 +381,7 @@ class ExpressionParser
 	
 	void parseComma()
 	{		
-		if(prevTokenKind != VALUE_KIND) {
+		if(prevTokenKind != TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -373,7 +400,7 @@ class ExpressionParser
 		else
 		{
 			parseOperator();
-			currentTokenKind = SEPARATOR_KIND;	
+			currentTokenKind = TokenKind.SEPARATOR;	
 		}
 	} // parseComma()
 	
@@ -383,9 +410,9 @@ class ExpressionParser
 		Op op;
 		if(!opLookup.TryGetValue(token.type, out op))
 			return false;
-		currentTokenKind = OPERATOR_KIND;
+		currentTokenKind = TokenKind.OPERATOR;
 		
-		if(prevTokenKind != VALUE_KIND)
+		if(prevTokenKind != TokenKind.VALUE)
 		{
 			switch(token.type) {
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break;
@@ -411,9 +438,9 @@ class ExpressionParser
 	
 	void parseBracketOpen()
 	{
-		currentTokenKind = OPERATOR_KIND;
+		currentTokenKind = TokenKind.OPERATOR;
 		
-		if(prevTokenKind == OPERATOR_KIND) {
+		if(prevTokenKind == TokenKind.OPERATOR) {
 			throw Jolly.unexpected(token);
 		}
 		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, token.location));
@@ -421,7 +448,7 @@ class ExpressionParser
 	
 	void parseBracketClose()
 	{
-		currentTokenKind = VALUE_KIND;
+		currentTokenKind = TokenKind.VALUE;
 		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
@@ -431,24 +458,27 @@ class ExpressionParser
 			pushOperator(op);
 		}
 		
+		Enclosure closure;
+		while((closure = enclosureStack.Peek()).kind != EnclosureKind.SUBSCRIPT) {
+			enclosureEnd(enclosureStack.Pop());
+		}
+		
 		Debug.Assert(false);
 	}
 	
 	void parseParenthesisOpen()
 	{
-		currentTokenKind = OPERATOR_KIND;
+		currentTokenKind = TokenKind.OPERATOR;
 		
-		byte kind = TUPLE;
-		if(prevTokenKind == VALUE_KIND) {
-			kind = FUNCTION_CALL;
-		} else if(prevTokenKind == OPERATOR_KIND && operators.Peek().operation == OT.GET_MEMBER) {
-			kind = MEMBER_TUPLE;
+		EnclosureKind kind = EnclosureKind.TUPLE;
+		if(prevTokenKind == TokenKind.VALUE) {
+			kind = EnclosureKind.FUNCTION_CALL;
+		} else if(prevTokenKind == TokenKind.OPERATOR && operators.Peek().operation == OT.GET_MEMBER) {
+			kind = EnclosureKind.MEMBER_TUPLE;
 			operators.Pop();
 		}
-		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location) {
-			parenthType = kind,
-			startNodeCount = expression.Count
-		});
+		enclosureStack.Push(new Enclosure(kind, expression.Count));
+		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location));
 	} // parseParenthesisOpen()
 	
 	void parseParenthesisClose()
@@ -461,7 +491,14 @@ class ExpressionParser
 			pushOperator(op);
 		}
 		
-		if(op.parenthType == FUNCTION_CALL)
+		Enclosure closure;
+		while((closure = enclosureStack.Peek()).kind != EnclosureKind.TUPLE &
+			closure.kind != EnclosureKind.MEMBER_TUPLE)
+		{
+			enclosureEnd(enclosureStack.Pop());
+		}
+		
+		if(closure.kind == EnclosureKind.FUNCTION_CALL)
 		{
 			Node[] arguments;
 			Node symbol = values.Pop();
@@ -474,7 +511,6 @@ class ExpressionParser
 			Debug.Assert(symbol.nodeType == NT.NAME);
 			
 			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
-			expression.Add(node);
 			values.Push(node);
 		}
 		else
@@ -484,26 +520,58 @@ class ExpressionParser
 			if(prevVal?.nodeType == NT.TUPLE)
 			{
 				var tup = ((NodeTuple)prevVal);
-				if(op.parenthType == MEMBER_TUPLE) {
+				if(closure.kind == EnclosureKind.MEMBER_TUPLE) {
 					tup.scopeFrom = values.ElementAt(1);
 					tup.nodeType = NT.MEMBER_TUPLE;
 				}
 				tup.closed = true;
-				tup.memberCount = expression.Count - op.startNodeCount;;
-				expression.Insert(op.startNodeCount, tup);
+				tup.memberCount = expression.Count - closure.startNodeCount;;
+				expression.Insert(closure.startNodeCount, tup);
 			}
 		}
 	} // parseParenthesisClose()
 	
 	void parseTypeToReference()
 	{
-		if(prevTokenKind == OPERATOR_KIND | prevTokenKind == 0) {
+		if(prevTokenKind == TokenKind.OPERATOR | prevTokenKind == 0) {
 			throw Jolly.unexpected(token);
 		}
 		Node prev = values.Pop();
+		if(prev == null) {
+			throw Jolly.addError(token.location, "Invalid expression term");
+		}
 		var mod = new NodeModifyType(token.location, prev, NodeModifyType.TO_REFERENCE);
+		expression.Add(prev);
 		expression.Add(mod);
 		values.Push(mod);
+	}
+	
+	void enclosureEnd(Enclosure closure)
+	{
+		var enclosure = enclosureStack.Pop();
+		switch(enclosure.kind)
+		{
+		case EnclosureKind.TUPLE:
+			
+			var tuple = values.Peek();
+			Debugger.Break();
+			
+			break;
+		case EnclosureKind.LOGIC_OR:
+			
+			break;
+		case EnclosureKind.LOGIC_AND:
+			
+			break;
+		case EnclosureKind.SUBSCRIPT: break;
+		case EnclosureKind.FUNCTION_CALL: // These should be handled by parseParenthesisClose
+		case EnclosureKind.MEMBER_TUPLE:
+		case EnclosureKind.PARENTHS:
+		default:
+			Debug.Assert(false);
+			break;
+			
+		}
 	}
 	
 	void pushOperator(Op _op)
@@ -515,27 +583,47 @@ class ExpressionParser
 			b = values.PopOrDefault();
 			a = values.PopOrDefault();
 			
+			if(_op.operation == OT.COMMA)
+			{
+				NodeTuple tuple = a as NodeTuple;
+				if(tuple != null && !tuple.closed) {
+					values.Push(tuple);
+					if(b != null) {
+						tuple.values.Add(b);
+					}
+				}
+				else
+				{
+					NT tupleType = NT.TUPLE;
+					if(prevTokenKind == TokenKind.OPERATOR && operators.Peek().operation == OT.PARENTHESIS_OPEN)
+					{
+						var closure = enclosureStack.Pop();
+						if(closure.kind == EnclosureKind.MEMBER_TUPLE) {
+							tupleType = NT.MEMBER_TUPLE;
+						} else {
+							closure.kind = EnclosureKind.TUPLE;
+						}
+						enclosureStack.Push(closure);
+					}
+					tuple = new NodeTuple(_op.location, scope, tupleType);
+					values.Push(tuple);
+					tuple.values.Add(a);
+					if(b != null) {
+						tuple.values.Add(b);
+					}
+				}
+				return;
+			}
+			
 			if(a == null || b == null) {
 				throw Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null ? "left" : "right"));
 			}
 			
-			if(_op.operation == OT.COMMA)
-			{
-				NodeTuple tuple = a as NodeTuple;
-				if(a.nodeType == NT.TUPLE && !tuple.closed) {
-					tuple.values.Add(b);
-					values.Push(a);
-				}  else {
-					tuple = new NodeTuple(_op.location, scope);
-					tuple.values.Add(a);
-					tuple.values.Add(b);
-					values.Push(tuple);
-				}
-				return;
-			}
 			if(_op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
 			}
+			expression.Add(a);
+			expression.Add(b);
 		}
 		else
 		{
@@ -543,6 +631,7 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(_op.location, "Invalid expression term");
 			}
+			expression.Add(a);
 		}
 		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b);
 		expression.Add(op);

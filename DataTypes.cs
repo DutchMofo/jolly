@@ -5,6 +5,13 @@ namespace Jolly
 {
 	class DataType
 	{
+		public enum Flags
+		{
+			NONE         = 0,
+			BASE_TYPE    = 1<<0,
+			INSTANTIABLE = 1<<1,
+		}
+		
 		static int lastTypeID;
 		static Dictionary<DataType, DataType>
 			allReferenceTypes = new Dictionary<DataType, DataType>();
@@ -22,14 +29,13 @@ namespace Jolly
 		
 		public string name; // TODO: Remove someday
 		public int size, align, typeID;
-		public bool isBaseType;
+		public Flags flags;
 		
 		public DataType() { this.typeID = lastTypeID++; }
-		public DataType(int size, int align)
+		public DataType(int size, int align, Flags flags)
 		{
 			this.size = size;
 			this.align = align;
-			this.isBaseType = true;
 			this.typeID = lastTypeID++;
 		}
 		
@@ -45,7 +51,7 @@ namespace Jolly
 		public DataType referenced;
 		
 		public DataTypeReference(DataType referenced)
-			{ this.referenced = referenced; this.isBaseType = true; }
+			{ this.referenced = referenced; flags = Flags.BASE_TYPE | Flags.INSTANTIABLE; }
 		
 		public override bool Equals(object obj)
 		{
@@ -80,6 +86,7 @@ namespace Jolly
 	
 	class DataTypeStruct : DataType
 	{
+		public DataTypeStruct() { flags = Flags.INSTANTIABLE; }
 		public Scope structScope;
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;

@@ -108,7 +108,6 @@ class Token
 		DOUBLE,
 		
 		VOID,
-		RUNE,
 		STRING,
 		BOOL,
 		AUTO,
