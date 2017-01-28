@@ -99,8 +99,7 @@ namespace Jolly
 			List<Node> program = new List<Node>();
 			var globalScope = new Scope(null);
 			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
-
-            Debugger.Break();
+			
 			var instructions = Analyser.analyse(program, globalScope);
 			
 			instructions.forEach(n => Console.WriteLine(n));

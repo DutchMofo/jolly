@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System;
-using System.Diagnostics;
 
 namespace Jolly
 {	
@@ -23,15 +22,7 @@ namespace Jolly
 		public TypeKind typeKind;
 	}
 	
-	class SymbolTable
-	{
-		public virtual Symbol? getDefinition(string name) { Debug.Assert(false); return null; }
-		public virtual bool addDefinition(string name) { Debug.Assert(false); return false; }
-		
-		public virtual void finishDefinition(string name, DataType type) { Debug.Assert(false); }
-	}
-	
-	class Scope : SymbolTable
+	class Scope
 	{
 		Scope parent;
 		public DataType dataType;
@@ -53,15 +44,15 @@ namespace Jolly
 			return null;
 		}
 		
-		public override void finishDefinition(string name, DataType type)
+		public void finishDefinition(string name, DataType type)
 		{
-			// WTF c# why doesn't children[name].dataType = type; work
+			// WTF c# why doesn't: children[name].dataType = type; work
 			var t = children[name];
 			t.dataType = type;
 			children[name] = t;
 		}
 		
-		public override Symbol? getDefinition(string name)
+		public Symbol? getDefinition(string name)
 		{
 			Symbol item;
 			if(children.TryGetValue(name, out item))

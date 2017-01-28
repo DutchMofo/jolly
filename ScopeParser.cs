@@ -42,7 +42,7 @@ namespace Jolly
 			
 			Scope structScope = new Scope(scope);
 			var structType = new DataTypeStruct() { name = name.text, structScope = structScope };
-			var structNode = new NodeSymbol(name.location, name.text, scope, NT.STRUCT)
+			var structNode = new NodeScope(name.location, NT.STRUCT, structScope, name.text)
 				{ dataType = structScope.dataType = structType };
 			
 			if(!scope.Add(name.text, structType, TypeKind.STATIC)) {
@@ -224,7 +224,7 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program, DefineMode.NONE);
 			cursor = parser.parseExpression();
 			
-			program.Add(new Node(NT.RETURN, token.location));
+			program.Add(new Node(token.location, NT.RETURN));
 			
 			return true;
 		}

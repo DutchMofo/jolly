@@ -12,9 +12,8 @@ using IT = Instruction.Type;
 static class Analyser
 {
 	static Stack<Enclosure> enclosureStack;
-	static Enclosure enclosure;
+	static Enclosure enclosure, statementEnclosure;
 	static List<Instruction> instructions;
-	static List<Node> program;
 	static int cursor;
 	
 	struct Enclosure
@@ -45,13 +44,13 @@ static class Analyser
 		switch(poppedEnclosure.node.nodeType)
 		{
 		case NT.VARIABLE_DEFINITION: {
+			var closure = (NodeScope)enclosure.node;
 			var symbol = (NodeVariableDefinition)poppedEnclosure.node;
 			
 			switch(enclosure.node.nodeType)
 			{
 			case NT.STRUCT: {
-				symbol.scope.dataType.finishDefinition(symbol.text, symbol.typeFrom.dataType);
-				
+				((DataTypeStruct)closure.dataType).finishDefinition(symbol.text, symbol.typeFrom.dataType);
 			} break;
 			case NT.ARGUMENTS: {
 				var function = (NodeFunction)enclosureStack.ElementAt(1).node;
@@ -63,15 +62,11 @@ static class Analyser
 			case NT.GLOBAL: {
 				symbol.dataType = new DataTypeReference(symbol.typeFrom.dataType);
 				DataType.makeUnique(ref symbol.dataType);
-				symbol.scope.finishDefinition(symbol.text, symbol.dataType);
+				closure.scope.finishDefinition(symbol.text, symbol.dataType);
 				instructions.Add(new InstructionAllocate(symbol.typeFrom.dataType));
 			} break;
-			default: Debug.Assert(false); break;
+			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
 			}
-		} break;
-		case NT.STRUCT: {
-			var structN = (NodeSymbol)poppedEnclosure.node;
-				
 		} break;
 		case NT.RETURN_VALUES: {
 			var function = (NodeFunction)enclosure.node;
@@ -86,6 +81,7 @@ static class Analyser
 			}
 			
 			if(function.argumentDefinitionCount > 0) {
+				arguments.scope = function.scope;
 				pushEnclosure(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
 			} else {
 				goto case NT.ARGUMENTS;
@@ -97,19 +93,22 @@ static class Analyser
 			// Skip to end of function enclosure
 			cursor = enclosure.end;
 		} break;
+		case NT.MEMBER_TUPLE: break;
 		case NT.FUNCTION: break;
-		default: throw Jolly.unexpected(poppedEnclosure.node);
+		case NT.STRUCT: break;
+		case NT.TUPLE: break;
+		default: throw Jolly.addError(poppedEnclosure.node.location, "Internal compiler error: illigal node used as enclosure");
 		}
 	}
 	
-	static readonly Node
-		global = new Node(NT.GLOBAL, new SourceLocation()),
-		return_values = new Node(NT.RETURN_VALUES, new SourceLocation()),
-		arguments = new Node(NT.ARGUMENTS, new SourceLocation());
+	static readonly NodeScope
+		global = new NodeScope(new SourceLocation(), NT.GLOBAL, null, null),
+		return_values = new NodeScope(new SourceLocation(), NT.RETURN_VALUES, null, null),
+		arguments = new NodeScope(new SourceLocation(), NT.ARGUMENTS, null, null);
 	
 	public static List<Instruction> analyse(List<Node> program, Scope globalScope)
 	{
-		Analyser.program = program;
+		global.scope = globalScope;
 		// instructions = new List<Node>(program.Count);
 		instructions = new List<Instruction>();
 		enclosureStack = new Stack<Enclosure>(16);
@@ -151,56 +150,25 @@ static class Analyser
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
+				return_values.scope = function.scope;
 				pushEnclosure(new Enclosure(function, function.memberCount + cursor));
 				pushEnclosure(new Enclosure(return_values, function.returnDefinitionCount + cursor));
-				
-				/*int startCursor = cursor, end = (cursor += 1) + function.returnDefinitionCount;
-				for(; cursor < end; incrementCursor())
-				{
-					node = program[cursor];
-					Action<Node> action;
-					if(variableDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
-						action(node);
-					} else {
-						throw Jolly.unexpected(node);
-					}
-				}
-				var returns = (definitionInstruction.nodeType == NT.TUPLE) ?
-					((NodeTuple)definitionInstruction).values.Select(n => n.dataType ).ToArray() :
-					new DataType[] { definitionInstruction.dataType };
-				definitionInstruction = null;
-				
-				end = cursor + function.argumentDefinitionCount - 1;
-				List<DataType> fuckit = new List<DataType>();
-				for(; cursor < end; incrementCursor())
-				{
-					var definition = program[cursor] as NodeSymbol;
-					if(definition == null) {
-						throw Jolly.unexpected(node);
-					}
-					// fuckit.Add(defineMemberOrVariable(definition));
-				}
-				cursor -= 1;
-				var arguments = fuckit.ToArray();
-				
-				function.dataType = new DataTypeFunction(returns, arguments) { name = function.text };
-				DataType.makeUnique(ref function.dataType);
-				function.scope.finishDefinition(function.text, function.dataType);
-				cursor = startCursor + function.memberCount;*/	
 			} },
 			{ NT.STRUCT, node => {
 				pushEnclosure(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
-				NodeOperator o = (NodeOperator)node;
-				Debug.Assert(o.operation == OT.GET_MEMBER);
-				operatorGetMember(o);
+				NodeOperator op = (NodeOperator)node;
+				Debug.Assert(op.operation == OT.GET_MEMBER);
+				var result = operatorGetMember(ref op.a, op.b as NodeSymbol);
+				op.dataType = result.Item1;
+				op.typeKind = result.Item2;
 			} },
 			{ NT.BASETYPE, node => { } },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
 			{ NT.TUPLE, node => {
-				// enclosureStack.Push(new Enclosure(node, ));
+				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				NodeModifyType tToRef = (NodeModifyType)node;
@@ -214,10 +182,10 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
-				// pushEnclosure(new Enclosure(function, function.memberCount + cursor));
+				pushEnclosure(new Enclosure(function, function.memberCount + cursor));
+				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
-				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 			} },
 			{ NT.OPERATOR, node => {
 				NodeOperator o = (NodeOperator)node;
@@ -228,6 +196,12 @@ static class Analyser
 				// getTypeFromName(functionCall);
 				
 				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray(), name = functionCall.text });
+			} },
+			{ NT.TUPLE, node => {
+				pushEnclosure(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+			} },
+			{ NT.MEMBER_TUPLE, node => {
+				pushEnclosure(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.BASETYPE, node => { } },
@@ -253,11 +227,15 @@ static class Analyser
 	
 	static readonly Dictionary<OT, Action<NodeOperator>>
 		operatorAnalysers = new Dictionary<OT, Action<NodeOperator>>() {
-			{ OT.GET_MEMBER, operatorGetMember },
 			{ OT.MINUS,		 basicOperator },
 			{ OT.PLUS,		 basicOperator },
 			{ OT.MULTIPLY,	 basicOperator },
 			{ OT.DIVIDE,	 basicOperator },
+			{ OT.GET_MEMBER, op => {
+				var result = operatorGetMember(ref op.a, op.b as NodeSymbol);
+				op.dataType = result.Item1;
+				op.typeKind = result.Item2;
+			} },
 			{ OT.ASSIGN, op => {
 				load(ref op.b);
 				
@@ -287,19 +265,21 @@ static class Analyser
 				op.dataType = op.a.dataType;
 				instructions.Add(new InstructionOperator(op));
 			} },
+			{ OT.DEREFERENCE, op => {
+				load(ref op.a);
+				op.dataType = op.a.dataType;
+			} },
+			
 		};
 	
-	static void operatorGetMember(NodeOperator op)
+	static Tuple<DataType,TypeKind> operatorGetMember(ref Node a, NodeSymbol b)
 	{
-		Node a = op.a;
-		NodeSymbol b = op.b as NodeSymbol;
-		
 		if(b == null) {
-			throw Jolly.addError(op.b.location, "The right-hand side of the period operator must be a name");
+			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		Debug.Assert(a.typeKind != TypeKind.UNDEFINED);
-		
+		DataType resultType;
+		TypeKind resultTypeKind;
 		if(a.typeKind != TypeKind.STATIC)
 		{
 			var varType = ((DataTypeReference)a.dataType).referenced;
@@ -308,36 +288,37 @@ static class Analyser
 			var refType = varType as DataTypeReference;
 			if(definition == null && refType != null)
 			{
-				var resultNode = new NodeOperator(new SourceLocation(), OT.READ, op.a, null) { dataType = refType };
+				var resultNode = new NodeOperator(new SourceLocation(), OT.READ, a, null) { dataType = refType };
 				
 				instructions.Add(new InstructionOperator() {
 					instruction = IT.LOAD,
-					aType = op.a.dataType,
+					aType = a.dataType,
 					resultType = refType
 				});
-				// instructions.Add(new NodeOperator(new SourceLocation(), OT.DEREFERENCE, op.a, null, resultNode));
 				definition = refType.referenced.getDefinition(b.text);
-				op.a = resultNode;
+				a = resultNode;
 			}
 			
 			if(definition == null) {
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
 			}
 			
-			op.dataType = new DataTypeReference(definition.Value.dataType);
-			DataType.makeUnique(ref op.dataType);
-			instructions.Add(new InstructionOperator(op));
+			resultTypeKind = definition.Value.typeKind;
+			resultType = new DataTypeReference(definition.Value.dataType);
+			DataType.makeUnique(ref resultType);
+			// instructions.Add(new InstructionOperator(op));
 		}
 		else
 		{
 			// Get static member
-			var definition = ((DataTypeStruct)op.a.dataType).structScope.getDefinition(b.text);
+			var definition = ((DataTypeStruct)a.dataType).structScope.getDefinition(b.text);
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
-			op.typeKind = definition.Value.typeKind;
-			op.dataType = definition.Value.dataType;
+			resultType = definition.Value.dataType;
+			resultTypeKind = definition.Value.typeKind;
 		}
+		return new Tuple<DataType, TypeKind>(resultType, resultTypeKind);
 	}
 	
 	static void basicOperator(NodeOperator op)
@@ -374,11 +355,20 @@ static class Analyser
 	
 	static void getTypeFromName(Node node)
 	{
+		// TODO: remove name part from function call
 		if((node.nodeType == NT.NAME | node.nodeType == NT.FUNCTION_CALL) & node.dataType == null)
 		{
-			Debug.Assert(node.dataType == null);
+			var closure = (NodeScope)enclosure.node;
+			if(closure.nodeType == NT.MEMBER_TUPLE) {
+				var tup = (NodeTuple)closure;
+				// TODO: the ref will fuck shit up down the line
+				var result = operatorGetMember(ref tup.scopeFrom, node as NodeSymbol);
+				node.dataType = result.Item1;
+				node.typeKind = result.Item2;
+				return;
+			}
 			NodeSymbol name = (NodeSymbol)node;
-			var definition = name.scope.searchItem(name.text);
+			var definition = closure.getDefinition(name.text);
 			
 			if(definition == null) {
 				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));

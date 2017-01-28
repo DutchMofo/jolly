@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace Jolly
 {
-	class DataType : SymbolTable
+	class DataType
 	{
 		static int lastTypeID;
 		static Dictionary<DataType, DataType>
@@ -33,11 +33,10 @@ namespace Jolly
 			this.typeID = lastTypeID++;
 		}
 		
-		public override Symbol? getDefinition(string name) => null;
+		public virtual Symbol? getDefinition(string name) => null;
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
-		
 		public override string ToString() => name;
 	}
 	
@@ -94,7 +93,7 @@ namespace Jolly
 			return null;
 		}
 		
-		public override bool addDefinition(string name)
+		public bool addDefinition(string name)
 		{
 			if(memberMap.ContainsKey(name)) {
 				return false;
@@ -103,10 +102,8 @@ namespace Jolly
 			return true;
 		}
 		
-		public override void finishDefinition(string name, DataType type)
-		{
-			members[ memberMap[name] ] = type;
-		}
+		public void finishDefinition(string name, DataType type)
+			=> members[ memberMap[name] ] = type;
 				
 		public override string ToString() => name;
 	}

@@ -3,8 +3,8 @@ Problem.InnerProblem damm;
 
 Problem*, int initProblem(Problem* problem)
 {
-	damm.counter = damm.counter + 1;
-	// problem.(name, it) = ("Oke", damm);
+	problem.(name, it, it.(counter)) = ("Oke", damm, 10);
+	//					   ^ Not viewed as tupple
 	return problem, damm.counter;
 }
 

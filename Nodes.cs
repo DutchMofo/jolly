@@ -3,7 +3,6 @@ using System.Collections.Generic;
 namespace Jolly
 {
 	using NT = Node.NodeType;
-	// using TT = Token.Type;
 	
 	enum TypeKind
 	{
@@ -15,7 +14,7 @@ namespace Jolly
 	
 	class Node
 	{
-		public Node(NodeType nT, SourceLocation l) { nodeType = nT; location = l; }
+		public Node(SourceLocation l, NodeType nT) { nodeType = nT; location = l; }
 		
 		public enum NodeType
 		{
@@ -31,9 +30,10 @@ namespace Jolly
 			NAME,
 			MODIFY_TYPE,
 			TUPLE,
+			MEMBER_TUPLE,
 			MEMBER_NAME,
 			GLOBAL,
-			MEMBER_TUPLE_NAME,
+			STATEMENT,
 			
 			ALIAS,
 			BLOCK,
@@ -65,15 +65,12 @@ namespace Jolly
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
-			
-		public virtual string toDebugText()
-			=> (nodeType == NT.RETURN) ? "return" : "";
 	}
 	
 	class NodeModifyType : Node
 	{
 		public NodeModifyType(SourceLocation loc, Node target, byte targetType)
-			: base(NT.MODIFY_TYPE, loc)
+			: base(loc, NT.MODIFY_TYPE)
 		{
 			this.targetType = targetType;
 			this.target = target;
@@ -83,23 +80,20 @@ namespace Jolly
 		public Node target;
 	}
 	
+	
 	class NodeSymbol : Node
 	{
-		public NodeSymbol(SourceLocation loc, string name, Scope definitionScope, NT type = NT.NAME)
-			: base(type, loc) { this.text = name; this.scope = definitionScope; }
+		public NodeSymbol(SourceLocation loc, string name, NT type = NT.NAME)
+			: base(loc, type) { this.text = name; }
 		
-		public Scope scope;
-		public string text;
 		public int memberCount;
-		
-		public override string toDebugText()
-			=> "define " + text;
+		public string text;
 	}
 	
-	class NodeVariableDefinition : NodeSymbol
+	class NodeVariableDefinition : NodeScope
 	{
-		public NodeVariableDefinition(SourceLocation loc, string name, Scope definitionScope, Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
-			: base(loc, name, definitionScope, type)
+		public NodeVariableDefinition(SourceLocation loc, Scope scope, string name, Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
+			: base(loc, type, scope, name)
 		{ this.typeFrom = typeFrom; }
 		
 		public Node typeFrom;
@@ -107,50 +101,49 @@ namespace Jolly
 	
 	class NodeFunctionCall : NodeSymbol
 	{
-		public NodeFunctionCall(SourceLocation loc, string function, Scope definitionScope, Node[] a)
-			: base(loc, function, definitionScope, NT.FUNCTION_CALL)
-		{
-			arguments = a;
-		}
+		public NodeFunctionCall(SourceLocation loc, string function, Node[] a)
+			: base(loc, function, NT.FUNCTION_CALL) { arguments = a; }
 		
 		public Node[] arguments;
-		
-		public override string toDebugText()
-			=> "call " + text;
 	}
 	
-	class NodeFunction : NodeSymbol
+	class NodeScope : NodeSymbol
 	{
-		public NodeFunction(SourceLocation loc, string name, Scope definitionScope)
-			: base(loc, name, definitionScope, NodeType.FUNCTION) {  }
+		public NodeScope(SourceLocation loc, NT type, Scope scope, string name)
+			: base(loc, name, type) { this.scope = scope; }
+		
+		public Scope scope;
+		public virtual Symbol? getDefinition(string name)
+			=> scope.searchItem(name);
+	}
+	
+	class NodeFunction : NodeScope
+	{
+		public NodeFunction(SourceLocation loc, Scope scope, string name)
+			: base(loc, NodeType.FUNCTION, scope, name) {  }
 		
 		public Node returns;
 		public int returnDefinitionCount, argumentDefinitionCount, finishedArguments;
-		
-		public override string toDebugText()
-			=> "function " + text;
-	}
-	
-	class NodeEnclosure : Node
-	{
-		public NodeEnclosure(SourceLocation loc, NT type)
-			: base(type, loc) { }
-		public int memberCount;
 	}
 		
-	class NodeTuple : Node
+	class NodeTuple : NodeScope
 	{
-		public NodeTuple(SourceLocation loc)
-			: base(NodeType.TUPLE, loc) { }
+		public NodeTuple(SourceLocation loc, Scope scope)
+			: base(loc, NodeType.TUPLE, scope, null) { }
 		
 		public List<Node> values = new List<Node>();
+		public Node scopeFrom;
 		public bool closed;
+		
+		public override Symbol? getDefinition(string name)
+			=> (nodeType == NT.MEMBER_TUPLE) ? scopeFrom.dataType.getDefinition(name) : scope.searchItem(name);
+			
 	}
 		
 	class NodeOperator : Node
 	{
 		public NodeOperator(SourceLocation loc, OperatorType operation, Node a, Node b)
-			: base(NodeType.OPERATOR, loc)
+			: base(loc, NodeType.OPERATOR)
 		{
 			this.operation = operation;
 			this.a = a;
@@ -161,14 +154,12 @@ namespace Jolly
 		
 		public OperatorType operation;
 		public Node a, b;
-		
-		public override string toDebugText()
-			=>  "{0} = {1} {2} {3}".fill(dataType, operation, a.dataType, b?.dataType);
 	}
 	
 	class NodeLiteral : Node
 	{
-		public NodeLiteral(SourceLocation loc, object data) : base(NT.LITERAL, loc) { this.data = data; }
+		public NodeLiteral(SourceLocation loc, object data)
+			: base(loc, NT.LITERAL) { this.data = data; }
 		public object data;
 	}
 }
