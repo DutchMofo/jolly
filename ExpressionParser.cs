@@ -272,7 +272,7 @@ class ExpressionParser
 				}
 				
 				var functionScope = new Scope(scope);
-				var functionType = new DataTypeFunction();
+				var functionType = new DataTypeFunction() { name = token.text };
 				var functionNode = new NodeFunction(token.location, functionScope, token.text)
 					{ dataType = functionType, returns = prev };
 				expression.Insert(startNodeCount, functionNode);

@@ -237,17 +237,8 @@ static class Analyser
 				op.typeKind = result.Item2;
 			} },
 			{ OT.ASSIGN, op => {
-				load(ref op.b);
-				
-				var target = op.a.dataType as DataTypeReference;
-				if(target == null) {
-					throw Jolly.addError(op.a.location, "Cannot assign to this");
-				}
-				if(target.referenced != op.b.dataType ) {
-					throw Jolly.addError(op.a.location, "Cannot assign this value type");
-				}
+				assign(op.a, op.b);
 				op.dataType = op.b.dataType;
-				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.REFERENCE, op => {
 				if(op.a.typeKind != TypeKind.VALUE | !(op.a.dataType is DataTypeReference)) {
@@ -257,7 +248,7 @@ static class Analyser
 				op.typeKind = TypeKind.ADDRES;
 			} },
 			{ OT.CAST, op => {
-				load(ref op.b);
+				load(op.b);
 				if(op.a.typeKind != TypeKind.STATIC) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
@@ -266,11 +257,54 @@ static class Analyser
 				instructions.Add(new InstructionOperator(op));
 			} },
 			{ OT.DEREFERENCE, op => {
-				load(ref op.a);
+				load(op.a);
 				op.dataType = op.a.dataType;
 			} },
 			
 		};
+	
+	static void assign(Node a, Node b)
+	{
+		bool aIsTup = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
+		bool bIsTup = b.nodeType == NT.TUPLE | b.nodeType == NT.MEMBER_TUPLE;
+		if(!aIsTup & !bIsTup)
+		{
+			load(b);
+		
+			var target = a.dataType as DataTypeReference;
+			if(target == null) {
+				throw Jolly.addError(a.location, "Cannot assign to this");
+			}
+			if(target.referenced != b.dataType ) {
+				throw Jolly.addError(a.location, "Cannot assign this value type");
+			}
+			
+			instructions.Add(new InstructionOperator {
+				instruction = IT.STORE,
+				aType = a.dataType,
+				bType = b.dataType,
+				resultType = b.dataType,
+			});
+		}
+		else if(aIsTup & bIsTup)
+		{
+			var aVals = ((NodeTuple)a).values;
+			var bVals = ((NodeTuple)b).values;
+			if(aVals.Count != bVals.Count) {
+				throw Jolly.addError(a.location, "Tuple's not the same size");
+			}
+			for(int i = 0; i < aVals.Count; i += 1) {
+				assign(aVals[i], bVals[i]);
+			}
+		}
+		else if(aIsTup & !bIsTup) {
+			foreach(Node node in ((NodeTuple)a).values) {
+				assign(node, b);
+			}
+		} else {
+			throw Jolly.addError(a.location, "Cannot assign tuple to variable");
+		}
+	}
 	
 	static Tuple<DataType,TypeKind> operatorGetMember(ref Node a, NodeSymbol b)
 	{
@@ -306,7 +340,13 @@ static class Analyser
 			resultTypeKind = definition.Value.typeKind;
 			resultType = new DataTypeReference(definition.Value.dataType);
 			DataType.makeUnique(ref resultType);
-			// instructions.Add(new InstructionOperator(op));
+			
+			instructions.Add(new InstructionOperator {
+				instruction = IT.GET_MEMBER,
+				aType = a.dataType,
+				bType = resultType,
+				resultType = resultType,
+			});
 		}
 		else
 		{
@@ -323,8 +363,8 @@ static class Analyser
 	
 	static void basicOperator(NodeOperator op)
 	{
-		load(ref op.a);
-		load(ref op.b);
+		load(op.a);
+		load(op.b);
 		if(op.a.dataType != op.b.dataType ) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
@@ -332,7 +372,7 @@ static class Analyser
 		instructions.Add(new InstructionOperator(op));
 	}
 	
-	static void load(ref Node node)
+	static void load(Node node)
 	{
 		var refTo = node.dataType as DataTypeReference;
 		if(refTo != null)

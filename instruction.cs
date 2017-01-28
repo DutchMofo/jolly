@@ -90,7 +90,7 @@ namespace Jolly
 		public InstructionFunction(DataTypeFunction functionType) { this.functionType = functionType; }
 		public DataTypeFunction functionType;
 		public override string ToString() => "define {0} @{1} ({2})".fill(
-				functionType.returns.Select(m => m?.ToString()).Aggregate((a, b) => a + ", " + b),
+				(functionType.returns.Length == 1) ? functionType.returns[0].ToString() : "{ " + functionType.returns.Select(m => m?.ToString()).Aggregate((a, b) => a + ", " + b) + " }",
 				functionType.name,
 				(functionType.arguments.Length > 0) ? functionType.arguments.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b) : "");
 	}
