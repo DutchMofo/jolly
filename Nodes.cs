@@ -90,6 +90,16 @@ namespace Jolly
 		public string text;
 	}
 	
+	class NodeLogic : Node
+	{
+		public NodeLogic(SourceLocation location, NT type, OperatorType operation)
+			: base(location, type)
+		{
+			this.operation = operation;
+		}
+		public OperatorType operation;
+	}
+	
 	class NodeVariableDefinition : NodeScope
 	{
 		public NodeVariableDefinition(SourceLocation loc, Scope scope, string name, Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
@@ -134,7 +144,6 @@ namespace Jolly
 		public List<Node> values = new List<Node>();
 		public Node scopeFrom;
 		public bool closed;
-			
 	}
 		
 	class NodeOperator : Node

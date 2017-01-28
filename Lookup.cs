@@ -80,8 +80,8 @@ static class Lookup
 			{ TT.AND,				new Op(08, 2, true,  OT.BIT_AND			)},
 			{ TT.CARET,				new Op(09, 2, true,  OT.BIT_XOR			)},
 			{ TT.PIPE,				new Op(10, 2, true,  OT.BIT_OR			)},
-			{ TT.AND_AND,			new Op(11, 2, true,  OT.LOGIC_AND		)},
-			{ TT.OR_OR,				new Op(12, 2, true,  OT.LOGIC_OR		)},
+			{ TT.AND_AND,			new Op(11, 2, true,  OT.LOGIC_AND, true	)},
+			{ TT.OR_OR,				new Op(12, 2, true,  OT.LOGIC_OR,  true	)},
 			
 			{ TT.COMMA,				new Op(13, 2, true,  OT.COMMA			)},
 			{ TT.COLON,				new Op(13, 2, false, OT.CAST			)},

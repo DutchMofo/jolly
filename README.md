@@ -42,7 +42,7 @@ i32 main()
 	i32 three = (i32: π);
 	
 	u8* data = new u8[100];
-	// Defer a statement so it get run at the end of the scope
+	// Defer a statement so it gets run at the end of the scope
 	defer delete data;
 	
 	// An array is a collection containing a static amount of items,
@@ -54,7 +54,7 @@ i32 main()
 	i32[:] slice = i32_array[1:-1];
 	
 	// Raw pointer, indexing operations are not bounds checked (No count).
-	i32* sliceData = &slice[0];
+	i32* sliceData = slice.data;
 	
 	// Initializing struct with object (??? Not sure what is's called).
 	Example example = {
@@ -99,7 +99,26 @@ i32 main()
 	for(i32 i in 0..10) { // Range
 		pri32f("%d, ", i); // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
 	}
-		
+	
 	return 0;
-}
+	
+	/*###############
+	    Uncertain
+	###############*/
+	
+	/*
+	When you call new you get the allocated data and a handle, the
+	hande guaranteed to be unique by the compiler. The handle is the
+	owner of the allocated data and when it runs out of scope the data
+	is deleted. This should resolve memory leaks but forces the you
+	implement a way storing the handle's.
+	
+	The problems this method still has is that there still can be 
+	dangling pointers to the deleted data and it doesn't resolve the
+	dereferencing off a null pointer.
+	*/
+	auto (data, handle) = new i32[123];
+	
+	
+} // <-- handle is out of scope and the "new i32[123]" gets deleted.
 ```

@@ -107,40 +107,40 @@ class ExpressionParser
 	
 	public enum EnclosureKind : byte
 	{
-		NONE = 0,
-		LOGIC_OR,
-		LOGIC_AND,
-		TERNARY_TRUE,
-		TERNARY_FALSE,
-		NULLCOALESCE,
-		TUPLE,
-		MEMBER_TUPLE,
-		SUBSCRIPT,
-		PARENTHS,
-		FUNCTION_CALL,
+		NONE          = 0,
+		PARENTHS      = 1,
+		FUNCTION_CALL = 2,
+		LOGIC_OR      = 3,
+		LOGIC_AND     = 4,
+		TERNARY_TRUE  = 5,
+		TERNARY_FALSE = 6,
+		NULLCOALESCE  = 7,
+		SUBSCRIPT     = 8,
 	}
 	
 	struct Enclosure
 	{
 		public Enclosure(EnclosureKind kind, int startNodeCount)
-			{ this.kind = kind; this.startNodeCount = startNodeCount; }
+			{ this.kind = kind; this.startNodeCount = startNodeCount; node = null; }
 		public EnclosureKind kind;
 		public int startNodeCount;
+		public Node node;
 	}
 	
 	public struct Op
 	{
-		public Op(byte precedence, byte valCount, bool leftToRight, OT operation, SourceLocation location = new SourceLocation())
+		public Op(byte precedence, byte valCount, bool leftToRight, OT operation, bool isSpecial = false, SourceLocation location = new SourceLocation())
 		{
 			this.leftToRight = leftToRight;
 			this.precedence = precedence;
 			this.operation = operation;
+			this.isSpecial = isSpecial;
 			this.location = location;
 			this.valCount = valCount;
 		}
 		public byte precedence, valCount;
 		public SourceLocation location;
-		public bool leftToRight;
+		public bool leftToRight, isSpecial;
 		public OT operation;
 	}
 
@@ -158,7 +158,7 @@ class ExpressionParser
 	List<Node> expression;// = new List<Node>();
 	Stack<Node> values = new Stack<Node>();
 	Stack<Op> operators = new Stack<Op>();
-	Stack<Enclosure> enclosureStack = new Stack<Enclosure>();
+	Stack<ExpressionParser.Enclosure> enclosureStack = new Stack<Enclosure>();
 	
 	public int parseExpression()
 	{
@@ -190,7 +190,6 @@ class ExpressionParser
 					}
 					if(parseOperator())
 						break;
-						
 					// Failed to parse token
 					throw Jolly.unexpected(token);
 			}
@@ -235,7 +234,6 @@ class ExpressionParser
 					}
 					if(parseOperator())
 						break;
-					
 					// Definition parser doesn't know what to do with the current token
 					return;
 			}
@@ -286,8 +284,9 @@ class ExpressionParser
 		if(prevTokenKind == TokenKind.VALUE)
 		{
 			// Pop eventual period and comma operators
-			while(operators.Count > 0)
+			while(operators.Count > 0) {
 				pushOperator(operators.Pop());
+			}
 						
 			Node prev = values.Pop();
 			Token nextToken = tokens[cursor + 1];
@@ -385,8 +384,9 @@ class ExpressionParser
 			throw Jolly.unexpected(token);
 		}
 		
-		while(operators.Count > 0 && operators.Peek().valCount > 0)
+		while(operators.Count > 0 && operators.Peek().valCount > 0) {
 			pushOperator(operators.Pop());
+		}
 		
 		if(defineMode == DefineMode.ARGUMENT)
 		{
@@ -443,7 +443,7 @@ class ExpressionParser
 		if(prevTokenKind == TokenKind.OPERATOR) {
 			throw Jolly.unexpected(token);
 		}
-		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, token.location));
+		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, false, token.location));
 	}
 	
 	void parseBracketClose()
@@ -453,32 +453,25 @@ class ExpressionParser
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
 			if(op.operation == OT.UNDEFINED) {
-				throw Jolly.unexpected(new Token { type = TT.BRACKET_CLOSE, location = op.location });
+				throw Jolly.unexpected(token);
 			}
 			pushOperator(op);
 		}
 		
-		Enclosure closure;
-		while((closure = enclosureStack.Peek()).kind != EnclosureKind.SUBSCRIPT) {
-			enclosureEnd(enclosureStack.Pop());
-		}
-		
-		Debug.Assert(false);
+		Enclosure enclosure;
+		do {
+			enclosure = enclosureStack.Pop();
+			enclosureEnd(enclosure);
+		} while(enclosure.kind != EnclosureKind.SUBSCRIPT);
 	}
 	
 	void parseParenthesisOpen()
 	{
 		currentTokenKind = TokenKind.OPERATOR;
 		
-		EnclosureKind kind = EnclosureKind.TUPLE;
-		if(prevTokenKind == TokenKind.VALUE) {
-			kind = EnclosureKind.FUNCTION_CALL;
-		} else if(prevTokenKind == TokenKind.OPERATOR && operators.Peek().operation == OT.GET_MEMBER) {
-			kind = EnclosureKind.MEMBER_TUPLE;
-			operators.Pop();
-		}
+		EnclosureKind kind = (prevTokenKind == TokenKind.VALUE) ? EnclosureKind.FUNCTION_CALL : EnclosureKind.PARENTHS;
 		enclosureStack.Push(new Enclosure(kind, expression.Count));
-		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, token.location));
+		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, false, token.location));
 	} // parseParenthesisOpen()
 	
 	void parseParenthesisClose()
@@ -486,49 +479,16 @@ class ExpressionParser
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
 			if(op.operation == OT.UNDEFINED) {
-				throw Jolly.unexpected(new Token { type = TT.PARENTHESIS_CLOSE, location = op.location });
+				throw Jolly.unexpected(token);
 			}
 			pushOperator(op);
 		}
 		
-		Enclosure closure;
-		while((closure = enclosureStack.Peek()).kind != EnclosureKind.TUPLE &
-			closure.kind != EnclosureKind.MEMBER_TUPLE)
-		{
-			enclosureEnd(enclosureStack.Pop());
-		}
-		
-		if(closure.kind == EnclosureKind.FUNCTION_CALL)
-		{
-			Node[] arguments;
-			Node symbol = values.Pop();
-			if(symbol.nodeType != NT.NAME) {
-				arguments = (symbol.nodeType == NT.TUPLE) ? ((NodeTuple)symbol).values.ToArray() : new Node[] { symbol };
-				symbol = values.Pop(); 
-			} else {
-				arguments = new Node[0];
-			}
-			Debug.Assert(symbol.nodeType == NT.NAME);
-			
-			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
-			values.Push(node);
-		}
-		else
-		{
-			// Close list so you can't add to it: (a, b), c
-			Node prevVal = values.PeekOrDefault();
-			if(prevVal?.nodeType == NT.TUPLE)
-			{
-				var tup = ((NodeTuple)prevVal);
-				if(closure.kind == EnclosureKind.MEMBER_TUPLE) {
-					tup.scopeFrom = values.ElementAt(1);
-					tup.nodeType = NT.MEMBER_TUPLE;
-				}
-				tup.closed = true;
-				tup.memberCount = expression.Count - closure.startNodeCount;;
-				expression.Insert(closure.startNodeCount, tup);
-			}
-		}
+		Enclosure enclosure;
+		do {
+			enclosure = enclosureStack.Pop();
+			enclosureEnd(enclosure);
+		} while(enclosure.kind <  EnclosureKind.PARENTHS & enclosure.kind > EnclosureKind.FUNCTION_CALL);
 	} // parseParenthesisClose()
 	
 	void parseTypeToReference()
@@ -546,27 +506,53 @@ class ExpressionParser
 		values.Push(mod);
 	}
 	
-	void enclosureEnd(Enclosure closure)
+	void enclosureEnd(Enclosure enclosure)
 	{
-		var enclosure = enclosureStack.Pop();
 		switch(enclosure.kind)
 		{
-		case EnclosureKind.TUPLE:
-			
-			var tuple = values.Peek();
-			Debugger.Break();
-			
-			break;
 		case EnclosureKind.LOGIC_OR:
 			
 			break;
 		case EnclosureKind.LOGIC_AND:
 			
 			break;
-		case EnclosureKind.SUBSCRIPT: break;
-		case EnclosureKind.FUNCTION_CALL: // These should be handled by parseParenthesisClose
-		case EnclosureKind.MEMBER_TUPLE:
-		case EnclosureKind.PARENTHS:
+		case EnclosureKind.SUBSCRIPT: {
+			
+		} break;
+		case EnclosureKind.FUNCTION_CALL: {
+			Node[] arguments;
+			Node symbol = values.Pop();
+			if(symbol.nodeType != NT.NAME) {
+				arguments = (symbol.nodeType == NT.TUPLE) ? ((NodeTuple)symbol).values.ToArray() : new Node[] { symbol };
+				symbol = values.Pop(); 
+			} else {
+				arguments = new Node[0];
+			}
+			Debug.Assert(symbol.nodeType == NT.NAME);
+			
+			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
+			values.Push(node);
+		} break;
+		case EnclosureKind.PARENTHS: {
+			if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
+			{
+				var tup = ((NodeTuple)values.Pop());
+				tup.closed = true; // Close list so you can't add to it: (a, b), c
+				if(operators.PeekOrDefault().operation == OT.GET_MEMBER)
+				{
+					operators.Pop(); // Remove GET_MEMBER
+					tup.scopeFrom = values.Pop();
+					tup.nodeType = NT.MEMBER_TUPLE;
+					expression.Insert(enclosure.startNodeCount, tup);
+					expression.InsertRange(enclosure.startNodeCount + 1, tup.values);
+				} else {
+					expression.Add(tup);
+					expression.AddRange(tup.values);
+				}
+				tup.memberCount = expression.Count - enclosure.startNodeCount;
+				values.Push(tup);
+			}
+		} break;
 		default:
 			Debug.Assert(false);
 			break;
@@ -594,18 +580,20 @@ class ExpressionParser
 				}
 				else
 				{
-					NT tupleType = NT.TUPLE;
-					if(prevTokenKind == TokenKind.OPERATOR && operators.Peek().operation == OT.PARENTHESIS_OPEN)
-					{
-						var closure = enclosureStack.Pop();
-						if(closure.kind == EnclosureKind.MEMBER_TUPLE) {
-							tupleType = NT.MEMBER_TUPLE;
-						} else {
-							closure.kind = EnclosureKind.TUPLE;
-						}
-						enclosureStack.Push(closure);
-					}
-					tuple = new NodeTuple(_op.location, scope, tupleType);
+					// if(operators.PeekOrDefault().operation == OT.PARENTHESIS_OPEN)
+					// {
+					// 	var enclosure = enclosureStack.Pop();
+					// 	if(enclosure.kind == EnclosureKind.MEMBER_TUPLE) {
+					// 		tuple = new NodeTuple(_op.location, scope, NT.MEMBER_TUPLE);
+					// 	} else {
+					// 		tuple = new NodeTuple(_op.location, scope, NT.TUPLE);
+					// 		enclosure.node = tuple;
+					// 		enclosure.kind = EnclosureKind.TUPLE;
+					// 	}
+					// 	enclosureStack.Push(enclosure);
+					// } else {
+					// }
+					tuple = new NodeTuple(_op.location, scope, NT.TUPLE);
 					values.Push(tuple);
 					tuple.values.Add(a);
 					if(b != null) {

@@ -12,8 +12,8 @@ using IT = Instruction.Type;
 static class Analyser
 {
 	static Stack<Enclosure> enclosureStack;
-	static Enclosure enclosure, statementEnclosure;
 	static List<Instruction> instructions;
+	static Enclosure enclosure;
 	static int cursor;
 	
 	struct Enclosure
