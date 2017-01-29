@@ -49,8 +49,7 @@ namespace Jolly
 	{
 		public InstructionCall() { instruction = IT.CALL; }
 		public DataType[] arguments;
-		public string name;
-		public override string ToString() => "call @{0}({1})".fill(name, (arguments.Length > 0) ? arguments.Select(t=>t.ToString()).Aggregate((a,b)=>a+", "+b) : "");
+		public override string ToString() => "call ({0})".fill((arguments.Length > 0) ? arguments.Select(t=>t.ToString()).Aggregate((a,b)=>a+", "+b) : "");
 	}
 	
 	class InstructionOperator : Instruction
@@ -79,11 +78,11 @@ namespace Jolly
 		public override string ToString() => "{0} = {1} {2}, {3}".fill(resultType, instruction, aType, bType);
 	}
 	
-	class InstructionStruct : Instruction
-	{
-		public DataTypeStruct structType;
-		public override string ToString() => "@{0} = struct {{ {1} }}".fill(structType.name, structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
-	}
+	// class InstructionStruct : Instruction
+	// {
+	// 	public DataTypeStruct structType;
+	// 	public override string ToString() => "@{0} = struct {{ {1} }}".fill(structType.name, structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
+	// }
 	
 	class InstructionFunction : Instruction
 	{

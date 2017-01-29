@@ -11,7 +11,20 @@ using IT = Instruction.Type;
 
 static class Analyser
 {
-	static Stack<Enclosure> enclosureStack;
+	class EnclosureStack : Stack<Enclosure>
+	{
+		public EnclosureStack() { }
+		public EnclosureStack(int size) : base(size) { }
+		new public void Push(Enclosure e) => base.Push(Analyser.enclosure = e);
+		new public Enclosure Pop()
+		{
+			var popped = base.Pop();
+			Analyser.enclosure = base.Peek();
+			return popped;
+		}
+	}
+	
+	static EnclosureStack enclosureStack;
 	static List<Instruction> instructions;
 	static Enclosure enclosure;
 	static int cursor;
@@ -27,16 +40,8 @@ static class Analyser
 	{
 		cursor += 1;
 		while(enclosure.end < cursor) {
-			var popped = enclosureStack.Pop();
-			enclosure = enclosureStack.Peek();
-			enclosureEnd(popped);
+			enclosureEnd(enclosureStack.Pop());
 		}
-	}
-	
-	static void pushEnclosure(Enclosure enclosure)
-	{
-		Analyser.enclosure = enclosure;
-		enclosureStack.Push(enclosure);
 	}
 	
 	static void enclosureEnd(Enclosure poppedEnclosure)
@@ -85,7 +90,7 @@ static class Analyser
 			
 			if(function.argumentDefinitionCount > 0) {
 				arguments.scope = function.scope;
-				pushEnclosure(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
+				enclosureStack.Push(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
 			} else {
 				goto case NT.ARGUMENTS;
 			}
@@ -114,9 +119,9 @@ static class Analyser
 		global.scope = globalScope;
 		// instructions = new List<Node>(program.Count);
 		instructions = new List<Instruction>();
-		enclosureStack = new Stack<Enclosure>(16);
+		enclosureStack = new EnclosureStack(16);
 		
-		pushEnclosure(new Enclosure(global, int.MaxValue));
+		enclosureStack.Push(new Enclosure(global, int.MaxValue));
 		
 		cursor = 0;
 		for(Node node = program[cursor];
@@ -154,11 +159,11 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
 				return_values.scope = function.scope;
-				pushEnclosure(new Enclosure(function, function.memberCount + cursor));
-				pushEnclosure(new Enclosure(return_values, function.returnDefinitionCount + cursor));
+				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(return_values, function.returnDefinitionCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
-				pushEnclosure(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
 				NodeOperator op = (NodeOperator)node;
@@ -188,7 +193,7 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				NodeFunction function = (NodeFunction)node;
-				pushEnclosure(new Enclosure(function, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
 				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
@@ -199,15 +204,16 @@ static class Analyser
 			} },
 			{ NT.FUNCTION_CALL, node => {
 				var functionCall = (NodeFunctionCall)node;
+				// TODO: validate function call
 				// getTypeFromName(functionCall);
 				
-				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray(), name = functionCall.text });
+				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
-				pushEnclosure(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_TUPLE, node => {
-				pushEnclosure(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.BASETYPE, node => { } },
@@ -228,7 +234,7 @@ static class Analyser
 			skipSymbol(node);
 			return;
 		}
-		pushEnclosure(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
+		enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
 	}
 	
 	static readonly Dictionary<OT, Action<NodeOperator>>
@@ -253,6 +259,15 @@ static class Analyser
 				op.dataType = op.a.dataType;
 				op.typeKind = TypeKind.ADDRES;
 			} },
+			{ OT.DEREFERENCE, op => {
+				if(op.a.typeKind == TypeKind.ADDRES) {
+					op.a.typeKind = TypeKind.VALUE;
+				} else {
+					load(op.a);
+				}
+				op.typeKind = op.a.typeKind;
+				op.dataType = op.a.dataType;
+			} },
 			{ OT.CAST, op => {
 				load(op.b);
 				if(op.a.typeKind != TypeKind.STATIC) {
@@ -261,10 +276,6 @@ static class Analyser
 				op.typeKind = op.b.typeKind;
 				op.dataType = op.a.dataType;
 				instructions.Add(new InstructionOperator(op));
-			} },
-			{ OT.DEREFERENCE, op => {
-				load(op.a);
-				op.dataType = op.a.dataType;
 			} },
 			
 		};
@@ -400,13 +411,13 @@ static class Analyser
 	static void getTypeFromName(Node node)
 	{
 		// TODO: remove name part from function call
-		if((node.nodeType == NT.NAME | node.nodeType == NT.FUNCTION_CALL) & node.dataType == null)
+		if(node.nodeType == NT.NAME & node.dataType == null)
 		{
 			var closure = (NodeScope)enclosure.node;
 			if(closure.nodeType == NT.MEMBER_TUPLE) {
 				var tup = (NodeTuple)closure;
-				// TODO: the ref will fuck shit up down the line
-				var result = operatorGetMember(ref tup.scopeFrom, node as NodeSymbol);
+				var hacky = tup.scopeFrom; // Prevent ref from messing things up
+				var result = operatorGetMember(ref hacky, node as NodeSymbol);
 				node.dataType = result.Item1;
 				node.typeKind = result.Item2;
 				return;

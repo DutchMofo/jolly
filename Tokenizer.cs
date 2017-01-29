@@ -45,7 +45,11 @@ class Token
 		GREATER,			// >
 		PERIOD,				// .
 		QUESTION_MARK,		// ?
-
+		
+		COLON_COLON,		// ::
+		COLON_TILDE,		// :~
+		QUESTION_MARKx2,	// ??
+		
 		AND_AND,			// &&
 		OR_OR, 				// ||
 		MINUS_MINUS,		// --
@@ -86,6 +90,7 @@ class Token
 		/*##############
 			Keywords
 		##############*/
+		// TODO: Maybe just register these to the global scope
 		I8,
 		BYTE,
 		U8,
@@ -560,6 +565,7 @@ class Tokenizer
 				tokens.Add(tmp);
 				prevToken = tmp;
 			}
+			// Digits, a-z and A-Z must have been parsed before this
 			else if (c >= '!' && c <= '~')
 			{ // Operators
 				ushort doubleChar = doubleC(source[cursor], source[cursor + 1]);
@@ -592,6 +598,9 @@ class Tokenizer
 					case ('|' << 8) | '=': token.type = Token.Type.OR_EQUAL; break;
 					case ('|' << 8) | '|': token.type = Token.Type.OR_OR; break;
 					case ('^' << 8) | '=': token.type = Token.Type.CARET_EQUAL; break;
+					case (':' << 8) | ':': token.type = Token.Type.COLON_COLON; break;
+					case (':' << 8) | '~': token.type = Token.Type.COLON_TILDE; break;
+					case ('?' << 8) | '?': token.type = Token.Type.QUESTION_MARKx2; break;
 					default:
 						size = 1;
 						int index = c - '!' -		// ! is strart of range
@@ -600,11 +609,11 @@ class Tokenizer
 							(c > '`' ? 26 : 0);		// Skip a to z
 						token.type = Lookup.TOKEN[index];
 
-						if (c == '(' || c == '{' || c == '[')
+						if (c == '(' | c == '{' | c == '[')
 						{
 							closureStack.Push(token);
 						}
-						else if (c == ')' || c == '}' || c == ']')
+						else if (c == ')' | c == '}' | c == ']')
 						{
 							Token.Type open = (c == ')' ?
 								Token.Type.PARENTHESIS_OPEN :

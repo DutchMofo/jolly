@@ -22,6 +22,13 @@ namespace Jolly
 		public static T PopOrDefault<T>(this Stack<T> stack)
 			=> (stack.Count == 0) ? default(T) : stack.Pop();
 			
+		public static ExpressionParser.Op? PopOrNull(this Stack<ExpressionParser.Op> stack)
+		{
+			if(stack.Count == 0)
+				return null;
+			return stack.Pop();
+		}
+			
 		public static T PeekOrDefault<T>(this Stack<T> stack)
 			=> (stack.Count == 0) ? default(T) : stack.Peek();
 		

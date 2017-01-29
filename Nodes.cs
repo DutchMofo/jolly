@@ -8,6 +8,7 @@ namespace Jolly
 	{
 		UNDEFINED,
 		STATIC,
+		STATIC_FUNCTION,
 		VALUE,
 		ADDRES
 	}
@@ -34,6 +35,8 @@ namespace Jolly
 			MEMBER_NAME,
 			GLOBAL,
 			STATEMENT,
+			JUMP,
+			PHI,
 			
 			ALIAS,
 			BLOCK,
@@ -65,6 +68,31 @@ namespace Jolly
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
+	}
+	
+	class NodeJump : Node
+	{
+		public NodeJump() : base(new SourceLocation(), NT.JUMP) { }
+		public Node whenTrue, whenFalse;
+		public Node condition;
+	}
+	
+	class NodeGoto : Node
+	{
+		public NodeGoto() : base(new SourceLocation(), NT.GOTO) { }
+		public Node label;
+	}
+	
+	struct PhiBranch
+	{
+		public PhiBranch(Node f, Node v) { from = f; value = v; }
+		public Node from, value;
+	}
+	
+	class NodePhi : Node
+	{
+		public NodePhi(PhiBranch[] b) : base(new SourceLocation(), NT.PHI) { this.branches = b; }
+		public PhiBranch[] branches;
 	}
 	
 	class NodeModifyType : Node
@@ -109,12 +137,13 @@ namespace Jolly
 		public Node typeFrom;
 	}
 	
-	class NodeFunctionCall : NodeSymbol
+	class NodeFunctionCall : Node
 	{
-		public NodeFunctionCall(SourceLocation loc, string function, Node[] a)
-			: base(loc, function, NT.FUNCTION_CALL) { arguments = a; }
+		public NodeFunctionCall(SourceLocation loc, Node f, Node[] a)
+			: base(loc, NT.FUNCTION_CALL) { arguments = a; function = f; }
 		
 		public Node[] arguments;
+		public Node function;
 	}
 	
 	class NodeScope : NodeSymbol

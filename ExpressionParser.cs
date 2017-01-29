@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 
 namespace Jolly
 {
@@ -39,10 +38,14 @@ enum OperatorType
 	SHIFT_RIGHT,
 	SLICE,
 	CAST,
+	BITCAST,
 	LESS,
 	GREATER,
 	NEW,
 	DELETE,
+	
+	TERNARY,
+	COLON,
 	/*##########################
 		Compound assignment
 	##########################*/
@@ -118,12 +121,13 @@ class ExpressionParser
 		SUBSCRIPT     = 8,
 	}
 	
-	struct Enclosure
+	public struct Enclosure
 	{
-		public Enclosure(EnclosureKind kind, int startNodeCount)
-			{ this.kind = kind; this.startNodeCount = startNodeCount; node = null; }
+		public Enclosure(EnclosureKind k, int sNC, byte p = byte.MaxValue)
+			{ kind = k; startNodeCount = sNC; node = null; precedence = p; opIndex = 0; }
 		public EnclosureKind kind;
-		public int startNodeCount;
+		public int startNodeCount, opIndex;
+		public byte precedence;
 		public Node node;
 	}
 	
@@ -162,8 +166,9 @@ class ExpressionParser
 	
 	public int parseExpression()
 	{
-		if(defineMode != DefineMode.NONE)
+		if(defineMode != DefineMode.NONE) {
 			parseDefinition();
+		}
 		
 		// TODO: Make sure you can only define inside of a struct.
 		
@@ -197,16 +202,12 @@ class ExpressionParser
 			currentTokenKind = TokenKind.VALUE;
 		}
 		
-		if(token.type != terminator) {
-			throw Jolly.unexpected(token);
+		while(enclosureStack.Count > 1) {
+			enclosureEnd(enclosureStack.Pop());
 		}
 		
 		while(operators.Count > 0) {
 			pushOperator(operators.Pop());
-		}
-		
-		while(enclosureStack.Count > 1) {
-			enclosureEnd(enclosureStack.Pop());
 		}
 		
 		return cursor;
@@ -307,7 +308,7 @@ class ExpressionParser
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
-				if(!scope.Add(token.text, null, TypeKind.STATIC)) {
+				if(!scope.Add(token.text, null, TypeKind.STATIC_FUNCTION)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
@@ -416,16 +417,45 @@ class ExpressionParser
 		{
 			switch(token.type) {
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break;
-				case TT.AND		: op = new Op(02, 1, false, OT.REFERENCE  ); break;
+				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
 				case TT.PLUS: case TT.MINUS: values.Push(new NodeLiteral(token.location, 0)); break;
 				default: throw Jolly.unexpected(token);
 			}
 		}
 		
+		if(op.isSpecial)
+		{
+			Enclosure newEnclosure = new Enclosure();
+			switch(op.operation)
+			{
+			case OT.TERNARY:   newEnclosure = new Enclosure(EnclosureKind.TERNARY_TRUE, expression.Count, 4); goto pushNewEnclosure;
+			case OT.LOGIC_OR:  newEnclosure = new Enclosure(EnclosureKind.LOGIC_OR, expression.Count, 3); goto pushNewEnclosure;
+			case OT.LOGIC_AND: newEnclosure = new Enclosure(EnclosureKind.LOGIC_AND, expression.Count, 2); goto pushNewEnclosure;
+			case OT.COLON:
+				switch(enclosureStack.Peek().kind)
+				{
+					case EnclosureKind.SUBSCRIPT: break;
+					case EnclosureKind.TERNARY_TRUE:
+						newEnclosure = new Enclosure(EnclosureKind.TERNARY_FALSE, expression.Count, 1);
+						goto pushNewEnclosure;
+					default: throw Jolly.unexpected(token);
+				}
+				break;
+			}
+			
+			pushNewEnclosure:
+			// while(enclosureStack.Peek().precedence <= newEnclosure.precedence) {
+			// 	enclosureEnd(enclosureStack.Pop());
+			// }
+			enclosureStack.Push(newEnclosure);
+		}
+		
 		if(operators.Count > 0)
 		{
 			Op prevOp = operators.Peek();
-			while(prevOp.valCount > 0 && (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence)) {
+			while(prevOp.valCount > 0 && 
+				 (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence))
+			{
 				pushOperator(operators.Pop());
 				if(operators.Count == 0) break;
 				prevOp = operators.Peek();
@@ -450,6 +480,12 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.VALUE;
 		
+		Enclosure enclosure;
+		do {
+			enclosure = enclosureStack.Pop();
+			enclosureEnd(enclosure);
+		} while(enclosure.kind != EnclosureKind.SUBSCRIPT);
+		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
 			if(op.operation == OT.UNDEFINED) {
@@ -457,25 +493,30 @@ class ExpressionParser
 			}
 			pushOperator(op);
 		}
-		
-		Enclosure enclosure;
-		do {
-			enclosure = enclosureStack.Pop();
-			enclosureEnd(enclosure);
-		} while(enclosure.kind != EnclosureKind.SUBSCRIPT);
 	}
 	
 	void parseParenthesisOpen()
 	{
 		currentTokenKind = TokenKind.OPERATOR;
 		
-		EnclosureKind kind = (prevTokenKind == TokenKind.VALUE) ? EnclosureKind.FUNCTION_CALL : EnclosureKind.PARENTHS;
-		enclosureStack.Push(new Enclosure(kind, expression.Count));
+		Node called = null;
+		EnclosureKind kind = EnclosureKind.PARENTHS;
+		if(prevTokenKind == TokenKind.VALUE) {
+			kind = EnclosureKind.FUNCTION_CALL;
+			called = values.Pop();
+		}
+		enclosureStack.Push(new Enclosure(kind, expression.Count){ node = called });
 		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, false, token.location));
 	} // parseParenthesisOpen()
 	
 	void parseParenthesisClose()
 	{
+		Enclosure enclosure;
+		do {
+			enclosure = enclosureStack.Pop();
+			enclosureEnd(enclosure);
+		} while(enclosure.kind <  EnclosureKind.PARENTHS & enclosure.kind > EnclosureKind.FUNCTION_CALL);
+		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
 			if(op.operation == OT.UNDEFINED) {
@@ -483,12 +524,6 @@ class ExpressionParser
 			}
 			pushOperator(op);
 		}
-		
-		Enclosure enclosure;
-		do {
-			enclosure = enclosureStack.Pop();
-			enclosureEnd(enclosure);
-		} while(enclosure.kind <  EnclosureKind.PARENTHS & enclosure.kind > EnclosureKind.FUNCTION_CALL);
 	} // parseParenthesisClose()
 	
 	void parseTypeToReference()
@@ -501,37 +536,101 @@ class ExpressionParser
 			throw Jolly.addError(token.location, "Invalid expression term");
 		}
 		var mod = new NodeModifyType(token.location, prev, NodeModifyType.TO_REFERENCE);
-		expression.Add(prev);
 		expression.Add(mod);
 		values.Push(mod);
 	}
 	
-	void enclosureEnd(Enclosure enclosure)
+	static Node newLabel() => new Node(new SourceLocation(), NT.LABEL);
+	
+	void enclosureEnd(Enclosure ended)
 	{
-		switch(enclosure.kind)
+		switch(ended.kind)
 		{
-		case EnclosureKind.LOGIC_OR:
+		case EnclosureKind.LOGIC_OR: {
+			/*
+			bool a = true || false;
+		  enclosure start ^       ^ enclosure end
+		  
+		  
+			...
+			cond_a = ...
+			br cond_a, whentrue, whenfalse
+			whenFalse:
+			...
+			cond_b = ...
+			goto whenTrue
+			whenTrue:
+			phi [from cond_a: true], [from cond_b: cond_b]
+			*/
 			
-			break;
-		case EnclosureKind.LOGIC_AND:
+			Op op = operators.Pop();
+			while(op.operation != OT.LOGIC_OR) {
+				pushOperator(op);
+				op = operators.Pop();
+			}
 			
-			break;
-		case EnclosureKind.SUBSCRIPT: {
+			Node b = values.Pop(), a = values.Pop();
+			var jump = new NodeJump();
+			var phi = new NodePhi(new PhiBranch[] {
+				new PhiBranch(a, Lookup.NODE_TRUE),
+				new PhiBranch(b, b) }
+			) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.VALUE };
+			jump.condition = a;
+			jump.whenTrue = newLabel();
+			jump.whenFalse = newLabel();
 			
+			expression.Insert(ended.startNodeCount, jump);
+			expression.Insert(ended.startNodeCount + 1, jump.whenFalse);
+			
+			expression.Add(new NodeGoto(){ label = jump.whenTrue });
+			expression.Add(jump.whenTrue);
+			expression.Add(phi);
+			values.Push(phi);
+		} break;
+		case EnclosureKind.LOGIC_AND: {
+			/*
+			...
+			cond_a = ...
+			br cond_a, whentrue, whenfalse
+			whentrue:
+			...
+			cond_b = ...
+			goto whenfalse
+			whenfalse:
+			phi [from cond_a: false], [from cond_b: cond_b]
+			*/
+			
+			Op op = operators.Pop();
+			while(op.operation != OT.LOGIC_AND) {
+				pushOperator(op);
+				op = operators.Pop();
+			}
+			
+			Node b = values.Pop(), a = values.Pop();
+			var jump = new NodeJump();
+			var phi = new NodePhi(new PhiBranch[] {
+				new PhiBranch(a, Lookup.NODE_FALSE),
+				new PhiBranch(b, b) }
+			);
+			jump.condition = a;
+			jump.whenTrue = newLabel();
+			jump.whenFalse = newLabel();
+			
+			expression.Insert(ended.startNodeCount, jump);
+			expression.Insert(ended.startNodeCount + 1, jump.whenTrue);
+			
+			expression.Add(new NodeGoto(){ label = jump.whenFalse });
+			expression.Add(jump.whenFalse);
+			expression.Add(phi);
+			values.Push(phi);
 		} break;
 		case EnclosureKind.FUNCTION_CALL: {
-			Node[] arguments;
-			Node symbol = values.Pop();
-			if(symbol.nodeType != NT.NAME) {
-				arguments = (symbol.nodeType == NT.TUPLE) ? ((NodeTuple)symbol).values.ToArray() : new Node[] { symbol };
-				symbol = values.Pop(); 
-			} else {
-				arguments = new Node[0];
+			Node[] arguments = null;
+			if(ended.startNodeCount != expression.Count) {
+				Node node = values.Pop();
+				arguments = (node as NodeTuple)?.values.ToArray() ?? new Node[] { node };
 			}
-			Debug.Assert(symbol.nodeType == NT.NAME);
-			
-			Node node = new NodeFunctionCall(token.location, ((NodeSymbol)symbol).text, arguments);
-			values.Push(node);
+			values.Push(new NodeFunctionCall(token.location, ended.node, arguments ?? new Node[0]));
 		} break;
 		case EnclosureKind.PARENTHS: {
 			if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
@@ -543,33 +642,30 @@ class ExpressionParser
 					operators.Pop(); // Remove GET_MEMBER
 					tup.scopeFrom = values.Pop();
 					tup.nodeType = NT.MEMBER_TUPLE;
-					expression.Insert(enclosure.startNodeCount, tup);
-					expression.InsertRange(enclosure.startNodeCount + 1, tup.values);
+					expression.Insert(ended.startNodeCount, tup);
 				} else {
 					expression.Add(tup);
-					expression.AddRange(tup.values);
 				}
-				tup.memberCount = expression.Count - enclosure.startNodeCount;
+				tup.memberCount = expression.Count - ended.startNodeCount;
 				values.Push(tup);
 			}
 		} break;
 		default:
 			Debug.Assert(false);
 			break;
-			
 		}
 	}
 	
-	void pushOperator(Op _op)
+	void pushOperator(Op op)
 	{
 		Node a, b = null;
 		
-		if(_op.valCount == 2)
+		if(op.valCount == 2)
 		{
 			b = values.PopOrDefault();
 			a = values.PopOrDefault();
 			
-			if(_op.operation == OT.COMMA)
+			if(op.operation == OT.COMMA)
 			{
 				NodeTuple tuple = a as NodeTuple;
 				if(tuple != null && !tuple.closed) {
@@ -580,20 +676,7 @@ class ExpressionParser
 				}
 				else
 				{
-					// if(operators.PeekOrDefault().operation == OT.PARENTHESIS_OPEN)
-					// {
-					// 	var enclosure = enclosureStack.Pop();
-					// 	if(enclosure.kind == EnclosureKind.MEMBER_TUPLE) {
-					// 		tuple = new NodeTuple(_op.location, scope, NT.MEMBER_TUPLE);
-					// 	} else {
-					// 		tuple = new NodeTuple(_op.location, scope, NT.TUPLE);
-					// 		enclosure.node = tuple;
-					// 		enclosure.kind = EnclosureKind.TUPLE;
-					// 	}
-					// 	enclosureStack.Push(enclosure);
-					// } else {
-					// }
-					tuple = new NodeTuple(_op.location, scope, NT.TUPLE);
+					tuple = new NodeTuple(op.location, scope, NT.TUPLE);
 					values.Push(tuple);
 					tuple.values.Add(a);
 					if(b != null) {
@@ -603,27 +686,44 @@ class ExpressionParser
 				return;
 			}
 			
-			if(a == null || b == null) {
-				throw Jolly.addError(_op.location, "Invalid {0} expression term".fill(a==null ? "left" : "right"));
+			if(b == null) {
+				throw Jolly.addError(op.location, "Invalid right expression term");
 			}
 			
-			if(_op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
+			if(op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
 			}
-			expression.Add(a);
-			expression.Add(b);
 		}
 		else
 		{
 			a = values.PopOrDefault();
 			if(a == null) {
-				throw Jolly.addError(_op.location, "Invalid expression term");
+				throw Jolly.addError(op.location, "Invalid expression term");
 			}
-			expression.Add(a);
 		}
-		NodeOperator op = new NodeOperator(_op.location, _op.operation, a, b);
-		expression.Add(op);
-		values.Push(op);
+		
+		NodeOperator opNode = new NodeOperator(op.location, op.operation, a, b);
+		expression.Add(opNode);
+		values.Push(opNode);
+		
+		// if(op.isSpecial)
+		// {
+			// var enclosure = enclosureStack.Pop();
+			// enclosure.node = opNode;
+			// enclosure.opIndex = expression.Count-1;
+			// enclosureStack.Push(enclosure);
+			// if(op.operation == OT.COLON)
+			// {
+			// 	switch(enclosureStack.Peek().kind)
+			// 	{
+			// 	case EnclosureKind.SUBSCRIPT:
+			// 	case EnclosureKind.TERNARY_FALSE:
+					
+			// 		break;
+			// 	default: throw Jolly.unexpected(new Token{ location = op.location, type = TT.COLON });
+			// 	}
+			// }
+		// }
 	} // pushOperator()
 }
 

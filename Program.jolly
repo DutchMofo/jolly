@@ -1,31 +1,9 @@
-Problem.InnerProblem damm;
 
-Problem*, int initProblem(Problem* problem)
-{
-	// problem.(name, it, it.(counter)) = ("Oke", damm, 10);
-	//					      ^ Not viewed as tupple
-	problem.(name, it, it.counter) = ("Oke", damm, 10);
-	return problem, damm.counter;
-}
 
 int main()
 {
-	Problem problemData;
-	initProblem(&problemData);
 	
-	int a = 2;
-	int i = (int: 10.) * a;
 	
-	return 12 / a + 2 * i;
-}
-
-struct Problem
-{
-	string name;
-	InnerProblem it;
 	
-	struct InnerProblem
-	{
-		int counter;
-	}
+	bool choice = 0 && 1 || 2 && 3;
 }
