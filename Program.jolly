@@ -2,7 +2,7 @@
 
 int main()
 {
-	int value = 0 || 1 ? +123 : -123;
+	int value = +0 || -1 ? +123 : -123;
 	
 	
 	return 0;

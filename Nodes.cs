@@ -2,7 +2,6 @@ using System.Collections.Generic;
 
 namespace Jolly
 {
-    using System.Linq;
     using NT = Node.NodeType;
 	
 	enum TypeKind
@@ -36,8 +35,7 @@ namespace Jolly
 			MEMBER_NAME,
 			GLOBAL,
 			STATEMENT,
-			JUMP,
-			PHI,
+			LOGIC,
 			
 			ALIAS,
 			BLOCK,
@@ -68,39 +66,27 @@ namespace Jolly
 		public SourceLocation location;
 		
 		public override string ToString()
-			// => "{0}:{1} {2}".fill(location.line, location.column, nodeType);
-			=> nodeType.ToString();
+			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
 	
-	class NodeJump : Node
+	class NodeLogic : Node
 	{
-		public NodeJump() : base(new SourceLocation(), NT.JUMP) { }
-		public Node whenTrue, whenFalse;
-		public Node condition;
+		public NodeLogic(SourceLocation loc, OperatorType operation, int memberCount, int count, Node condition, Node a, Node b)
+			: base(loc, NT.LOGIC)
+		{
+			this.memberCount = memberCount;
+			this.condition = condition;
+			this.operation = operation;
+			this.count = count;
+			this.a = a;
+			this.b = b;
+		}
+		
+		public int memberCount, count;
+		public OperatorType operation;
+		public Node condition, a, b;
 		public override string ToString()
-			=> "{0} {1}, {2}, {3}".fill(base.ToString(), condition, Jolly.program.IndexOf(whenTrue), Jolly.program.IndexOf(whenFalse));
-	}
-	
-	class NodeGoto : Node
-	{
-		public NodeGoto() : base(new SourceLocation(), NT.GOTO) { }
-		public Node label;
-		public override string ToString()
-			=> "{0} {1}".fill(base.ToString(),  Jolly.program.IndexOf(label));
-	}
-	
-	struct PhiBranch
-	{
-		public PhiBranch(Node f, Node v) { from = f; value = v; }
-		public Node from, value;
-	}
-	
-	class NodePhi : Node
-	{
-		public NodePhi(PhiBranch[] b) : base(new SourceLocation(), NT.PHI) { this.branches = b; }
-		public PhiBranch[] branches;
-		public override string ToString()
-			=> "{0} {1}".fill(base.ToString(), branches.Select(a => "[from " + Jolly.program.IndexOf(a.from) + ": " + a.value + ']').Aggregate((a, b) => a + ", " + b));
+			=> base.ToString() + " " + operation;
 	}
 	
 	class NodeModifyType : Node
@@ -124,16 +110,6 @@ namespace Jolly
 		
 		public int memberCount;
 		public string text;
-	}
-	
-	class NodeLogic : Node
-	{
-		public NodeLogic(SourceLocation location, NT type, OperatorType operation)
-			: base(location, type)
-		{
-			this.operation = operation;
-		}
-		public OperatorType operation;
 	}
 	
 	class NodeVariableDefinition : NodeScope

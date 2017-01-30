@@ -103,6 +103,7 @@ class ExpressionParser
 	
 	enum TokenKind : byte
 	{
+		NONE,
 		VALUE = 1,
 		OPERATOR = 2,
 		SEPARATOR = 3,
@@ -113,7 +114,7 @@ class ExpressionParser
 		public enum Kind : byte
 		{
 			STATEMENT     = 0,
-			GROUP         = 1, // A group is are the (values between parenthesis)
+			GROUP         = 1, // A group are the (values between parenthesis)
 			TERNARY       = 2,
 			SUBSCRIPT     = 3,
 		}
@@ -208,6 +209,10 @@ class ExpressionParser
 		
 		while(operators.Count > 0) {
 			pushOperator(operators.Pop());
+		}
+		
+		while(enclosureStack.Count > 1) {
+			enclosureEnd(enclosureStack.Pop());
 		}
 		
 		return cursor;
@@ -496,8 +501,10 @@ class ExpressionParser
 		}
 		
 		Enclosure enclosure = enclosureStack.Pop();
-		Debug.Assert(enclosure.kind == Enclosure.Kind.SUBSCRIPT);
-		
+		while(enclosure.kind != Enclosure.Kind.SUBSCRIPT) {
+			enclosureEnd(enclosure);
+			enclosure = enclosureStack.Pop();
+		}
 		// TODO: should check if there are enough values
 		if(enclosure.hasColon)
 		{
@@ -540,7 +547,10 @@ class ExpressionParser
 		}
 		
 		Enclosure enclosure = enclosureStack.Pop();
-		Debug.Assert(enclosure.kind == Enclosure.Kind.GROUP);
+		while(enclosure.kind != Enclosure.Kind.GROUP) {
+			enclosureEnd(enclosure);
+			enclosure = enclosureStack.Pop();
+		}
 		
 		if(enclosure.isFunctionCall)
 		{
@@ -583,7 +593,11 @@ class ExpressionParser
 		values.Push(mod);
 	}
 	
-	static Node newLabel() => new Node(new SourceLocation(), NT.LABEL);
+	void enclosureEnd(Enclosure enclosure)
+	{
+		// Not sure what kind of error to throw yet.
+		throw new ParseException();
+	}
 	
 	void pushOperator(Op op)
 	{
@@ -635,112 +649,45 @@ class ExpressionParser
 		{
 			if(op.operation == OT.LOGIC_AND)
 			{
-				/*
-				...
-				condition_a = ...
-				jump condition_a, whentrue, whenfalse
-				whentrue:
-				...
-				condition_b = ...
-				goto whenfalse
-				whenfalse:
-				phi [from condition_a: false], [from condition_b: condition_b]
-				*/
-				var jump = new NodeJump();
-				var phi = new NodePhi(new PhiBranch[] {
-					new PhiBranch(a, Lookup.NODE_FALSE),
-					new PhiBranch(b, b) }
-				);
-				jump.condition = a;
-				jump.whenTrue = newLabel();
-				jump.whenFalse = newLabel();
-				
-				expression.Insert(op.operatorIndex, jump);
-				expression.Insert(op.operatorIndex + 1, jump.whenTrue);
-				
-				expression.Add(new NodeGoto(){ label = jump.whenFalse });
-				expression.Add(jump.whenFalse);
-				expression.Add(phi);
-				values.Push(phi);
+				int memberCount = expression.Count - op.operatorIndex;
+				var logic = new NodeLogic(op.location, OT.LOGIC_OR, memberCount, memberCount, a, b, null);
+				expression.Insert(op.operatorIndex, logic);
+				values.Push(logic);
 				return;
 			}
 			else if(op.operation == OT.LOGIC_OR)
 			{
-				/*
-				...
-				condition_a = ...
-				jump condition_a, whentrue, whenfalse
-				whenFalse:
-				...
-				condition_b = ...
-				goto whenTrue
-				whenTrue:
-				phi [from condition_a: true], [from condition_b: cond_b]
-				*/
-				var jump = new NodeJump();
-				var phi = new NodePhi(new PhiBranch[] {
-					new PhiBranch(a, Lookup.NODE_TRUE),
-					new PhiBranch(b, b) }
-				) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.VALUE };
-				jump.condition = a;
-				jump.whenTrue = newLabel();
-				jump.whenFalse = newLabel();
-				
-				expression.Insert(op.operatorIndex, jump);
-				expression.Insert(op.operatorIndex + 1, jump.whenFalse);
-				
-				expression.Add(new NodeGoto(){ label = jump.whenTrue });
-				expression.Add(jump.whenTrue);
-				expression.Add(phi);
-				values.Push(phi);
+				int memberCount = expression.Count - op.operatorIndex;
+				var logic = new NodeLogic(op.location, OT.LOGIC_AND, memberCount, memberCount, a, b, null);
+				expression.Insert(op.operatorIndex, logic);
+				values.Push(logic);
 				return;
 			}
 			else if(op.operation == OT.TERNARY)
 			{
-				var enclosure = enclosureStack.Pop();
+				Enclosure enclosure = enclosureStack.Pop();
+				while(enclosure.kind != Enclosure.Kind.TERNARY) {
+					enclosureEnd(enclosure);
+					enclosure = enclosureStack.Pop();
+				}
 				enclosure.node = a;
 				enclosureStack.Push(enclosure);
 				values.Push(b);
-				Debug.Assert(enclosure.kind == Enclosure.Kind.TERNARY);
 				return;
 			}
 			else if(op.operation == OT.COLON)
 			{
-				/*
-				...
-				condition = ...
-				jump condition, whentrue, whenfalse
-				whentrue:
-				...
-				val_a = ...
-				goto end
-				whenfalse:
-				...
-				val_b = ...
-				goto end
-				end:
-				phi [from val_a: val_a], [from val_b: val_b]
-				*/	
-				var enclosure = enclosureStack.Pop();
-				Debug.Assert(enclosure.kind == Enclosure.Kind.TERNARY);
+				Enclosure enclosure = enclosureStack.Pop();
+				while(enclosure.kind != Enclosure.Kind.TERNARY) {
+					enclosureEnd(enclosure);
+					enclosure = enclosureStack.Pop();
+				}
 				
-				var jump = new NodeJump();
-				var phi = new NodePhi(new PhiBranch[] {
-					new PhiBranch(a, a),
-					new PhiBranch(b, b) }
-				);
-				jump.condition = enclosure.node;
-				jump.whenTrue = newLabel();
-				jump.whenFalse = newLabel();
-				var end = newLabel();
-				
-				expression.Insert(enclosure.startIndex, jump);
-				expression.Insert(enclosure.startIndex + 1, jump.whenTrue);
-				expression.Insert(op.operatorIndex + 2, new NodeGoto() { label = end });
-				expression.Insert(op.operatorIndex + 3, jump.whenFalse);
-				expression.Add(new NodeGoto() { label = end });
-				expression.Add(end);
-				expression.Add(phi);
+				int memberCount = expression.Count - enclosure.startIndex,
+					count = expression.Count - op.operatorIndex;
+				var logic = new NodeLogic(op.location, OT.TERNARY, memberCount, count, enclosure.node, a, b);
+				expression.Insert(op.operatorIndex, logic);
+				values.Push(logic);
 				return;
 			}
 		} // if(op.isSpecial)
