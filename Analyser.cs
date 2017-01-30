@@ -7,7 +7,7 @@ namespace Jolly
 using System.Linq;
 using NT = AST_Node.Type;
 using OT = OperatorType;
-using IT = Instruction.Type;
+using IT = IR.Type;
 
 static class Analyser
 {
@@ -25,7 +25,7 @@ static class Analyser
 	}
 	
 	static EnclosureStack enclosureStack;
-	static List<Instruction> instructions;
+	static List<IR> instructions;
 	static Enclosure enclosure;
 	static int cursor;
 	
@@ -71,7 +71,7 @@ static class Analyser
 				symbol.dataType = new DataType_Reference(symbol.typeFrom.dataType);
 				DataType.makeUnique(ref symbol.dataType);
 				closure.scope.finishDefinition(symbol.text, symbol.dataType);
-				instructions.Add(new InstructionAllocate(symbol.typeFrom.dataType));
+				instructions.Add(new IR_Allocate(symbol.typeFrom.dataType));
 			} break;
 			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
 			}
@@ -114,11 +114,11 @@ static class Analyser
 		return_values = new AST_Scope(new SourceLocation(), NT.RETURN_VALUES, null, null),
 		arguments = new AST_Scope(new SourceLocation(), NT.ARGUMENTS, null, null);
 	
-	public static List<Instruction> analyse(List<AST_Node> program, Scope globalScope)
+	public static List<IR> analyse(List<AST_Node> program, Scope globalScope)
 	{
 		global.scope = globalScope;
 		// instructions = new List<Node>(program.Count);
-		instructions = new List<Instruction>();
+		instructions = new List<IR>();
 		enclosureStack = new EnclosureStack(16);
 		
 		enclosureStack.Push(new Enclosure(global, int.MaxValue));
@@ -194,7 +194,7 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
-				instructions.Add(new InstructionFunction((DataType_Function)function.dataType));
+				instructions.Add(new IR_Function((DataType_Function)function.dataType));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 			} },
@@ -207,7 +207,7 @@ static class Analyser
 				// TODO: validate function call
 				// getTypeFromName(functionCall);
 				
-				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray() });
+				instructions.Add(new IR_Call(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
@@ -221,7 +221,7 @@ static class Analyser
 			{ NT.NAME, getTypeFromName },
 			{ NT.RETURN, node => {
 				// TODO: Validate datatype's
-				instructions.Add(new InstructionReturn());
+				instructions.Add(new IR_Return());
 			} },
 		};
 	
@@ -275,7 +275,7 @@ static class Analyser
 				}
 				op.typeKind = op.b.typeKind;
 				op.dataType = op.a.dataType;
-				instructions.Add(new InstructionOperator(op));
+				instructions.Add(new IR_Operator(op));
 			} },
 			
 		};
@@ -296,7 +296,7 @@ static class Analyser
 				throw Jolly.addError(a.location, "Cannot assign this value type");
 			}
 			
-			instructions.Add(new InstructionOperator {
+			instructions.Add(new IR_Operator {
 				instruction = IT.STORE,
 				aType = a.dataType,
 				bType = b.dataType,
@@ -340,7 +340,7 @@ static class Analyser
 			if(definition == null && refType != null)
 			{
 				load(a);
-				instructions.Add(new InstructionOperator() {
+				instructions.Add(new IR_Operator() {
 					instruction = IT.LOAD,
 					aType = a.dataType,
 					resultType = refType
@@ -356,7 +356,7 @@ static class Analyser
 			resultType = new DataType_Reference(definition.Value.dataType);
 			DataType.makeUnique(ref resultType);
 			
-			instructions.Add(new InstructionOperator {
+			instructions.Add(new IR_Operator {
 				instruction = IT.GET_MEMBER,
 				aType = a.dataType,
 				bType = resultType,
@@ -384,7 +384,7 @@ static class Analyser
 			throw Jolly.addError(op.location, "Types not the same");
 		}
 		op.dataType = op.a.dataType;
-		instructions.Add(new InstructionOperator(op));
+		instructions.Add(new IR_Operator(op));
 	}
 	
 	static void load(AST_Node node)
@@ -400,7 +400,7 @@ static class Analyser
 				return;
 			}
 			node.dataType = refTo.referenced;
-			instructions.Add(new InstructionOperator() {
+			instructions.Add(new IR_Operator() {
 				instruction = IT.LOAD,
 				aType = refTo,
 				resultType = refTo.referenced
