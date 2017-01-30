@@ -185,13 +185,32 @@ class ExpressionParser
 		{
 			switch(token.type)
 			{
-				case TT.IDENTIFIER:			parseIdentifier();			break;
+				case TT.IDENTIFIER:
+					if(prevTokenKind == TokenKind.VALUE) {
+						throw Jolly.unexpected(token);
+					}
+					values.Push(new AST_Symbol(token.location, token.text));
+					break;
 				case TT.COMMA:				parseComma();				break;
 				case TT.FLOAT_LITERAL:		case TT.INTEGER_LITERAL:	case TT.STRING_LITERAL: parseLiteral(); break;
 				case TT.BRACKET_OPEN:		parseBracketOpen();			break;
 				case TT.BRACKET_CLOSE:		parseBracketClose();		break;
 				case TT.PARENTHESIS_OPEN:	parseParenthesisOpen();		break;
 				case TT.PARENTHESIS_CLOSE:	parseParenthesisClose();	break;
+				case TT.TRUE:
+					if(prevTokenKind == TokenKind.VALUE) {
+						throw Jolly.unexpected(token);
+					}
+					values.Push(new AST_Literal(token.location, true)  { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.STATIC_VALUE });
+					currentTokenKind = TokenKind.VALUE;
+					break;
+				case TT.FALSE:
+					if(prevTokenKind == TokenKind.VALUE) {
+						throw Jolly.unexpected(token);
+					}
+					values.Push(new AST_Literal(token.location, false) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.STATIC_VALUE });
+					currentTokenKind = TokenKind.VALUE;
+					break;
 				default:
 					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
 						parseBasetype();
@@ -272,16 +291,7 @@ class ExpressionParser
 		if(prevTokenKind == TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new AST_Node(token.location, NT.BASETYPE) { dataType = Lookup.getBaseType(token.type), typeKind = TypeKind.STATIC });
-	}
-	
-	void parseIdentifier()
-	{
-		if(prevTokenKind == TokenKind.VALUE) {
-			throw Jolly.unexpected(token);
-		}
-		var symbol = new AST_Symbol(token.location, token.text);
-		values.Push(symbol);
+		values.Push(new AST_Node(token.location, NT.BASETYPE) { dataType = Lookup.getBaseType(token.type), typeKind = TypeKind.STATIC_VALUE });
 	}
 	
 	void parseDefineIdentifier()
@@ -312,7 +322,7 @@ class ExpressionParser
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
-				if(!scope.Add(token.text, null, TypeKind.STATIC_FUNCTION)) {
+				if(!scope.Add(token.text, null, TypeKind.STATIC_VALUE)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}

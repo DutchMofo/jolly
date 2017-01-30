@@ -8,7 +8,7 @@ namespace Jolly
 	{
 		UNDEFINED,
 		STATIC,
-		STATIC_FUNCTION,
+		STATIC_VALUE,
 		VALUE,
 		ADDRES
 	}

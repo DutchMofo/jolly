@@ -55,8 +55,6 @@ static class Lookup
 		return baseTypes[(type < TT.VOID) ? (type - TT.I8) & (~1) : type - TT.I8];
 	}
 	
-	public static readonly AST_Literal NODE_TRUE = new AST_Literal(new SourceLocation(), true), NODE_FALSE = new AST_Literal(new SourceLocation(), false);
-	
 	public readonly static Dictionary<TT, Op>
 		EXPRESSION_OP = new Dictionary<TT, Op>() {
 			{ TT.PERIOD,			new Op(01, 2, true,  OT.GET_MEMBER		)},
