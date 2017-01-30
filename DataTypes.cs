@@ -46,16 +46,16 @@ namespace Jolly
 		public override string ToString() => name;
 	}
 	
-	class DataTypeReference : DataType
+	class DataType_Reference : DataType
 	{
 		public DataType referenced;
 		
-		public DataTypeReference(DataType referenced)
+		public DataType_Reference(DataType referenced)
 			{ this.referenced = referenced; flags = Flags.BASE_TYPE | Flags.INSTANTIABLE; }
 		
 		public override bool Equals(object obj)
 		{
-			var refr = obj as DataTypeReference;
+			var refr = obj as DataType_Reference;
 			if(refr != null)
 				return refr.referenced == referenced;
 			return false;
@@ -84,9 +84,9 @@ namespace Jolly
 	// 	public override string ToString() => collectionType + "[]";
 	// }
 	
-	class DataTypeStruct : DataType
+	class DataType_Struct : DataType
 	{
-		public DataTypeStruct() { flags = Flags.INSTANTIABLE; }
+		public DataType_Struct() { flags = Flags.INSTANTIABLE; }
 		public Scope structScope;
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
@@ -115,13 +115,13 @@ namespace Jolly
 		public override string ToString() => name;
 	}
 	
-	class DataTypeFunction : DataType
+	class DataType_Function : DataType
 	{
 		public DataType[] returns, arguments;
 		
 		public override bool Equals(object obj)
 		{
-			var arr = obj as DataTypeFunction;
+			var arr = obj as DataType_Function;
 			if(arr != null) {
 				return !(returns.any((r, i) => arr.returns[i] != r) || arguments.any((a, i) => arr.arguments[i] != a));
 			}

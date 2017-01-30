@@ -55,11 +55,11 @@ static class Analyser
 			switch(enclosure.node.nodeType)
 			{
 			case NT.STRUCT: {
-				((DataTypeStruct)closure.dataType).finishDefinition(symbol.text, symbol.typeFrom.dataType);
+				((DataType_Struct)closure.dataType).finishDefinition(symbol.text, symbol.typeFrom.dataType);
 			} break;
 			case NT.ARGUMENTS: {
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
-				var functionType = (DataTypeFunction)function.dataType;
+				var functionType = (DataType_Function)function.dataType;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.dataType;
 				function.finishedArguments += 1;
 			} goto case NT.FUNCTION; // Define the actual variable
@@ -68,7 +68,7 @@ static class Analyser
 				if((symbol.typeFrom.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
 					throw Jolly.addError(symbol.typeFrom.location, "The type {0} is not instantiable.".fill(symbol.typeFrom.dataType));
 				}
-				symbol.dataType = new DataTypeReference(symbol.typeFrom.dataType);
+				symbol.dataType = new DataType_Reference(symbol.typeFrom.dataType);
 				DataType.makeUnique(ref symbol.dataType);
 				closure.scope.finishDefinition(symbol.text, symbol.dataType);
 				instructions.Add(new InstructionAllocate(symbol.typeFrom.dataType));
@@ -78,7 +78,7 @@ static class Analyser
 		} break;
 		case NT.RETURN_VALUES: {
 			var function = (AST_Function)enclosure.node;
-			var functionType = (DataTypeFunction)function.dataType;
+			var functionType = (DataType_Function)function.dataType;
 			var tuple = function.returns as AST_Tuple;
 			if(tuple != null) {
 				for(int i = 0; i < tuple.values.Count; i += 1) {
@@ -183,7 +183,7 @@ static class Analyser
 				if((tToRef.target.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
 					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.dataType));
 				}
-				tToRef.dataType = new DataTypeReference(tToRef.target.dataType);
+				tToRef.dataType = new DataType_Reference(tToRef.target.dataType);
 				DataType.makeUnique(ref tToRef.dataType);
 				tToRef.typeKind = tToRef.target.typeKind;
 			} },
@@ -194,7 +194,7 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
-				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
+				instructions.Add(new InstructionFunction((DataType_Function)function.dataType));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 			} },
@@ -253,7 +253,7 @@ static class Analyser
 				op.dataType = op.b.dataType;
 			} },
 			{ OT.REFERENCE, op => {
-				if(op.a.typeKind != TypeKind.VALUE | !(op.a.dataType is DataTypeReference)) {
+				if(op.a.typeKind != TypeKind.VALUE | !(op.a.dataType is DataType_Reference)) {
 					throw Jolly.addError(op.location, "Cannot get a reference to this");
 				}
 				op.dataType = op.a.dataType;
@@ -288,7 +288,7 @@ static class Analyser
 		{
 			load(b);
 		
-			var target = a.dataType as DataTypeReference;
+			var target = a.dataType as DataType_Reference;
 			if(target == null) {
 				throw Jolly.addError(a.location, "Cannot assign to this");
 			}
@@ -333,10 +333,10 @@ static class Analyser
 		TypeKind resultTypeKind;
 		if(a.typeKind != TypeKind.STATIC)
 		{
-			var varType = ((DataTypeReference)a.dataType).referenced;
+			var varType = ((DataType_Reference)a.dataType).referenced;
 			var definition = varType.getDefinition(b.text);
 			
-			var refType = varType as DataTypeReference;
+			var refType = varType as DataType_Reference;
 			if(definition == null && refType != null)
 			{
 				load(a);
@@ -353,7 +353,7 @@ static class Analyser
 			}
 			
 			resultTypeKind = definition.Value.typeKind;
-			resultType = new DataTypeReference(definition.Value.dataType);
+			resultType = new DataType_Reference(definition.Value.dataType);
 			DataType.makeUnique(ref resultType);
 			
 			instructions.Add(new InstructionOperator {
@@ -366,7 +366,7 @@ static class Analyser
 		else
 		{
 			// Get static member
-			var definition = ((DataTypeStruct)a.dataType).structScope.getDefinition(b.text);
+			var definition = ((DataType_Struct)a.dataType).structScope.getDefinition(b.text);
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
@@ -389,7 +389,7 @@ static class Analyser
 	
 	static void load(AST_Node node)
 	{
-		var refTo = node.dataType as DataTypeReference;
+		var refTo = node.dataType as DataType_Reference;
 		if(refTo != null)
 		{
 			if(node.typeKind == TypeKind.STATIC) {

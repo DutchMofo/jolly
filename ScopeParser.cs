@@ -42,7 +42,7 @@ namespace Jolly
 			}
 			
 			Scope structScope = new Scope(scope);
-			var structType = new DataTypeStruct() { name = name.text, structScope = structScope };
+			var structType = new DataType_Struct() { name = name.text, structScope = structScope };
 			var structNode = new AST_Scope(name.location, NT.STRUCT, structScope, name.text)
 				{ dataType = structScope.dataType = structType };
 			

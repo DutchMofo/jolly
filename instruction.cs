@@ -66,7 +66,7 @@ namespace Jolly
 			{ OT.CAST, IT.CAST },
 		};
 		
-		public InstructionOperator() {}
+		public InstructionOperator() { }
 		public InstructionOperator(AST_Operator op)
 		{
 			instruction = removeThis[op.operation];
@@ -86,8 +86,8 @@ namespace Jolly
 	
 	class InstructionFunction : Instruction
 	{
-		public InstructionFunction(DataTypeFunction functionType) { this.functionType = functionType; }
-		public DataTypeFunction functionType;
+		public InstructionFunction(DataType_Function functionType) { this.functionType = functionType; }
+		public DataType_Function functionType;
 		public override string ToString() => "define {0} @{1} ({2})".fill(
 				(functionType.returns.Length == 1) ? functionType.returns[0].ToString() : "{ " + functionType.returns.Select(m => m?.ToString()).Aggregate((a, b) => a + ", " + b) + " }",
 				functionType.name,

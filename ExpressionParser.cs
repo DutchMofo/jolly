@@ -304,7 +304,7 @@ class ExpressionParser
 				}
 				
 				var functionScope = new Scope(scope);
-				var functionType = new DataTypeFunction() { name = token.text };
+				var functionType = new DataType_Function() { name = token.text };
 				var functionNode = new AST_Function(token.location, functionScope, token.text)
 					{ dataType = functionType, returns = prev };
 				expression.Insert(startNodeCount, functionNode);
@@ -342,7 +342,7 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = (DataTypeStruct)scope.dataType;
+					var structType = (DataType_Struct)scope.dataType;
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}
