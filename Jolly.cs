@@ -77,6 +77,7 @@ namespace Jolly
 	
 	class Jolly
 	{
+		public static List<Node> program;
 		static int errorCount = 0;
 		
 		public static string formatEnum<T>(T val)
@@ -103,11 +104,11 @@ namespace Jolly
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 		
-			List<Node> program = new List<Node>();
+			var _program = program = new List<Node>();
 			var globalScope = new Scope(null);
-			new ScopeParser(0, tokens.Length-1, globalScope, tokens, program).parseBlock();
+			new ScopeParser(0, tokens.Length-1, globalScope, tokens, _program).parseBlock();
 			
-			var instructions = Analyser.analyse(program, globalScope);
+			var instructions = Analyser.analyse(_program, globalScope);
 			
 			instructions.forEach(n => Console.WriteLine(n));
             Debugger.Break();

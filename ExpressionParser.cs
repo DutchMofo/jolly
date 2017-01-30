@@ -115,19 +115,17 @@ class ExpressionParser
 		FUNCTION_CALL = 2,
 		LOGIC_OR      = 3,
 		LOGIC_AND     = 4,
-		TERNARY_TRUE  = 5,
-		TERNARY_FALSE = 6,
-		NULLCOALESCE  = 7,
-		SUBSCRIPT     = 8,
+		TERNARY       = 5,
+		NULLCOALESCE  = 6,
+		SUBSCRIPT     = 7,
 	}
 	
 	public struct Enclosure
 	{
-		public Enclosure(EnclosureKind k, int sNC, byte p = byte.MaxValue)
-			{ kind = k; startNodeCount = sNC; node = null; precedence = p; opIndex = 0; }
+		public Enclosure(EnclosureKind k, int sNC)
+			{ kind = k; startNodeCount = sNC; node = null; }
 		public EnclosureKind kind;
-		public int startNodeCount, opIndex;
-		public byte precedence;
+		public int startNodeCount;
 		public Node node;
 	}
 	
@@ -141,10 +139,12 @@ class ExpressionParser
 			this.isSpecial = isSpecial;
 			this.location = location;
 			this.valCount = valCount;
+			this.startNodeCount = 0;
 		}
 		public byte precedence, valCount;
 		public SourceLocation location;
 		public bool leftToRight, isSpecial;
+		public int startNodeCount;
 		public OT operation;
 	}
 
@@ -202,9 +202,9 @@ class ExpressionParser
 			currentTokenKind = TokenKind.VALUE;
 		}
 		
-		while(enclosureStack.Count > 1) {
-			enclosureEnd(enclosureStack.Pop());
-		}
+		// while(enclosureStack.Count > 1) {
+		// 	enclosureEnd(enclosureStack.Pop(), 0, null);
+		// }
 		
 		while(operators.Count > 0) {
 			pushOperator(operators.Pop());
@@ -423,20 +423,34 @@ class ExpressionParser
 			}
 		}
 		
+		if(operators.Count > 0)
+		{
+			Op prevOp = operators.Peek();
+			while(prevOp.valCount > 0 && 
+				 (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence))
+			{
+				pushOperator(operators.Pop());
+				if(operators.Count == 0) break;
+				prevOp = operators.Peek();
+			}
+		}
+		
 		if(op.isSpecial)
 		{
 			Enclosure newEnclosure = new Enclosure();
 			switch(op.operation)
 			{
-			case OT.TERNARY:   newEnclosure = new Enclosure(EnclosureKind.TERNARY_TRUE, expression.Count, 4); goto pushNewEnclosure;
-			case OT.LOGIC_OR:  newEnclosure = new Enclosure(EnclosureKind.LOGIC_OR, expression.Count, 3); goto pushNewEnclosure;
-			case OT.LOGIC_AND: newEnclosure = new Enclosure(EnclosureKind.LOGIC_AND, expression.Count, 2); goto pushNewEnclosure;
+			case OT.TERNARY:   // newEnclosure = new Enclosure(EnclosureKind.TERNARY_TRUE, expression.Count, 4); goto pushNewEnclosure;
+			case OT.LOGIC_OR:  // newEnclosure = new Enclosure(EnclosureKind.LOGIC_OR, expression.Count, 3); goto pushNewEnclosure;
+			case OT.LOGIC_AND: // newEnclosure = new Enclosure(EnclosureKind.LOGIC_AND, expression.Count, 2); goto pushNewEnclosure;
+				op.startNodeCount = expression.Count;
+				break;
 			case OT.COLON:
 				switch(enclosureStack.Peek().kind)
 				{
 					case EnclosureKind.SUBSCRIPT: break;
-					case EnclosureKind.TERNARY_TRUE:
-						newEnclosure = new Enclosure(EnclosureKind.TERNARY_FALSE, expression.Count, 1);
+					case EnclosureKind.TERNARY:
+						newEnclosure = new Enclosure(EnclosureKind.TERNARY, expression.Count);
 						goto pushNewEnclosure;
 					default: throw Jolly.unexpected(token);
 				}
@@ -450,17 +464,6 @@ class ExpressionParser
 			enclosureStack.Push(newEnclosure);
 		}
 		
-		if(operators.Count > 0)
-		{
-			Op prevOp = operators.Peek();
-			while(prevOp.valCount > 0 && 
-				 (prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence))
-			{
-				pushOperator(operators.Pop());
-				if(operators.Count == 0) break;
-				prevOp = operators.Peek();
-			}
-		}
 		op.location = token.location;
 		operators.Push(op);		
 		return true;
@@ -480,11 +483,11 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.VALUE;
 		
-		Enclosure enclosure;
-		do {
-			enclosure = enclosureStack.Pop();
-			enclosureEnd(enclosure);
-		} while(enclosure.kind != EnclosureKind.SUBSCRIPT);
+		// Enclosure enclosure;
+		// do {
+		// 	enclosure = enclosureStack.Pop();
+		// 	enclosureEnd(enclosure, 0, null);
+		// } while(enclosure.kind != EnclosureKind.SUBSCRIPT);
 		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
@@ -511,11 +514,11 @@ class ExpressionParser
 	
 	void parseParenthesisClose()
 	{
-		Enclosure enclosure;
-		do {
-			enclosure = enclosureStack.Pop();
-			enclosureEnd(enclosure);
-		} while(enclosure.kind <  EnclosureKind.PARENTHS & enclosure.kind > EnclosureKind.FUNCTION_CALL);
+		// Enclosure enclosure;
+		// do {
+		// 	enclosure = enclosureStack.Pop();
+		// 	enclosureEnd(enclosure, 0, null);
+		// } while(enclosure.kind <  EnclosureKind.PARENTHS & enclosure.kind > EnclosureKind.FUNCTION_CALL);
 		
 		Op op;
 		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
@@ -542,87 +545,15 @@ class ExpressionParser
 	
 	static Node newLabel() => new Node(new SourceLocation(), NT.LABEL);
 	
-	void enclosureEnd(Enclosure ended)
+	void enclosureEnd(Enclosure ended, int opIndex, NodeOperator opNode)
 	{
 		switch(ended.kind)
 		{
 		case EnclosureKind.LOGIC_OR: {
-			/*
-			bool a = true || false;
-		  enclosure start ^       ^ enclosure end
-		  
-		  
-			...
-			cond_a = ...
-			br cond_a, whentrue, whenfalse
-			whenFalse:
-			...
-			cond_b = ...
-			goto whenTrue
-			whenTrue:
-			phi [from cond_a: true], [from cond_b: cond_b]
-			*/
 			
-			Op op = operators.Pop();
-			while(op.operation != OT.LOGIC_OR) {
-				pushOperator(op);
-				op = operators.Pop();
-			}
-			
-			Node b = values.Pop(), a = values.Pop();
-			var jump = new NodeJump();
-			var phi = new NodePhi(new PhiBranch[] {
-				new PhiBranch(a, Lookup.NODE_TRUE),
-				new PhiBranch(b, b) }
-			) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.VALUE };
-			jump.condition = a;
-			jump.whenTrue = newLabel();
-			jump.whenFalse = newLabel();
-			
-			expression.Insert(ended.startNodeCount, jump);
-			expression.Insert(ended.startNodeCount + 1, jump.whenFalse);
-			
-			expression.Add(new NodeGoto(){ label = jump.whenTrue });
-			expression.Add(jump.whenTrue);
-			expression.Add(phi);
-			values.Push(phi);
 		} break;
 		case EnclosureKind.LOGIC_AND: {
-			/*
-			...
-			cond_a = ...
-			br cond_a, whentrue, whenfalse
-			whentrue:
-			...
-			cond_b = ...
-			goto whenfalse
-			whenfalse:
-			phi [from cond_a: false], [from cond_b: cond_b]
-			*/
 			
-			Op op = operators.Pop();
-			while(op.operation != OT.LOGIC_AND) {
-				pushOperator(op);
-				op = operators.Pop();
-			}
-			
-			Node b = values.Pop(), a = values.Pop();
-			var jump = new NodeJump();
-			var phi = new NodePhi(new PhiBranch[] {
-				new PhiBranch(a, Lookup.NODE_FALSE),
-				new PhiBranch(b, b) }
-			);
-			jump.condition = a;
-			jump.whenTrue = newLabel();
-			jump.whenFalse = newLabel();
-			
-			expression.Insert(ended.startNodeCount, jump);
-			expression.Insert(ended.startNodeCount + 1, jump.whenTrue);
-			
-			expression.Add(new NodeGoto(){ label = jump.whenFalse });
-			expression.Add(jump.whenFalse);
-			expression.Add(phi);
-			values.Push(phi);
 		} break;
 		case EnclosureKind.FUNCTION_CALL: {
 			Node[] arguments = null;
@@ -702,28 +633,80 @@ class ExpressionParser
 			}
 		}
 		
+		
+		
+		if(op.isSpecial)
+		{
+			if(op.operation == OT.LOGIC_AND) {
+				/*
+				...
+				cond_a = ...
+				br cond_a, whentrue, whenfalse
+				whentrue:
+				...
+				cond_b = ...
+				goto whenfalse
+				whenfalse:
+				phi [from cond_a: false], [from cond_b: cond_b]
+				*/
+				var jump = new NodeJump();
+				var phi = new NodePhi(new PhiBranch[] {
+					new PhiBranch(a, Lookup.NODE_FALSE),
+					new PhiBranch(b, b) }
+				);
+				jump.condition = a;
+				jump.whenTrue = newLabel();
+				jump.whenFalse = newLabel();
+				
+				expression.Insert(op.startNodeCount, jump);
+				expression.Insert(op.startNodeCount + 1, jump.whenTrue);
+				
+				expression.Add(new NodeGoto(){ label = jump.whenFalse });
+				expression.Add(jump.whenFalse);
+				expression.Add(phi);
+				values.Push(phi);
+			} else if(op.operation == OT.LOGIC_OR) {
+				/*
+				...
+				cond_a = ...
+				br cond_a, whentrue, whenfalse
+				whenFalse:
+				...
+				cond_b = ...
+				goto whenTrue
+				whenTrue:
+				phi [from cond_a: true], [from cond_b: cond_b]
+				*/
+				
+				// Op op = operators.Pop();
+				// while(op.operation != OT.LOGIC_OR) {
+				// 	pushOperator(op);
+				// 	op = operators.Pop();
+				// }
+				
+				// Node b = values.Pop(), a = values.Pop();
+				var jump = new NodeJump();
+				var phi = new NodePhi(new PhiBranch[] {
+					new PhiBranch(a, Lookup.NODE_TRUE),
+					new PhiBranch(b, b) }
+				) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.VALUE };
+				jump.condition = a;
+				jump.whenTrue = newLabel();
+				jump.whenFalse = newLabel();
+				
+				expression.Insert(op.startNodeCount, jump);
+				expression.Insert(op.startNodeCount + 1, jump.whenFalse);
+				
+				expression.Add(new NodeGoto(){ label = jump.whenTrue });
+				expression.Add(jump.whenTrue);
+				expression.Add(phi);
+				values.Push(phi);
+			}
+		}
+		
 		NodeOperator opNode = new NodeOperator(op.location, op.operation, a, b);
 		expression.Add(opNode);
 		values.Push(opNode);
-		
-		// if(op.isSpecial)
-		// {
-			// var enclosure = enclosureStack.Pop();
-			// enclosure.node = opNode;
-			// enclosure.opIndex = expression.Count-1;
-			// enclosureStack.Push(enclosure);
-			// if(op.operation == OT.COLON)
-			// {
-			// 	switch(enclosureStack.Peek().kind)
-			// 	{
-			// 	case EnclosureKind.SUBSCRIPT:
-			// 	case EnclosureKind.TERNARY_FALSE:
-					
-			// 		break;
-			// 	default: throw Jolly.unexpected(new Token{ location = op.location, type = TT.COLON });
-			// 	}
-			// }
-		// }
 	} // pushOperator()
 }
 

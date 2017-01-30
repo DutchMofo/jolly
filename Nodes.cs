@@ -2,7 +2,8 @@ using System.Collections.Generic;
 
 namespace Jolly
 {
-	using NT = Node.NodeType;
+    using System.Linq;
+    using NT = Node.NodeType;
 	
 	enum TypeKind
 	{
@@ -67,7 +68,8 @@ namespace Jolly
 		public SourceLocation location;
 		
 		public override string ToString()
-			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
+			// => "{0}:{1} {2}".fill(location.line, location.column, nodeType);
+			=> nodeType.ToString();
 	}
 	
 	class NodeJump : Node
@@ -75,12 +77,16 @@ namespace Jolly
 		public NodeJump() : base(new SourceLocation(), NT.JUMP) { }
 		public Node whenTrue, whenFalse;
 		public Node condition;
+		public override string ToString()
+			=> "{0} {1}, {2}, {3}".fill(base.ToString(), condition, Jolly.program.IndexOf(whenTrue), Jolly.program.IndexOf(whenFalse));
 	}
 	
 	class NodeGoto : Node
 	{
 		public NodeGoto() : base(new SourceLocation(), NT.GOTO) { }
 		public Node label;
+		public override string ToString()
+			=> "{0} {1}".fill(base.ToString(),  Jolly.program.IndexOf(label));
 	}
 	
 	struct PhiBranch
@@ -93,6 +99,8 @@ namespace Jolly
 	{
 		public NodePhi(PhiBranch[] b) : base(new SourceLocation(), NT.PHI) { this.branches = b; }
 		public PhiBranch[] branches;
+		public override string ToString()
+			=> "{0} {1}".fill(base.ToString(), branches.Select(a => "[from " + Jolly.program.IndexOf(a.from) + ": " + a.value + ']').Aggregate((a, b) => a + ", " + b));
 	}
 	
 	class NodeModifyType : Node
@@ -196,5 +204,7 @@ namespace Jolly
 		public NodeLiteral(SourceLocation loc, object data)
 			: base(loc, NT.LITERAL) { this.data = data; }
 		public object data;
+		public override string ToString()
+			=> base.ToString() + " " + data;
 	}
 }

@@ -5,5 +5,5 @@ int main()
 	
 	
 	
-	bool choice = 0 && 1 || 2 && 3;
+	bool choice = (0+0) && (1*1) || (2/2);
 }
