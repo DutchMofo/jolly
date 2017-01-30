@@ -416,7 +416,7 @@ static class Analyser
 			var closure = (NodeScope)enclosure.node;
 			if(closure.nodeType == NT.MEMBER_TUPLE) {
 				var tup = (NodeTuple)closure;
-				var hacky = tup.scopeFrom; // Prevent ref from messing things up
+				var hacky = tup.membersFrom; // Prevent ref from messing things up
 				var result = operatorGetMember(ref hacky, node as NodeSymbol);
 				node.dataType = result.Item1;
 				node.typeKind = result.Item2;

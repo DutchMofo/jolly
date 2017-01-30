@@ -91,11 +91,11 @@ static class Lookup
 			{ TT.AND_AND,			new Op(11, 2, true,  OT.LOGIC_AND, true	)},
 			{ TT.OR_OR,				new Op(12, 2, true,  OT.LOGIC_OR,  true	)},
 			
-			{ TT.QUESTION_MARK,		new Op(12, 2, false, OT.TERNARY,   true	)},
+			{ TT.COLON_COLON,		new Op(13, 2, false, OT.CAST			)},
+			{ TT.COLON_TILDE,		new Op(13, 2, false, OT.BITCAST			)},
 			
-			{ TT.COLON_COLON,		new Op(14, 2, false, OT.CAST			)},
-			{ TT.COLON_TILDE,		new Op(14, 2, false, OT.BITCAST			)},
 			{ TT.COLON,				new Op(14, 2, true,  OT.COLON,     true )},
+			{ TT.QUESTION_MARK,		new Op(14, 2, false, OT.TERNARY,   true	)},
 			
 			{ TT.COMMA,				new Op(15, 2, true,  OT.COMMA			)},
 			

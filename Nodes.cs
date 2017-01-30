@@ -179,7 +179,7 @@ namespace Jolly
 			: base(loc, tupType, scope, null) { }
 		
 		public List<Node> values = new List<Node>();
-		public Node scopeFrom;
+		public Node membersFrom;
 		public bool closed;
 	}
 		
