@@ -5,7 +5,7 @@ using System;
 namespace Jolly
 {
 using System.Linq;
-using NT = Node.NodeType;
+using NT = AST_Node.Type;
 using OT = OperatorType;
 using IT = Instruction.Type;
 
@@ -31,8 +31,8 @@ static class Analyser
 	
 	struct Enclosure
 	{
-		public Enclosure(Node n, int e) { node = n; end = e; }
-		public Node node;
+		public Enclosure(AST_Node n, int e) { node = n; end = e; }
+		public AST_Node node;
 		public int end;
 	}
 	
@@ -49,8 +49,8 @@ static class Analyser
 		switch(poppedEnclosure.node.nodeType)
 		{
 		case NT.VARIABLE_DEFINITION: {
-			var closure = (NodeScope)enclosure.node;
-			var symbol = (NodeVariableDefinition)poppedEnclosure.node;
+			var closure = (AST_Scope)enclosure.node;
+			var symbol = (AST_VariableDefinition)poppedEnclosure.node;
 			
 			switch(enclosure.node.nodeType)
 			{
@@ -58,7 +58,7 @@ static class Analyser
 				((DataTypeStruct)closure.dataType).finishDefinition(symbol.text, symbol.typeFrom.dataType);
 			} break;
 			case NT.ARGUMENTS: {
-				var function = (NodeFunction)enclosureStack.ElementAt(1).node;
+				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataTypeFunction)function.dataType;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.dataType;
 				function.finishedArguments += 1;
@@ -77,9 +77,9 @@ static class Analyser
 			}
 		} break;
 		case NT.RETURN_VALUES: {
-			var function = (NodeFunction)enclosure.node;
+			var function = (AST_Function)enclosure.node;
 			var functionType = (DataTypeFunction)function.dataType;
-			var tuple = function.returns as NodeTuple;
+			var tuple = function.returns as AST_Tuple;
 			if(tuple != null) {
 				for(int i = 0; i < tuple.values.Count; i += 1) {
 					functionType.returns[i] = tuple.values[i].dataType;
@@ -109,12 +109,12 @@ static class Analyser
 		}
 	}
 	
-	static readonly NodeScope
-		global = new NodeScope(new SourceLocation(), NT.GLOBAL, null, null),
-		return_values = new NodeScope(new SourceLocation(), NT.RETURN_VALUES, null, null),
-		arguments = new NodeScope(new SourceLocation(), NT.ARGUMENTS, null, null);
+	static readonly AST_Scope
+		global = new AST_Scope(new SourceLocation(), NT.GLOBAL, null, null),
+		return_values = new AST_Scope(new SourceLocation(), NT.RETURN_VALUES, null, null),
+		arguments = new AST_Scope(new SourceLocation(), NT.ARGUMENTS, null, null);
 	
-	public static List<Instruction> analyse(List<Node> program, Scope globalScope)
+	public static List<Instruction> analyse(List<AST_Node> program, Scope globalScope)
 	{
 		global.scope = globalScope;
 		// instructions = new List<Node>(program.Count);
@@ -124,24 +124,24 @@ static class Analyser
 		enclosureStack.Push(new Enclosure(global, int.MaxValue));
 		
 		cursor = 0;
-		for(Node node = program[cursor];
+		for(AST_Node node = program[cursor];
 			cursor < program.Count;
 			incrementCursor())
 		{
 			node = program[cursor];
-			Action<Node> action;
+			Action<AST_Node> action;
 			if(typeDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
 			}
 		}
 		
 		cursor = 0;
-		for(Node node = program[cursor];
+		for(AST_Node node = program[cursor];
 			cursor < program.Count;
 			incrementCursor())
 		{
 			node = program[cursor];
-			Action<Node> action;
+			Action<AST_Node> action;
 			if(!analysers.TryGetValue(node.nodeType, out action)) {
 				throw Jolly.unexpected(node);
 			}
@@ -151,24 +151,24 @@ static class Analyser
 		return instructions;
 	}
 		
-	static readonly Dictionary<NT, Action<Node>>
+	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
-		typeDefinitionAnalysers = new Dictionary<NT, Action<Node>>() {
+		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.MEMBER_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
-				NodeFunction function = (NodeFunction)node;
+				AST_Function function = (AST_Function)node;
 				return_values.scope = function.scope;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
 				enclosureStack.Push(new Enclosure(return_values, function.returnDefinitionCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
-				enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((AST_Symbol)node).memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
-				NodeOperator op = (NodeOperator)node;
+				AST_Operator op = (AST_Operator)node;
 				Debug.Assert(op.operation == OT.GET_MEMBER);
-				var result = operatorGetMember(ref op.a, op.b as NodeSymbol);
+				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
 				op.dataType = result.Item1;
 				op.typeKind = result.Item2;
 			} },
@@ -176,10 +176,10 @@ static class Analyser
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
 			{ NT.TUPLE, node => {
-				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
 			{ NT.MODIFY_TYPE, node => {
-				NodeModifyType tToRef = (NodeModifyType)node;
+				AST_ModifyType tToRef = (AST_ModifyType)node;
 				if((tToRef.target.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
 					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.dataType));
 				}
@@ -188,32 +188,32 @@ static class Analyser
 				tToRef.typeKind = tToRef.target.typeKind;
 			} },
 		},
-		analysers = new Dictionary<NT, Action<Node>>() {
+		analysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
-				NodeFunction function = (NodeFunction)node;
+				AST_Function function = (AST_Function)node;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
 				instructions.Add(new InstructionFunction((DataTypeFunction)function.dataType));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 			} },
 			{ NT.OPERATOR, node => {
-				NodeOperator o = (NodeOperator)node;
+				AST_Operator o = (AST_Operator)node;
 				operatorAnalysers[o.operation](o);
 			} },
 			{ NT.FUNCTION_CALL, node => {
-				var functionCall = (NodeFunctionCall)node;
+				var functionCall = (AST_FunctionCall)node;
 				// TODO: validate function call
 				// getTypeFromName(functionCall);
 				
 				instructions.Add(new InstructionCall(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
-				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_TUPLE, node => {
-				enclosureStack.Push(new Enclosure(node, ((NodeTuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.BASETYPE, node => { } },
@@ -225,26 +225,26 @@ static class Analyser
 			} },
 		};
 	
-	static void skipSymbol(Node node)
-		=> cursor += (node as NodeSymbol).memberCount;
+	static void skipSymbol(AST_Node node)
+		=> cursor += (node as AST_Symbol).memberCount;
 	
-	static void defineMemberOrVariable(Node node)
+	static void defineMemberOrVariable(AST_Node node)
 	{
 		if(node.dataType != null) {
 			skipSymbol(node);
 			return;
 		}
-		enclosureStack.Push(new Enclosure(node, ((NodeSymbol)node).memberCount + cursor));
+		enclosureStack.Push(new Enclosure(node, ((AST_Symbol)node).memberCount + cursor));
 	}
 	
-	static readonly Dictionary<OT, Action<NodeOperator>>
-		operatorAnalysers = new Dictionary<OT, Action<NodeOperator>>() {
+	static readonly Dictionary<OT, Action<AST_Operator>>
+		operatorAnalysers = new Dictionary<OT, Action<AST_Operator>>() {
 			{ OT.MINUS,		 basicOperator },
 			{ OT.PLUS,		 basicOperator },
 			{ OT.MULTIPLY,	 basicOperator },
 			{ OT.DIVIDE,	 basicOperator },
 			{ OT.GET_MEMBER, op => {
-				var result = operatorGetMember(ref op.a, op.b as NodeSymbol);
+				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
 				op.dataType = result.Item1;
 				op.typeKind = result.Item2;
 			} },
@@ -280,7 +280,7 @@ static class Analyser
 			
 		};
 	
-	static void assign(Node a, Node b)
+	static void assign(AST_Node a, AST_Node b)
 	{
 		bool aIsTup = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
 		bool bIsTup = b.nodeType == NT.TUPLE | b.nodeType == NT.MEMBER_TUPLE;
@@ -305,8 +305,8 @@ static class Analyser
 		}
 		else if(aIsTup & bIsTup)
 		{
-			var aVals = ((NodeTuple)a).values;
-			var bVals = ((NodeTuple)b).values;
+			var aVals = ((AST_Tuple)a).values;
+			var bVals = ((AST_Tuple)b).values;
 			if(aVals.Count != bVals.Count) {
 				throw Jolly.addError(a.location, "Tuple's not the same size");
 			}
@@ -315,7 +315,7 @@ static class Analyser
 			}
 		}
 		else if(aIsTup & !bIsTup) {
-			foreach(Node node in ((NodeTuple)a).values) {
+			foreach(AST_Node node in ((AST_Tuple)a).values) {
 				assign(node, b);
 			}
 		} else {
@@ -323,7 +323,7 @@ static class Analyser
 		}
 	}
 	
-	static Tuple<DataType,TypeKind> operatorGetMember(ref Node a, NodeSymbol b)
+	static Tuple<DataType,TypeKind> operatorGetMember(ref AST_Node a, AST_Symbol b)
 	{
 		if(b == null) {
 			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
@@ -376,7 +376,7 @@ static class Analyser
 		return new Tuple<DataType, TypeKind>(resultType, resultTypeKind);
 	}
 	
-	static void basicOperator(NodeOperator op)
+	static void basicOperator(AST_Operator op)
 	{
 		load(op.a);
 		load(op.b);
@@ -387,7 +387,7 @@ static class Analyser
 		instructions.Add(new InstructionOperator(op));
 	}
 	
-	static void load(Node node)
+	static void load(AST_Node node)
 	{
 		var refTo = node.dataType as DataTypeReference;
 		if(refTo != null)
@@ -408,21 +408,21 @@ static class Analyser
 		}
 	}
 	
-	static void getTypeFromName(Node node)
+	static void getTypeFromName(AST_Node node)
 	{
 		// TODO: remove name part from function call
 		if(node.nodeType == NT.NAME & node.dataType == null)
 		{
-			var closure = (NodeScope)enclosure.node;
+			var closure = (AST_Scope)enclosure.node;
 			if(closure.nodeType == NT.MEMBER_TUPLE) {
-				var tup = (NodeTuple)closure;
+				var tup = (AST_Tuple)closure;
 				var hacky = tup.membersFrom; // Prevent ref from messing things up
-				var result = operatorGetMember(ref hacky, node as NodeSymbol);
+				var result = operatorGetMember(ref hacky, node as AST_Symbol);
 				node.dataType = result.Item1;
 				node.typeKind = result.Item2;
 				return;
 			}
-			NodeSymbol name = (NodeSymbol)node;
+			AST_Symbol name = (AST_Symbol)node;
 			var definition = closure.getDefinition(name.text);
 			
 			if(definition == null) {

@@ -67,7 +67,7 @@ namespace Jolly
 		};
 		
 		public InstructionOperator() {}
-		public InstructionOperator(NodeOperator op)
+		public InstructionOperator(AST_Operator op)
 		{
 			instruction = removeThis[op.operation];
 			aType = op.a.dataType;

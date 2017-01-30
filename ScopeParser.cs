@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Jolly
 {
     using TT = Token.Type;
-    using NT = Node.NodeType;
+    using NT = AST_Node.Type;
 	using DefineMode = ExpressionParser.DefineMode;
 	
     class ScopeParser
@@ -12,12 +12,12 @@ namespace Jolly
 		protected Token[] tokens;
 		protected int cursor, end;
 		protected Scope scope;
-		protected List<Node> program;
+		protected List<AST_Node> program;
 		protected DefineMode defineMode = DefineMode.FUNCTION_OR_VARIABLE;
 		
-		public NodeSymbol scopeHead;
+		public AST_Symbol scopeHead;
 		
-		public ScopeParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public ScopeParser(int cursor, int end, Scope scope, Token[] tokens, List<AST_Node> program)
 		{
 			this.program = program;
 			this.tokens = tokens;
@@ -43,7 +43,7 @@ namespace Jolly
 			
 			Scope structScope = new Scope(scope);
 			var structType = new DataTypeStruct() { name = name.text, structScope = structScope };
-			var structNode = new NodeScope(name.location, NT.STRUCT, structScope, name.text)
+			var structNode = new AST_Scope(name.location, NT.STRUCT, structScope, name.text)
 				{ dataType = structScope.dataType = structType };
 			
 			if(!scope.Add(name.text, structType, TypeKind.STATIC)) {
@@ -225,7 +225,7 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program, DefineMode.NONE);
 			cursor = parser.parseExpression();
 			
-			program.Add(new Node(token.location, NT.RETURN));
+			program.Add(new AST_Node(token.location, NT.RETURN));
 			
 			return true;
 		}
@@ -258,7 +258,7 @@ namespace Jolly
 	
 	class BlockParser : ScopeParser
 	{
-		public BlockParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public BlockParser(int cursor, int end, Scope scope, Token[] tokens, List<AST_Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()
@@ -279,7 +279,7 @@ namespace Jolly
 	
 	class StructParser : ScopeParser
 	{
-		public StructParser(int cursor, int end, Scope scope, Token[] tokens, List<Node> program)
+		public StructParser(int cursor, int end, Scope scope, Token[] tokens, List<AST_Node> program)
 			: base(cursor, end, scope, tokens, program) { }
 		
 		protected override void _parse()

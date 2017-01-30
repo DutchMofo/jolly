@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Jolly
 {
-    using NT = Node.NodeType;
+    using NT = AST_Node.Type;
 	
 	enum TypeKind
 	{
@@ -13,11 +13,11 @@ namespace Jolly
 		ADDRES
 	}
 	
-	class Node
+	class AST_Node
 	{
-		public Node(SourceLocation l, NodeType nT) { nodeType = nT; location = l; }
+		public AST_Node(SourceLocation l, Type nT) { nodeType = nT; location = l; }
 		
-		public enum NodeType
+		public enum Type
 		{
 			UNITIALIZED		= 0,
 			BASETYPE,
@@ -61,7 +61,7 @@ namespace Jolly
 		}
 		
 		public TypeKind typeKind;
-		public NodeType nodeType;
+		public Type nodeType;
 		public DataType dataType;
 		public SourceLocation location;
 		
@@ -69,9 +69,9 @@ namespace Jolly
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
 	
-	class NodeLogic : Node
+	class AST_Logic : AST_Node
 	{
-		public NodeLogic(SourceLocation loc, OperatorType operation, int memberCount, int count, Node condition, Node a, Node b)
+		public AST_Logic(SourceLocation loc, OperatorType operation, int memberCount, int count, AST_Node condition, AST_Node a, AST_Node b)
 			: base(loc, NT.LOGIC)
 		{
 			this.memberCount = memberCount;
@@ -84,14 +84,14 @@ namespace Jolly
 		
 		public int memberCount, count;
 		public OperatorType operation;
-		public Node condition, a, b;
+		public AST_Node condition, a, b;
 		public override string ToString()
 			=> base.ToString() + " " + operation;
 	}
 	
-	class NodeModifyType : Node
+	class AST_ModifyType : AST_Node
 	{
-		public NodeModifyType(SourceLocation loc, Node target, byte targetType)
+		public AST_ModifyType(SourceLocation loc, AST_Node target, byte targetType)
 			: base(loc, NT.MODIFY_TYPE)
 		{
 			this.targetType = targetType;
@@ -99,40 +99,40 @@ namespace Jolly
 		}
 		public const byte TO_REFERENCE = 1, TO_ARRAY = 2, TO_SLICE = 3;
 		public byte targetType;
-		public Node target;
+		public AST_Node target;
 	}
 	
 	
-	class NodeSymbol : Node
+	class AST_Symbol : AST_Node
 	{
-		public NodeSymbol(SourceLocation loc, string name, NT type = NT.NAME)
+		public AST_Symbol(SourceLocation loc, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
 		public int memberCount;
 		public string text;
 	}
 	
-	class NodeVariableDefinition : NodeScope
+	class AST_VariableDefinition : AST_Scope
 	{
-		public NodeVariableDefinition(SourceLocation loc, Scope scope, string name, Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
+		public AST_VariableDefinition(SourceLocation loc, Scope scope, string name, AST_Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
 			: base(loc, type, scope, name)
 		{ this.typeFrom = typeFrom; }
 		
-		public Node typeFrom;
+		public AST_Node typeFrom;
 	}
 	
-	class NodeFunctionCall : Node
+	class AST_FunctionCall : AST_Node
 	{
-		public NodeFunctionCall(SourceLocation loc, Node f, Node[] a)
+		public AST_FunctionCall(SourceLocation loc, AST_Node f, AST_Node[] a)
 			: base(loc, NT.FUNCTION_CALL) { arguments = a; function = f; }
 		
-		public Node[] arguments;
-		public Node function;
+		public AST_Node[] arguments;
+		public AST_Node function;
 	}
 	
-	class NodeScope : NodeSymbol
+	class AST_Scope : AST_Symbol
 	{
-		public NodeScope(SourceLocation loc, NT type, Scope scope, string name)
+		public AST_Scope(SourceLocation loc, NT type, Scope scope, string name)
 			: base(loc, name, type) { this.scope = scope; }
 		
 		public Scope scope;
@@ -140,29 +140,29 @@ namespace Jolly
 			=> scope.searchItem(name);
 	}
 	
-	class NodeFunction : NodeScope
+	class AST_Function : AST_Scope
 	{
-		public NodeFunction(SourceLocation loc, Scope scope, string name)
-			: base(loc, NodeType.FUNCTION, scope, name) {  }
+		public AST_Function(SourceLocation loc, Scope scope, string name)
+			: base(loc, Type.FUNCTION, scope, name) {  }
 		
-		public Node returns;
+		public AST_Node returns;
 		public int returnDefinitionCount, argumentDefinitionCount, finishedArguments;
 	}
 		
-	class NodeTuple : NodeScope
+	class AST_Tuple : AST_Scope
 	{
-		public NodeTuple(SourceLocation loc, Scope scope, NT tupType)
+		public AST_Tuple(SourceLocation loc, Scope scope, NT tupType)
 			: base(loc, tupType, scope, null) { }
 		
-		public List<Node> values = new List<Node>();
-		public Node membersFrom;
+		public List<AST_Node> values = new List<AST_Node>();
+		public AST_Node membersFrom;
 		public bool closed;
 	}
 		
-	class NodeOperator : Node
+	class AST_Operator : AST_Node
 	{
-		public NodeOperator(SourceLocation loc, OperatorType operation, Node a, Node b)
-			: base(loc, NodeType.OPERATOR)
+		public AST_Operator(SourceLocation loc, OperatorType operation, AST_Node a, AST_Node b)
+			: base(loc, Type.OPERATOR)
 		{
 			this.operation = operation;
 			this.a = a;
@@ -172,12 +172,12 @@ namespace Jolly
 		public override string ToString() { return base.ToString() + " " + operation.ToString(); }
 		
 		public OperatorType operation;
-		public Node a, b;
+		public AST_Node a, b;
 	}
 	
-	class NodeLiteral : Node
+	class AST_Literal : AST_Node
 	{
-		public NodeLiteral(SourceLocation loc, object data)
+		public AST_Literal(SourceLocation loc, object data)
 			: base(loc, NT.LITERAL) { this.data = data; }
 		public object data;
 		public override string ToString()

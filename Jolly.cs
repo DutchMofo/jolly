@@ -77,7 +77,7 @@ namespace Jolly
 	
 	class Jolly
 	{
-		public static List<Node> program;
+		public static List<AST_Node> program;
 		static int errorCount = 0;
 		
 		public static string formatEnum<T>(T val)
@@ -96,7 +96,7 @@ namespace Jolly
 		public static ParseException unexpected(Token token)
 			=> addError(token.location, "Unexpected {0}".fill(Token.TypeToString(token.type, token)));
 		
-		public static ParseException unexpected(Node node)
+		public static ParseException unexpected(AST_Node node)
 			=> addError(node.location, "Unexpected {0}".fill(formatEnum(node.nodeType)));
 				
 		public static void Main(string[] args)
@@ -104,7 +104,7 @@ namespace Jolly
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
 		
-			var _program = program = new List<Node>();
+			var _program = program = new List<AST_Node>();
 			var globalScope = new Scope(null);
 			new ScopeParser(0, tokens.Length-1, globalScope, tokens, _program).parseBlock();
 			
