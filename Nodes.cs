@@ -98,15 +98,15 @@ namespace Jolly
 	
 	class AST_ModifyType : AST_Node
 	{
-		public AST_ModifyType(SourceLocation loc, AST_Node target, byte targetType)
+		public AST_ModifyType(SourceLocation loc, AST_Node target, byte toType)
 			: base(loc, NT.MODIFY_TYPE)
 		{
-			this.targetType = targetType;
+			this.toType = toType;
 			this.target = target;
 		}
 		public const byte TO_POINTER = 1, TO_ARRAY = 2, TO_SLICE = 3;
-		public byte targetType;
 		public AST_Node target;
+		public byte toType;
 	}
 	
 	

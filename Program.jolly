@@ -1,23 +1,19 @@
 
-
-// TODO: Fix: AnalyseTest* function();
-
-AnalyseTest*, bool swapCountNumber()
-{
-	a.(count, number) = a.(number, count);
-	return true, a;
-}
-
 int main()
 {
 	AnalyseTest a;
-	int[] lala;
 	
 	a.count = 10;
 	a.number = 1;
 	swapCountNumber(&a);
 	
-	return lala[1:2];
+	return 0;
+}
+
+bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
+{
+	a.(count, number) = a.(number, count);
+	return true, a;
 }
 
 struct AnalyseTest

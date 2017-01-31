@@ -37,13 +37,13 @@ namespace Jolly
 		public override string ToString() => "%{0} = cast {1}, {2}".fill(result.tempID, type, _value);
 	}
 	
-	class IR_Bitcast : IR
-	{
-		public Value from;
-		public override string ToString() => "%{0} = bitcast {1} to {2}".fill(result.tempID, from, result);
-	}
+	// class IR_Bitcast : IR
+	// {
+	// 	public Value from;
+	// 	public override string ToString() => "%{0} = bitcast {1} to {2}".fill(result.tempID, from, result);
+	// }
 	
-	class IR_STORE : IR
+	class IR_Store : IR
 	{
 		public Value location, _value;
 		public override string ToString() => "store {0}, {1}".fill(_value, location);
@@ -56,7 +56,7 @@ namespace Jolly
 		public override string ToString() => "%{0} = get_member {1}, i32 {2}".fill(result.tempID, _struct, index);
 	}
 	
-	class IR_LOAD : IR
+	class IR_Load : IR
 	{
 		public Value location;
 		public override string ToString() => "%{0} = load {1}".fill(result.tempID, location);

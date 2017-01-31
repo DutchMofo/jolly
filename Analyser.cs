@@ -66,9 +66,9 @@ static class Analyser
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataType_Function)function.result.type;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
-				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
-				DataType.makeUnique(ref symbol.result.type);
-				closure.scope.finishDefinition(symbol.text, symbol.result.type);
+				DataType refference = new DataType_Reference(symbol.typeFrom.result.type);
+				DataType.makeUnique(ref refference);
+				closure.scope.finishDefinition(symbol.text, refference);
 				function.finishedArguments += 1;
 			} break;
 			case NT.FUNCTION:
@@ -184,18 +184,11 @@ static class Analyser
 			{ NT.TUPLE, node => {
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
-			{ NT.MODIFY_TYPE, node => {
-				AST_ModifyType tToRef = (AST_ModifyType)node;
-				if((tToRef.target.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
-					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.result.type));
-				}
-				tToRef.result.type = new DataType_Reference(tToRef.target.result.type);
-				DataType.makeUnique(ref tToRef.result.type);
-				tToRef.result.kind = tToRef.target.result.kind;
-			} },
+			{ NT.MODIFY_TYPE, modifyType },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
@@ -228,6 +221,26 @@ static class Analyser
 				instructions.Add(new IR_Return());
 			} },
 		};
+	
+	static void modifyType(AST_Node node)
+	{
+		AST_ModifyType mod = (AST_ModifyType)node;
+		if((mod.target.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
+			throw Jolly.addError(mod.target.location, "The type {0} is not instantiable.".fill(mod.target.result.type));
+		}
+		if(mod.target.result.kind != Value.Kind.STATIC_TYPE) {
+			throw Jolly.addError(mod.target.location, "Not a type");
+		}
+		
+		switch(mod.toType) {
+		case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
+		case AST_ModifyType.TO_ARRAY: Debug.Assert(false); break;
+		case AST_ModifyType.TO_SLICE: Debug.Assert(false); break;
+		}
+		
+		DataType.makeUnique(ref mod.result.type);
+		mod.result.kind = mod.target.result.kind;
+	}
 	
 	static void skipSymbol(AST_Node node)
 		=> cursor += (node as AST_Symbol).memberCount;
@@ -352,7 +365,7 @@ static class Analyser
 				throw Jolly.addError(a.location, "Cannot assign this value type");
 			}
 			
-			instructions.Add(new IR_STORE{ location = a.result, _value = b.result, result = newResult(b.result) });
+			instructions.Add(new IR_Store{ location = a.result, _value = b.result, result = b.result });
 		}
 		else if(aIsTup & bIsTup)
 		{
@@ -383,14 +396,14 @@ static class Analyser
 		Value result = new Value();
 		if(a.result.kind != Value.Kind.STATIC_TYPE)
 		{
+			int index;
 			var varType = ((DataType_Reference)a.result.type).referenced;
-			var definition = varType.getDefinition(b.text);
+			var definition = varType.getMember(b.text, out index);
 			
 			var refType = varType as DataType_Reference;
-			if(definition == null && refType != null)
-			{
+			if(definition == null && refType != null) {
 				load(a);
-				definition = refType.referenced.getDefinition(b.text);
+				definition = refType.referenced.getMember(b.text, out index);
 			}
 			
 			if(definition == null) {
@@ -401,7 +414,7 @@ static class Analyser
 			result.type = new DataType_Reference(definition.Value.type);
 			DataType.makeUnique(ref result.type);
 			
-			instructions.Add(new IR_GetMember{ _struct = a.result, result = newResult(result) });
+			instructions.Add(new IR_GetMember{ _struct = a.result, index = index, result = newResult(result) });
 		}
 		else
 		{
@@ -440,7 +453,7 @@ static class Analyser
 			}
 			Value result = newResult(node.result);
 			result.type = refTo.referenced;
-			instructions.Add(new IR_LOAD{ location = node.result, result = result });
+			instructions.Add(new IR_Load{ location = node.result, result = result });
 			node.result = result;
 		}
 	}

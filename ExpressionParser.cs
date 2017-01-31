@@ -232,98 +232,94 @@ class ExpressionParser
 	void parseIdentifier()
 	{
 		currentTokenKind = TokenKind.VALUE;
-		if(prevTokenKind == TokenKind.VALUE)
-		{
-			// Pop eventual period and comma operators
-			while(operators.Count > 0) {
-				pushOperator(operators.Pop());
+		
+		if(prevTokenKind != TokenKind.VALUE) {
+			var symbol = new AST_Symbol(token.location, token.text);
+			expression.Add(symbol);
+			values.Push(symbol);
+			return;
+		}
+		
+		// Pop eventual period and comma operators
+		while(operators.Count > 0) {
+			pushOperator(operators.Pop());
+		}
+					
+		AST_Node prev = values.Pop();
+		Token nextToken = tokens[cursor + 1];
+		int startNodeCount = enclosureStack.Peek().startIndex;
+		// Define
+		if(nextToken.type == TT.PARENTHESIS_OPEN)
+		{ // Function
+			if(defineMode != DefineMode.FUNCTION_OR_VARIABLE) {
+				throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 			}
-						
-			AST_Node prev = values.Pop();
-			Token nextToken = tokens[cursor + 1];
-			int startNodeCount = enclosureStack.Peek().startIndex;
-			// Define
-			if(nextToken.type == TT.PARENTHESIS_OPEN)
-			{ // Function
-				if(defineMode != DefineMode.FUNCTION_OR_VARIABLE) {
- 					throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
-				}
-				
-				var functionScope = new Scope(scope);
-				var functionType = new DataType_Function() { name = token.text };
-				var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_TYPE };
-				var functionNode = new AST_Function(token.location, functionScope, token.text)
-					{ result = functionDefinition, returns = prev };
-				expression.Insert(startNodeCount, functionNode);
-				// expression.Add(prev);
-				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
-				int _startNodeCount2 = expression.Count;
-				
-				if(!scope.Add(token.text, functionDefinition)) {
-					// TODO: add overloads
-					Jolly.addError(token.location, "Trying to redefine function");
-				}
-				
-				cursor = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression, DefineMode.ARGUMENT)
-					.parseExpression();
-				
-				functionType.arguments = new DataType[functionScope.variableCount];
-				functionType.returns = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
-				functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
-				
-				Token brace = tokens[cursor + 1];
-				if(brace.type != TT.BRACE_OPEN) {
-					throw Jolly.unexpected(brace);
-				}
-				
-				new BlockParser(cursor + 2, brace.partnerIndex, functionScope, tokens, expression).parseBlock();
-				cursor = brace.partnerIndex - 1;
-				
-				functionNode.memberCount = expression.Count - startNodeCount;
-				
-				terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
+			
+			var functionScope = new Scope(scope);
+			var functionType = new DataType_Function() { name = token.text };
+			var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_TYPE };
+			var functionNode = new AST_Function(token.location, functionScope, token.text)
+				{ result = functionDefinition, returns = prev };
+			expression.Insert(startNodeCount, functionNode);
+			functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
+			int _startNodeCount2 = expression.Count;
+			
+			if(!scope.Add(token.text, functionDefinition)) {
+				// TODO: add overloads
+				Jolly.addError(token.location, "Trying to redefine function");
 			}
-			else
-			{ // Variable
-				var variable = new AST_VariableDefinition(token.location, scope, token.text, prev);
-				
-				if(defineMode == DefineMode.MEMBER)
-				{
-					var structType = (DataType_Struct)scope.scopeType.type;
-					if(structType.memberMap.ContainsKey(token.text)) {
-						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
-					}
-					structType.memberMap.Add(token.text, structType.memberMap.Count);
-					variable.result.kind = Value.Kind.VALUE;
-				}
-				else
-				{
-					scope.variableCount += 1;
-					variable.result.kind = Value.Kind.VALUE;
-					if(!scope.Add(token.text, variable.result)) {
-						throw Jolly.addError(token.location, "Trying to redefine variable");
-					}
-				}
-				variable.memberCount = expression.Count - startNodeCount;
-				
-				if(variable.memberCount == 0) {
-					expression.Add(variable);
-				} else {
-					expression.Insert(startNodeCount, variable);
-				}
-				values.Push(variable);
-				
-				if(defineMode == DefineMode.FUNCTION_OR_VARIABLE)
-					defineMode = DefineMode.DITTO;
+			
+			cursor = new ExpressionParser(functionScope, tokens, TT.PARENTHESIS_CLOSE, cursor + 2, expression, DefineMode.ARGUMENT)
+				.parseExpression();
+			
+			functionType.arguments = new DataType[functionScope.variableCount];
+			functionType.returns = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
+			functionNode.argumentDefinitionCount = expression.Count - _startNodeCount2;
+			
+			Token brace = tokens[cursor + 1];
+			if(brace.type != TT.BRACE_OPEN) {
+				throw Jolly.unexpected(brace);
 			}
+			
+			new BlockParser(cursor + 2, brace.partnerIndex, functionScope, tokens, expression).parseBlock();
+			cursor = brace.partnerIndex - 1;
+			
+			functionNode.memberCount = expression.Count - startNodeCount;
+			
+			terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
 		}
 		else
-		{
-			AST_Node prev = values.PeekOrDefault();
-			if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
-				var symbol = new AST_Symbol(token.location, token.text);
-				expression.Add(symbol);
-				values.Push(symbol);
+		{ // Variable
+			var variable = new AST_VariableDefinition(token.location, scope, token.text, prev);
+			
+			if(defineMode == DefineMode.MEMBER)
+			{
+				var structType = (DataType_Struct)scope.scopeType.type;
+				if(structType.memberMap.ContainsKey(token.text)) {
+					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
+				}
+				structType.memberMap.Add(token.text, structType.memberMap.Count);
+				variable.result.kind = Value.Kind.VALUE;
+			}
+			else
+			{
+				scope.variableCount += 1;
+				variable.result.kind = Value.Kind.VALUE;
+				if(!scope.Add(token.text, variable.result)) {
+					throw Jolly.addError(token.location, "Trying to redefine variable");
+				}
+			}
+			variable.memberCount = expression.Count - startNodeCount;
+			
+			if(variable.memberCount == 0) {
+				expression.Add(variable);
+			} else {
+				expression.Insert(startNodeCount, variable);
+			}
+			values.Push(variable);
+			
+			if(defineMode == DefineMode.FUNCTION_OR_VARIABLE) {
+				defineMode = DefineMode.DITTO;
 			}
 		}
 	} // parseIdentifier()
@@ -387,6 +383,7 @@ class ExpressionParser
 				return true;
 			
 			switch(token.type) {
+				case TT.COLON: break;
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
 				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
 				case TT.PLUS: case TT.MINUS: values.Push(new AST_Literal(token.location, 0)
@@ -457,7 +454,6 @@ class ExpressionParser
 			}
 		}
 		
-		defineMode = DefineMode.NONE;
 		op.location = token.location;
 		operators.Push(op);		
 		return true;
@@ -513,7 +509,7 @@ class ExpressionParser
 		}
 		else
 		{
-			AST_Node a = values.Pop();
+			AST_Node a = values.PopOrDefault();
 			
 			if(a == null) {
 				var mod = new AST_ModifyType(op.location, enclosure.target, AST_ModifyType.TO_ARRAY);
@@ -640,7 +636,9 @@ class ExpressionParser
 			else if(op.operation == OT.SLICE)
 			{
 				if(a == null & b == null) {
-					expression.Add(new AST_ModifyType(op.location, null, AST_ModifyType.TO_SLICE));
+					var mod = new AST_ModifyType(op.location, null, AST_ModifyType.TO_SLICE);
+					expression.Add(mod);
+					values.Push(mod);
 					return;
 				}
 				// Slice allows a value to be null
@@ -665,6 +663,10 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(op.location, "Invalid expression term");
 			}
+		}
+		
+		if(op.operation != OT.GET_MEMBER) {
+			defineMode = DefineMode.NONE;
 		}
 		
 		if(op.isSpecial)
