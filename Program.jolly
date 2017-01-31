@@ -1,5 +1,8 @@
 
-bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
+
+// TODO: Fix: AnalyseTest* function();
+
+AnalyseTest*, bool swapCountNumber()
 {
 	a.(count, number) = a.(number, count);
 	return true, a;
@@ -8,12 +11,13 @@ bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
 int main()
 {
 	AnalyseTest a;
-	a.count = lala[0:0];
+	int[] lala;
+	
+	a.count = 10;
 	a.number = 1;
 	swapCountNumber(&a);
 	
-	
-	return a[1:2];
+	return lala[1:2];
 }
 
 struct AnalyseTest

@@ -73,7 +73,7 @@ static class Lookup
 			
 			{ TT.AS,				new Op(03, 2, true,  OT.CAST			)},
 			{ TT.PERCENT,			new Op(03, 2, true,  OT.MODULO			)},
-			{ TT.ASTERISK,			new Op(03, 2, true,  OT.MULTIPLY		)},
+			{ TT.ASTERISK,			new Op(03, 2, true,  OT.MULTIPLY,  true	)},
 			{ TT.SLASH,				new Op(03, 2, true,  OT.DIVIDE			)},
 			
 			{ TT.MINUS,				new Op(04, 2, true,  OT.MINUS			)},
