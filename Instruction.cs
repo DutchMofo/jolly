@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Linq;
 
 namespace Jolly
@@ -76,8 +75,11 @@ namespace Jolly
 	
 	class IR_Call : IR
 	{
+		public Value function;
 		public Value[] arguments;
-		public override string ToString() => "call {0}".fill((arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+		public override string ToString() => "call {0}({1})".fill(
+			(function.kind == Value.Kind.STATIC_FUNCTION) ? function.type.name : function.ToString(),
+			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
 	}
 		
 	// class InstructionStruct : Instruction

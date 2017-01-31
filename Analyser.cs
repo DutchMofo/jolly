@@ -204,9 +204,8 @@ static class Analyser
 			{ NT.FUNCTION_CALL, node => {
 				var functionCall = (AST_FunctionCall)node;
 				// TODO: validate function call
-				// getTypeFromName(functionCall);
 				
-				instructions.Add(new IR_Call(){ arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
+				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
@@ -217,8 +216,13 @@ static class Analyser
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
 			{ NT.RETURN, node => {
-				// TODO: Validate datatype's
-				instructions.Add(new IR_Return());
+				var returns = (AST_Return)node;
+				Value[] values = null;
+				if(returns.values != null) {
+					values = (returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result };
+				}
+				// TODOL Validate return values
+				instructions.Add(new IR_Return{ values = values ?? new Value[0] });
 			} },
 		};
 	
@@ -319,7 +323,7 @@ static class Analyser
 			} },
 			{ OT.ASSIGN, op => {
 				assign(op.a, op.b);
-				op.result.type = op.b.result.type;
+				op.result = op.b.result;
 			} },
 			{ OT.REFERENCE, op => {
 				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {

@@ -226,7 +226,7 @@ namespace Jolly
 			var parser = new ExpressionParser(scope, tokens, TT.SEMICOLON, cursor + 1, program, DefineMode.NONE);
 			cursor = parser.parseExpression();
 			
-			program.Add(new AST_Node(token.location, NT.RETURN));
+			program.Add(new AST_Return(token.location, parser.getResult()));
 			
 			return true;
 		}

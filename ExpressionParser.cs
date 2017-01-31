@@ -170,11 +170,12 @@ class ExpressionParser
 	Stack<Op> operators = new Stack<Op>();
 	Stack<Enclosure> enclosureStack = new Stack<Enclosure>();
 	
-	static readonly Value
-		BOOL   = new Value{ type = Lookup.getBaseType(TT.BOOL),    kind = Value.Kind.STATIC_VALUE },
-		INT    = new Value{ type = Lookup.getBaseType(TT.I32),     kind = Value.Kind.STATIC_VALUE },
-		FLOAT  = new Value{ type = Lookup.getBaseType(TT.F32),     kind = Value.Kind.STATIC_VALUE },
-		STRING = new Value{ type = Lookup.getBaseType(TT.STRING),  kind = Value.Kind.STATIC_VALUE };
+	static Value BOOL  (object data) => new Value{ type = Lookup.BOOL,    kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value INT   (object data) => new Value{ type = Lookup.I32,     kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value FLOAT (object data) => new Value{ type = Lookup.F32,     kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value STRING(object data) => new Value{ type = Lookup.STRING,  kind = Value.Kind.STATIC_VALUE, data = data };
+	
+	public AST_Node getResult() => values.PeekOrDefault();
 	
 	public int parseExpression()
 	{
@@ -192,11 +193,11 @@ class ExpressionParser
 				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
 				case TT.PARENTHESIS_OPEN:  parseParenthesisOpen();  break;
 				case TT.PARENTHESIS_CLOSE: parseParenthesisClose(); break;
-				case TT.INTEGER_LITERAL:   _value = new AST_Literal(token.location, token._integer) { result = INT    }; goto case 0;
-				case TT.STRING_LITERAL:    _value = new AST_Literal(token.location, token._string)  { result = STRING }; goto case 0;
-				case TT.FLOAT_LITERAL:     _value = new AST_Literal(token.location, token._float)   { result = FLOAT  }; goto case 0;
-				case TT.TRUE:              _value = new AST_Literal(token.location, true)           { result = BOOL   }; goto case 0;
-				case TT.FALSE:             _value = new AST_Literal(token.location, false)          { result = BOOL   }; goto case 0;
+				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result = INT(token._integer)   }; goto case 0;
+				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result = STRING(token._string) }; goto case 0;
+				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result = FLOAT(token._float)   }; goto case 0;
+				case TT.TRUE:              _value = new AST_Node(token.location, NT.LITERAL) { result = BOOL(true)            }; goto case 0;
+				case TT.FALSE:             _value = new AST_Node(token.location, NT.LITERAL) { result = BOOL(false)           }; goto case 0;
 				default:
 					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
 						_value = new AST_Node(token.location, NT.BASETYPE) 
@@ -257,7 +258,7 @@ class ExpressionParser
 			
 			var functionScope = new Scope(scope);
 			var functionType = new DataType_Function() { name = token.text };
-			var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_TYPE };
+			var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_FUNCTION };
 			var functionNode = new AST_Function(token.location, functionScope, token.text)
 				{ result = functionDefinition, returns = prev };
 			expression.Insert(startNodeCount, functionNode);
@@ -386,8 +387,8 @@ class ExpressionParser
 				case TT.COLON: break;
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
 				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
-				case TT.PLUS: case TT.MINUS: values.Push(new AST_Literal(token.location, 0)
-					{ result = new Value{ type = Lookup.I32, kind = Value.Kind.STATIC_VALUE } }); break;
+				case TT.PLUS: case TT.MINUS: values.Push(new AST_Node(token.location, NT.LITERAL)
+					{ result = new Value{ type = Lookup.I32, kind = Value.Kind.STATIC_VALUE, data = 0 } }); break;
 				default: throw Jolly.unexpected(token);
 			}
 		}
@@ -561,7 +562,9 @@ class ExpressionParser
 				AST_Node node = values.Pop();
 				arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 			}
-			values.Push(new AST_FunctionCall(token.location, enclosure.target, arguments ?? new AST_Node[0]));
+			var call = new AST_FunctionCall(token.location, enclosure.target, arguments ?? new AST_Node[0]);
+			expression.Add(call);
+			values.Push(call);
 		}
 		else if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
 		{

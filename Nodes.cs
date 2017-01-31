@@ -11,14 +11,18 @@ namespace Jolly
 			UNDEFINED = 0,
 			STATIC_TYPE,
 			STATIC_VALUE,
+			STATIC_FUNCTION,
 			VALUE,
 			ADDRES,
 		}
 		
+		public object data;
 		public DataType type;
 		public Kind kind;
 		public int tempID;
-		public override string ToString() => "{0} %{1}".fill(type, tempID);
+		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
+			"{0} {1}".fill(type, data):
+			"{0} %{1}".fill(type, tempID);
 	}
 	
 	class AST_Node
@@ -74,6 +78,17 @@ namespace Jolly
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
+	}
+	
+	class AST_Return : AST_Node
+		
+	{
+		public AST_Return(SourceLocation loc, AST_Node returns)
+			: base(loc, NT.RETURN)
+		{
+			this.values = returns;
+		}
+		public AST_Node values;
 	}
 	
 	class AST_Logic : AST_Node
@@ -180,14 +195,5 @@ namespace Jolly
 		
 		public OperatorType operation;
 		public AST_Node a, b;
-	}
-	
-	class AST_Literal : AST_Node
-	{
-		public AST_Literal(SourceLocation loc, object data)
-			: base(loc, NT.LITERAL) { this.data = data; }
-		public object data;
-		public override string ToString()
-			=> base.ToString() + " " + data;
 	}
 }
