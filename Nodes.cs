@@ -104,7 +104,7 @@ namespace Jolly
 			this.targetType = targetType;
 			this.target = target;
 		}
-		public const byte TO_REFERENCE = 1, TO_ARRAY = 2, TO_SLICE = 3;
+		public const byte TO_POINTER = 1, TO_ARRAY = 2, TO_SLICE = 3;
 		public byte targetType;
 		public AST_Node target;
 	}

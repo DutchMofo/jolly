@@ -8,9 +8,10 @@ bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
 int main()
 {
 	AnalyseTest a;
-	a.count = 10;
+	a.count = lala[0:0];
 	a.number = 1;
 	swapCountNumber(&a);
+	
 	
 	return a[1:2];
 }

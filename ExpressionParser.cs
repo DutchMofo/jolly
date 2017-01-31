@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Jolly
 {
@@ -126,12 +127,12 @@ class ExpressionParser
 			this.isFunctionCall = false;
 			this.hasColon = false;
 			this.kind = kind;
-			this.node = null;
+			this.target = null;
 		}
 		
 		public int startIndex;
 		public bool isFunctionCall, hasColon;
-		public AST_Node node;
+		public AST_Node target;
 		public Kind kind;
 	}
 	
@@ -154,11 +155,10 @@ class ExpressionParser
 		public OT operation;
 	}
 
-	TokenKind prevTokenKind = 0,					// Was the previous parsed token an operator or a value
-			  currentTokenKind = TokenKind.VALUE;	// Is the current token being parsed an operator or a value
-	DefineMode defineMode;							// Are we defining variables
+	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
+			  currentTokenKind = TokenKind.VALUE;	 // Is the current token being parsed an operator or a value
+	DefineMode defineMode;							 // Are we defining variables
 	
-	Dictionary<TT, Op> opLookup;
 	Token[] tokens;
 	TT terminator;
 	Token token;
@@ -172,29 +172,13 @@ class ExpressionParser
 	
 	public int parseExpression()
 	{
-		if(defineMode != DefineMode.NONE) {
-			parseDefinition();
-		}
-		
-		// TODO: Make sure you can only define inside of a struct.
-		
-		defineMode = DefineMode.NONE;
-		opLookup = Lookup.EXPRESSION_OP;
-		
 		for(token = tokens[cursor];
 			token.type != terminator/* & cursor < end*/;
 			token = tokens[cursor += 1])
 		{
 			switch(token.type)
 			{
-				case TT.IDENTIFIER:
-					if(prevTokenKind == TokenKind.VALUE) {
-						throw Jolly.unexpected(token);
-					}
-					var symbol = new AST_Symbol(token.location, token.text);
-					expression.Add(symbol);
-					values.Push(symbol);
-					break;
+				case TT.IDENTIFIER:			parseIdentifier();			break;
 				case TT.COMMA:				parseComma();				break;
 				case TT.FLOAT_LITERAL:		case TT.INTEGER_LITERAL:	case TT.STRING_LITERAL: parseLiteral(); break;
 				case TT.BRACKET_OPEN:		parseBracketOpen();			break;
@@ -242,36 +226,6 @@ class ExpressionParser
 		return cursor;
 	} // parseExpression()
 	
-	// Tries to define a function or variable,
-	// stops when it defines a function or it encounters an unknown token
-	void parseDefinition()
-	{
-		opLookup = Lookup.DEFINE_OP;
-		
-		for(token = tokens[cursor];
-			token.type != terminator/* & cursor < end*/;
-			token = tokens[cursor += 1])
-		{
-			switch(token.type)
-			{
-				case TT.IDENTIFIER:	parseDefineIdentifier(); break;
-				case TT.COMMA:		parseComma();			 break;
-				case TT.ASTERISK:	parseTypeToReference();	 break;
-				default:
-					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
-						parseBasetype();
-						break;
-					}
-					if(parseOperator())
-						break;
-					// Definition parser doesn't know what to do with the current token
-					return;
-			}
-			prevTokenKind = currentTokenKind;
-			currentTokenKind = TokenKind.VALUE;
-		}
-	} // parseDefinition()
-	
 	void parseLiteral()
 	{
 		if(prevTokenKind == TokenKind.VALUE) {
@@ -301,7 +255,7 @@ class ExpressionParser
 			{ result = new Value{ type = Lookup.getBaseType(token.type), kind = Value.Kind.STATIC_TYPE } });
 	}
 	
-	void parseDefineIdentifier()
+	void parseIdentifier()
 	{
 		if(prevTokenKind == TokenKind.VALUE)
 		{
@@ -412,7 +366,7 @@ class ExpressionParser
 		if(defineMode == DefineMode.ARGUMENT)
 		{
 			cursor += 1;
-			parseDefinition();
+			// parseDefinition();
 		}
 		else if(defineMode == DefineMode.DITTO)
 		{
@@ -429,12 +383,27 @@ class ExpressionParser
 	bool parseOperator()
 	{
 		Op op;
-		if(!opLookup.TryGetValue(token.type, out op))
+		if(!Lookup.OPERATORS.TryGetValue(token.type, out op))
 			return false;
 		currentTokenKind = TokenKind.OPERATOR;
 		
 		if(prevTokenKind != TokenKind.VALUE)
 		{
+			if( prevTokenKind == TokenKind.OPERATOR &&
+				operators.Peek().operation == OT.MULTIPLY)
+			{
+				operators.Pop(); // Remove multiply
+				AST_Node target = values.PopOrDefault();
+				if(target == null) {
+					throw Jolly.unexpected(token);
+				}
+				currentTokenKind = TokenKind.VALUE;
+				var mod = new AST_ModifyType(token.location, target, AST_ModifyType.TO_POINTER);
+				expression.Add(mod);
+				values.Push(mod);
+				return true;
+			}
+			
 			switch(token.type) {
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
 				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
@@ -468,12 +437,11 @@ class ExpressionParser
 			else if(op.operation == OT.COLON)
 			{
 				Enclosure enclosure = enclosureStack.Pop();
-				enclosure.hasColon = true;
 				
-				// HACK: check if first operator in enclosure
-				if(operators.PeekOrDefault().valCount > 0) {
+				if(enclosure.hasColon) {
 					throw Jolly.unexpected(token);
 				}
+				enclosure.hasColon = true;
 				
 				if(enclosure.kind == Enclosure.Kind.SUBSCRIPT) {
 					op.operation = OT.SLICE;
@@ -482,11 +450,10 @@ class ExpressionParser
 				} else if(enclosure.kind == Enclosure.Kind.TERNARY) {
 					op.operation = OT.TERNARY_SELECT;
 					op.leftToRight = false;
-				} else if(enclosure.kind == Enclosure.Kind.GROUP) {
+				} else {
+					// Default is cast
 					op.operation = OT.CAST;
 					op.isSpecial = false;
-				} else {
-					throw Jolly.unexpected(token);
 				}
 				enclosureStack.Push(enclosure);
 			}
@@ -504,8 +471,12 @@ class ExpressionParser
 		if(prevTokenKind == TokenKind.OPERATOR) {
 			throw Jolly.unexpected(token);
 		}
+		
+		AST_Node target = values.PopOrDefault();
+		Debug.Assert(target != null);
+		
 		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, false, token.location));
-		enclosureStack.Push(new Enclosure(expression.Count, Enclosure.Kind.SUBSCRIPT));
+		enclosureStack.Push(new Enclosure(expression.Count, Enclosure.Kind.SUBSCRIPT){ target = target });
 	}
 	
 	void parseBracketClose()
@@ -530,14 +501,27 @@ class ExpressionParser
 		if(enclosure.hasColon)
 		{
 			var node = values.Peek();
-			var slice = node as AST_Operator;
-			if(slice == null || slice.operation != OT.SLICE) {
+			if(node.nodeType == NT.OPERATOR) {
+				var slice = node as AST_Operator;
+				if(slice.operation != OT.SLICE) {
+					throw Jolly.unexpected(node);
+				}
+			} else if(node.nodeType == NT.MODIFY_TYPE) {
+				((AST_ModifyType)node).target = enclosure.target;
+			} else {
 				throw Jolly.unexpected(node);
 			}
 		}
 		else
 		{
 			AST_Node a = values.Pop();
+			
+			if(a == null) {
+				var mod = new AST_ModifyType(op.location, enclosure.target, AST_ModifyType.TO_ARRAY);
+				expression.Add(mod);
+				values.Push(mod);
+				return;
+			}
 			var opNode = new AST_Operator(token.location, OT.SUBSCRIPT, a, null);
 			expression.Add(opNode);
 			values.Push(opNode);
@@ -551,7 +535,7 @@ class ExpressionParser
 		Enclosure enclosure = new Enclosure(expression.Count, Enclosure.Kind.GROUP);
 		if(prevTokenKind == TokenKind.VALUE) {
 			enclosure.isFunctionCall = true;
-			enclosure.node = values.Pop();
+			enclosure.target = values.Pop();
 		}
 		enclosureStack.Push(enclosure);
 		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, false, token.location));
@@ -580,7 +564,7 @@ class ExpressionParser
 				AST_Node node = values.Pop();
 				arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 			}
-			values.Push(new AST_FunctionCall(token.location, enclosure.node, arguments ?? new AST_Node[0]));
+			values.Push(new AST_FunctionCall(token.location, enclosure.target, arguments ?? new AST_Node[0]));
 		}
 		else if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
 		{
@@ -602,14 +586,14 @@ class ExpressionParser
 	
 	void parseTypeToReference()
 	{
-		if(prevTokenKind == TokenKind.OPERATOR | prevTokenKind == 0) {
+		if(prevTokenKind == TokenKind.OPERATOR) {
 			throw Jolly.unexpected(token);
 		}
 		AST_Node prev = values.Pop();
 		if(prev == null) {
 			throw Jolly.addError(token.location, "Invalid expression term");
 		}
-		var mod = new AST_ModifyType(token.location, prev, AST_ModifyType.TO_REFERENCE);
+		var mod = new AST_ModifyType(token.location, prev, AST_ModifyType.TO_POINTER);
 		expression.Add(mod);
 		values.Push(mod);
 	}
@@ -617,6 +601,7 @@ class ExpressionParser
 	void enclosureEnd(Enclosure enclosure)
 	{
 		// Not sure what kind of error to throw yet.
+		// This code 'SHOULD' not be reachable
 		throw new ParseException();
 	}
 	
@@ -632,27 +617,40 @@ class ExpressionParser
 			if(op.operation == OT.COMMA)
 			{
 				AST_Tuple tuple = a as AST_Tuple;
-				if(tuple != null && !tuple.closed) {
-					values.Push(tuple);
-					if(b != null) {
-						tuple.values.Add(b);
-					}
-				}
-				else
+				if(tuple != null && !tuple.closed)
 				{
-					tuple = new AST_Tuple(op.location, scope, NT.TUPLE)
-						{ result = new Value{ type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE } };
 					values.Push(tuple);
-					tuple.values.Add(a);
 					if(b != null) {
 						tuple.values.Add(b);
 					}
+					return;
+				}
+				tuple = new AST_Tuple(op.location, scope, NT.TUPLE)
+					{ result = new Value{ type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE } };
+				values.Push(tuple);
+				tuple.values.Add(a);
+				if(b != null) {
+					tuple.values.Add(b);
 				}
 				return;
 			}
+			else if(op.operation == OT.SLICE)
+			{
+				if(a == null & b == null) {
+					expression.Add(new AST_ModifyType(op.location, null, AST_ModifyType.TO_SLICE));
+					return;
+				}
+				// Slice allows a value to be null
+				var slice = (a == null) ?
+					new AST_Operator(op.location, OT.SLICE, b, null) :
+					new AST_Operator(op.location, OT.SLICE, a, b);
+				expression.Add(slice);
+				values.Push(slice);
+				return;
+			}
 			
-			if(b == null) {
-				throw Jolly.addError(op.location, "Invalid right expression term");
+			if(a == null) {
+				throw Jolly.addError(op.location, "Expecting 2 values");
 			}
 			if(op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
@@ -691,7 +689,7 @@ class ExpressionParser
 					enclosureEnd(enclosure);
 					enclosure = enclosureStack.Pop();
 				}
-				enclosure.node = a;
+				enclosure.target = a;
 				enclosureStack.Push(enclosure);
 				values.Push(b);
 				return;
@@ -706,7 +704,7 @@ class ExpressionParser
 				
 				int memberCount = expression.Count - enclosure.startIndex,
 					count = op.operatorIndex - enclosure.startIndex;
-				var logic = new AST_Logic(op.location, OT.TERNARY, memberCount, count, enclosure.node, a, b);
+				var logic = new AST_Logic(op.location, OT.TERNARY, memberCount, count, enclosure.target, a, b);
 				expression.Insert(enclosure.startIndex, logic);
 				values.Push(logic);
 				return;
