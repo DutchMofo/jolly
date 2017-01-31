@@ -7,7 +7,6 @@ namespace Jolly
 using System.Linq;
 using NT = AST_Node.Type;
 using OT = OperatorType;
-using IT = IR.Type;
 
 static class Analyser
 {
@@ -67,8 +66,11 @@ static class Analyser
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataType_Function)function.result.type;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
+				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
+				DataType.makeUnique(ref symbol.result.type);
+				closure.scope.finishDefinition(symbol.text, symbol.result.type);
 				function.finishedArguments += 1;
-			} goto case NT.FUNCTION; // Define the actual variable
+			} break;
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
 				if((symbol.typeFrom.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
@@ -77,7 +79,7 @@ static class Analyser
 				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
 				DataType.makeUnique(ref symbol.result.type);
 				closure.scope.finishDefinition(symbol.text, symbol.result.type);
-				instructions.Add(new IR_Allocate(symbol.typeFrom.result.type));
+				instructions.Add(new IR_Allocate(){ type = symbol.typeFrom.result.type, result = newResult(symbol.result) });
 			} break;
 			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
 			}
@@ -177,9 +179,8 @@ static class Analyser
 				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
 				op.result = result;
 			} },
-			{ NT.BASETYPE, node => { } },
-			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
+			{ NT.MEMBER_NAME, node => { } },
 			{ NT.TUPLE, node => {
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
@@ -198,10 +199,10 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
-				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
+				tempID = ((DataType_Function)function.result.type).returns.Length + 1;
 				instructions.Add(new IR_Function((DataType_Function)function.result.type));
-				// Skip return type and argument definitions
-				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
+				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
+				cursor += function.returnDefinitionCount;
 			} },
 			{ NT.OPERATOR, node => {
 				AST_Operator o = (AST_Operator)node;
@@ -221,8 +222,6 @@ static class Analyser
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
-			{ NT.BASETYPE, node => { } },
-			{ NT.LITERAL, node => { } },
 			{ NT.NAME, getTypeFromName },
 			{ NT.RETURN, node => {
 				// TODO: Validate datatype's
@@ -242,12 +241,66 @@ static class Analyser
 		enclosureStack.Push(new Enclosure(node, ((AST_Symbol)node).memberCount + cursor));
 	}
 	
+	static bool implicitCast(AST_Node a, AST_Node b)
+	{
+		DataType aType = a.result.type,
+				 bType = b.result.type;
+		
+		if(aType == bType) {
+			return true;
+		}
+		
+		if((aType.flags & bType.flags & DataType.Flags.BASE_TYPE) == 0) {
+			
+			//TODO: implicitly cast to inherited type (TODO: implement inheretance)
+			return false;
+		}
+		
+		if(aType is DataType_Reference | bType is DataType_Reference) {
+			return false;
+		}
+		
+		// Make a the biggest size
+		if(bType.size > aType.size)
+		{
+			var swap1 = a;
+			var swap2 = aType;
+			a = b;
+			aType = bType;
+			b = swap1;
+			bType = swap2;
+		}
+		
+		//TODO: Finish
+		
+		return false;
+	}
+	
+	static bool implicitCast(AST_Node a, DataType toType)
+	{
+		DataType aType = a.result.type;
+		if(aType == toType) return true;
+		
+		
+		return false;
+	}
+	
 	static readonly Dictionary<OT, Action<AST_Operator>>
 		operatorAnalysers = new Dictionary<OT, Action<AST_Operator>>() {
 			{ OT.MINUS,		 basicOperator },
 			{ OT.PLUS,		 basicOperator },
 			{ OT.MULTIPLY,	 basicOperator },
 			{ OT.DIVIDE,	 basicOperator },
+			{ OT.SLICE,		 basicOperator },
+			/*{ OT.PLUS,		 op => {
+				load(op.a);
+				load(op.b);
+				if(!implicitCast(op.a, op.b)) {
+					throw Jolly.addError(op.location, "Types not the same");
+				}
+				
+				
+			} },*/
 			{ OT.GET_MEMBER, op => {
 				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
@@ -281,7 +334,6 @@ static class Analyser
 				Value toValue = new Value{ kind = Value.Kind.STATIC_TYPE, type = op.a.result.type };
 				instructions.Add(new IR_Cast{ _value = op.b.result, type = toValue, result = toValue });
 			} },
-			
 		};
 	
 	static void assign(AST_Node a, AST_Node b)
@@ -328,7 +380,7 @@ static class Analyser
 			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		Value result = newResult();
+		Value result = new Value();
 		if(a.result.kind != Value.Kind.STATIC_TYPE)
 		{
 			var varType = ((DataType_Reference)a.result.type).referenced;
@@ -338,11 +390,6 @@ static class Analyser
 			if(definition == null && refType != null)
 			{
 				load(a);
-				instructions.Add(new IR_Operator() {
-					instruction = IT.LOAD,
-					aType = a.result.type,
-					resultType = refType
-				});
 				definition = refType.referenced.getDefinition(b.text);
 			}
 			
@@ -354,12 +401,7 @@ static class Analyser
 			result.type = new DataType_Reference(definition.Value.type);
 			DataType.makeUnique(ref result.type);
 			
-			instructions.Add(new IR_Operator {
-				instruction = IT.GET_MEMBER,
-				aType = a.result.type,
-				bType = result.type,
-				resultType = resultType,
-			});
+			instructions.Add(new IR_GetMember{ _struct = a.result, result = newResult(result) });
 		}
 		else
 		{
@@ -368,7 +410,7 @@ static class Analyser
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
-			result = definition.Value;
+			return definition.Value;
 		}
 		return newResult(result);
 	}
@@ -381,7 +423,7 @@ static class Analyser
 			throw Jolly.addError(op.location, "Types not the same");
 		}
 		op.result.type = op.a.result.type;
-		instructions.Add(new IR_Operator(op));
+		// instructions.Add(new IR_Operator(op));
 	}
 	
 	static void load(AST_Node node)
@@ -396,19 +438,16 @@ static class Analyser
 			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.result.kind == Value.Kind.ADDRES) {
 				return;
 			}
-			node.result.type = refTo.referenced;
-			instructions.Add(new IR_Operator() {
-				instruction = IT.LOAD,
-				aType = refTo,
-				resultType = refTo.referenced
-			});
+			Value result = newResult(node.result);
+			result.type = refTo.referenced;
+			instructions.Add(new IR_LOAD{ location = node.result, result = result });
+			node.result = result;
 		}
 	}
 	
 	static void getTypeFromName(AST_Node node)
 	{
-		// TODO: remove name part from function call
-		if(node.nodeType == NT.NAME & node.result.type == null)
+		if(node.result.type == null)
 		{
 			var closure = (AST_Scope)enclosure.node;
 			if(closure.nodeType == NT.MEMBER_TUPLE) {

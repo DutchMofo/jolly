@@ -23,31 +23,38 @@ static class Lookup
 	
 	const DataType.Flags BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE, INSTANTIABLE = DataType.Flags.INSTANTIABLE;
 	
+	public static readonly DataType
+		I8     = new DataType(1, 1, BASE_TYPE)    { name = "i8" },
+		U8     = new DataType(1, 1, BASE_TYPE)    { name = "u8" },
+		I16    = new DataType(2, 2, BASE_TYPE)    { name = "i16" },
+		U16    = new DataType(2, 2, BASE_TYPE)    { name = "u16" },
+		I32    = new DataType(4, 4, BASE_TYPE)    { name = "i32" },
+		U32    = new DataType(4, 4, BASE_TYPE)    { name = "u32" },
+		I64    = new DataType(8, 8, BASE_TYPE)    { name = "i64" },
+		U64    = new DataType(8, 8, BASE_TYPE)    { name = "u64" },
+		F32    = new DataType(4, 4, BASE_TYPE)    { name = "f32" },
+		F64    = new DataType(4, 4, BASE_TYPE)    { name = "f64" },
+		VOID   = new DataType(0, 0, BASE_TYPE)    { name = "void" },
+		STRING = new DataType(16,8, INSTANTIABLE) { name = "string" },
+		BOOL   = new DataType(1, 1, BASE_TYPE)    { name = "bool" },
+		AUTO   = new DataType(0, 0, 0)            { name = "auto" },
+		TUPLE  = new DataType(0, 0, 0);
+	
 	static readonly DataType[] baseTypes = new DataType[] {
-		new DataType(1, 1, BASE_TYPE) { name = "i8" },
-		new DataType(1, 1, BASE_TYPE) { name = "byte" },
-		new DataType(1, 1, BASE_TYPE) { name = "u8" },
-		new DataType(1, 1, BASE_TYPE) { name = "ubyte" },
-		new DataType(2, 2, BASE_TYPE) { name = "i16" },
-		new DataType(2, 2, BASE_TYPE) { name = "short" },
-		new DataType(2, 2, BASE_TYPE) { name = "u16" },
-		new DataType(2, 2, BASE_TYPE) { name = "ushort" },
-		new DataType(4, 4, BASE_TYPE) { name = "i32" },
-		new DataType(4, 4, BASE_TYPE) { name = "int" },
-		new DataType(4, 4, BASE_TYPE) { name = "u32" },
-		new DataType(4, 4, BASE_TYPE) { name = "uint" },
-		new DataType(8, 8, BASE_TYPE) { name = "i64" },
-		new DataType(8, 8, BASE_TYPE) { name = "long" },
-		new DataType(8, 8, BASE_TYPE) { name = "u64" },
-		new DataType(8, 8, BASE_TYPE) { name = "ulong" },
-		new DataType(4, 4, BASE_TYPE) { name = "f32" },
-		new DataType(4, 4, BASE_TYPE) { name = "float" },
-		new DataType(4, 4, BASE_TYPE) { name = "f64" },
-		new DataType(4, 4, BASE_TYPE) { name = "double" },
-		new DataType(0, 0, BASE_TYPE) { name = "void" },
-		new DataType(16, 8, INSTANTIABLE) { name = "string" },
-		new DataType(1, 1, BASE_TYPE) { name = "bool" },
-		new DataType(0, 0, 0) { name = "auto" },
+		I8,  I8,
+		U8,  U8,
+		I16, I16,
+		U16, U16,
+		I32, I32,
+		U32, U32,
+		I64, I64,
+		U64, U64,
+		F32, F32,
+		F64, F64,
+		VOID,
+		STRING,
+		BOOL,
+		AUTO,
 	};
 
 	public static DataType getBaseType(TT type)
@@ -89,11 +96,11 @@ static class Lookup
 			{ TT.AND_AND,			new Op(11, 2, true,  OT.LOGIC_AND, true	)},
 			{ TT.OR_OR,				new Op(12, 2, true,  OT.LOGIC_OR,  true	)},
 			
-			{ TT.COLON_COLON,		new Op(13, 2, false, OT.CAST			)},
-			{ TT.COLON_TILDE,		new Op(13, 2, false, OT.BITCAST			)},
+			// { TT.COLON_COLON,		new Op(13, 2, false, OT.CAST			)},
+			// { TT.COLON_TILDE,		new Op(13, 2, false, OT.BITCAST			)},
 			
-			{ TT.COLON,				new Op(14, 2, true,  OT.COLON,     true )},
 			{ TT.QUESTION_MARK,		new Op(14, 2, false, OT.TERNARY,   true	)},
+			{ TT.COLON,				new Op(14, 2, true,  OT.COLON,     true )},
 			
 			{ TT.COMMA,				new Op(15, 2, true,  OT.COMMA			)},
 			

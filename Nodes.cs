@@ -18,6 +18,7 @@ namespace Jolly
 		public DataType type;
 		public Kind kind;
 		public int tempID;
+		public override string ToString() => "{0} %{1}".fill(type, tempID);
 	}
 	
 	class AST_Node

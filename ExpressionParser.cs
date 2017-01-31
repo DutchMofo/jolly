@@ -44,6 +44,7 @@ enum OperatorType
 	DELETE,
 	
 	TERNARY,
+	TERNARY_SELECT,
 	COLON,
 	/*##########################
 		Compound assignment
@@ -112,10 +113,11 @@ class ExpressionParser
 	{
 		public enum Kind : byte
 		{
-			STATEMENT     = 0,
-			GROUP         = 1, // A group are the (values between parenthesis)
-			TERNARY       = 2,
-			SUBSCRIPT     = 3,
+			STATEMENT = 0,
+			GROUP     = 1, // (A group are the values between parenthesis)
+			TERNARY   = 2,
+			SUBSCRIPT = 3,
+			TUPLE     = 4,
 		}
 		
 		public Enclosure(int startIndex, Kind kind)
@@ -189,7 +191,9 @@ class ExpressionParser
 					if(prevTokenKind == TokenKind.VALUE) {
 						throw Jolly.unexpected(token);
 					}
-					values.Push(new AST_Symbol(token.location, token.text));
+					var symbol = new AST_Symbol(token.location, token.text);
+					expression.Add(symbol);
+					values.Push(symbol);
 					break;
 				case TT.COMMA:				parseComma();				break;
 				case TT.FLOAT_LITERAL:		case TT.INTEGER_LITERAL:	case TT.STRING_LITERAL: parseLiteral(); break;
@@ -201,14 +205,16 @@ class ExpressionParser
 					if(prevTokenKind == TokenKind.VALUE) {
 						throw Jolly.unexpected(token);
 					}
-					values.Push(new AST_Literal(token.location, true)  { dataType = Lookup.getBaseType(TT.BOOL), typeKind = Value.Kind.STATIC_VALUE });
+					values.Push(new AST_Literal(token.location, true)
+						{ result = new Value{ type = Lookup.getBaseType(TT.BOOL), kind = Value.Kind.STATIC_VALUE } });
 					currentTokenKind = TokenKind.VALUE;
 					break;
 				case TT.FALSE:
 					if(prevTokenKind == TokenKind.VALUE) {
 						throw Jolly.unexpected(token);
 					}
-					values.Push(new AST_Literal(token.location, false) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = Value.Kind.STATIC_VALUE });
+					values.Push(new AST_Literal(token.location, false)
+						{ result = new Value{ type = Lookup.getBaseType(TT.BOOL), kind = Value.Kind.STATIC_VALUE } });
 					currentTokenKind = TokenKind.VALUE;
 					break;
 				default:
@@ -274,15 +280,15 @@ class ExpressionParser
 		AST_Literal lit;
 		if(token.type == TT.INTEGER_LITERAL) {
 			lit = new AST_Literal(token.location, token._integer);
-			lit.dataType = Lookup.getBaseType(TT.I32); // TODO: Temporary
+			lit.result.type = Lookup.I32; // TODO: Temporary
 		} else if(token.type == TT.FLOAT_LITERAL) {
 			lit = new AST_Literal(token.location, token._float);
-			lit.dataType = Lookup.getBaseType(TT.F32); // TODO: Temporary
+			lit.result.type = Lookup.F32; // TODO: Temporary
 		} else {
 			lit = new AST_Literal(token.location, token._string);
-			lit.dataType = Lookup.getBaseType(TT.STRING);
+			lit.result.type = Lookup.STRING;
 		}
-		lit.typeKind = TypeKind.VALUE;
+		lit.result.kind = Value.Kind.STATIC_VALUE;
 		values.Push(lit);
 	} // parseLiteral()
 	
@@ -291,7 +297,8 @@ class ExpressionParser
 		if(prevTokenKind == TokenKind.VALUE) {
 			throw Jolly.unexpected(token);
 		}
-		values.Push(new AST_Node(token.location, NT.BASETYPE) { dataType = Lookup.getBaseType(token.type), typeKind = TypeKind.STATIC_VALUE });
+		values.Push(new AST_Node(token.location, NT.BASETYPE) 
+			{ result = new Value{ type = Lookup.getBaseType(token.type), kind = Value.Kind.STATIC_TYPE } });
 	}
 	
 	void parseDefineIdentifier()
@@ -315,14 +322,15 @@ class ExpressionParser
 				
 				var functionScope = new Scope(scope);
 				var functionType = new DataType_Function() { name = token.text };
+				var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_TYPE };
 				var functionNode = new AST_Function(token.location, functionScope, token.text)
-					{ dataType = functionType, returns = prev };
+					{ result = functionDefinition, returns = prev };
 				expression.Insert(startNodeCount, functionNode);
-				expression.Add(prev);
+				// expression.Add(prev);
 				functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);
 				int _startNodeCount2 = expression.Count;
 				
-				if(!scope.Add(token.text, null, TypeKind.STATIC_VALUE)) {
+				if(!scope.Add(token.text, functionDefinition)) {
 					// TODO: add overloads
 					Jolly.addError(token.location, "Trying to redefine function");
 				}
@@ -352,31 +360,28 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = (DataType_Struct)scope.scopeType;
+					var structType = (DataType_Struct)scope.scopeType.type;
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}
 					structType.memberMap.Add(token.text, structType.memberMap.Count);
-					variable.typeKind = TypeKind.STATIC;
+					variable.result.kind = Value.Kind.VALUE;
 				}
 				else
 				{
 					scope.variableCount += 1;
-					variable.typeKind = TypeKind.VALUE;
-					if(!scope.Add(token.text, null, TypeKind.VALUE)) {
+					variable.result.kind = Value.Kind.VALUE;
+					if(!scope.Add(token.text, variable.result)) {
 						throw Jolly.addError(token.location, "Trying to redefine variable");
 					}
 				}
 				variable.memberCount = expression.Count - startNodeCount;
 				
 				if(variable.memberCount == 0) {
-					variable.memberCount = 1;
 					expression.Add(variable);
-					expression.Add(prev);
 				} else {
 					expression.Insert(startNodeCount, variable);
 				}
-				
 				values.Push(variable);
 				
 				if(defineMode == DefineMode.FUNCTION_OR_VARIABLE)
@@ -388,6 +393,7 @@ class ExpressionParser
 			AST_Node prev = values.PeekOrDefault();
 			if(prev == null || prev.nodeType != NT.VARIABLE_DEFINITION) {
 				var symbol = new AST_Symbol(token.location, token.text);
+				expression.Add(symbol);
 				values.Push(symbol);
 			}
 		}
@@ -432,7 +438,8 @@ class ExpressionParser
 			switch(token.type) {
 				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
 				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
-				case TT.PLUS: case TT.MINUS: values.Push(new AST_Literal(token.location, 0)); break;
+				case TT.PLUS: case TT.MINUS: values.Push(new AST_Literal(token.location, 0)
+					{ result = new Value{ type = Lookup.I32, kind = Value.Kind.STATIC_VALUE } }); break;
 				default: throw Jolly.unexpected(token);
 			}
 		}
@@ -461,20 +468,23 @@ class ExpressionParser
 			else if(op.operation == OT.COLON)
 			{
 				Enclosure enclosure = enclosureStack.Pop();
-				if( enclosure.kind == Enclosure.Kind.SUBSCRIPT ||
-					enclosure.kind == Enclosure.Kind.TERNARY)
-				{
-					if(enclosure.hasColon) {
-						throw Jolly.unexpected(token);
-					}
-					if(enclosure.kind == Enclosure.Kind.SUBSCRIPT) {
-						op.operation = OT.SLICE;
-						op.leftToRight = true;
-						op.isSpecial = false;
-					} else {
-						op.leftToRight = false;
-					}
-					enclosure.hasColon = true;
+				enclosure.hasColon = true;
+				
+				// HACK: check if first operator in enclosure
+				if(operators.PeekOrDefault().valCount > 0) {
+					throw Jolly.unexpected(token);
+				}
+				
+				if(enclosure.kind == Enclosure.Kind.SUBSCRIPT) {
+					op.operation = OT.SLICE;
+					op.leftToRight = true;
+					op.isSpecial = false;
+				} else if(enclosure.kind == Enclosure.Kind.TERNARY) {
+					op.operation = OT.TERNARY_SELECT;
+					op.leftToRight = false;
+				} else if(enclosure.kind == Enclosure.Kind.GROUP) {
+					op.operation = OT.CAST;
+					op.isSpecial = false;
 				} else {
 					throw Jolly.unexpected(token);
 				}
@@ -495,6 +505,7 @@ class ExpressionParser
 			throw Jolly.unexpected(token);
 		}
 		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, false, token.location));
+		enclosureStack.Push(new Enclosure(expression.Count, Enclosure.Kind.SUBSCRIPT));
 	}
 	
 	void parseBracketClose()
@@ -514,6 +525,7 @@ class ExpressionParser
 			enclosureEnd(enclosure);
 			enclosure = enclosureStack.Pop();
 		}
+		
 		// TODO: should check if there are enough values
 		if(enclosure.hasColon)
 		{
@@ -525,8 +537,8 @@ class ExpressionParser
 		}
 		else
 		{
-			AST_Node b = values.Pop(), a = values.Pop();
-			var opNode = new AST_Operator(token.location, OT.SUBSCRIPT, a, b);
+			AST_Node a = values.Pop();
+			var opNode = new AST_Operator(token.location, OT.SUBSCRIPT, a, null);
 			expression.Add(opNode);
 			values.Push(opNode);
 		}
@@ -628,7 +640,8 @@ class ExpressionParser
 				}
 				else
 				{
-					tuple = new AST_Tuple(op.location, scope, NT.TUPLE);
+					tuple = new AST_Tuple(op.location, scope, NT.TUPLE)
+						{ result = new Value{ type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE } };
 					values.Push(tuple);
 					tuple.values.Add(a);
 					if(b != null) {
@@ -641,7 +654,6 @@ class ExpressionParser
 			if(b == null) {
 				throw Jolly.addError(op.location, "Invalid right expression term");
 			}
-			
 			if(op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
 			}
@@ -659,7 +671,7 @@ class ExpressionParser
 			if(op.operation == OT.LOGIC_AND)
 			{
 				int memberCount = expression.Count - op.operatorIndex;
-				var logic = new AST_Logic(op.location, OT.LOGIC_OR, memberCount, memberCount, a, b, null);
+				var logic = new AST_Logic(op.location, OT.LOGIC_OR, memberCount, memberCount, condition: a, a: b, b: null);
 				expression.Insert(op.operatorIndex, logic);
 				values.Push(logic);
 				return;
@@ -667,7 +679,7 @@ class ExpressionParser
 			else if(op.operation == OT.LOGIC_OR)
 			{
 				int memberCount = expression.Count - op.operatorIndex;
-				var logic = new AST_Logic(op.location, OT.LOGIC_AND, memberCount, memberCount, a, b, null);
+				var logic = new AST_Logic(op.location, OT.LOGIC_AND, memberCount, memberCount, condition: a, a: b, b: null);
 				expression.Insert(op.operatorIndex, logic);
 				values.Push(logic);
 				return;
@@ -684,7 +696,7 @@ class ExpressionParser
 				values.Push(b);
 				return;
 			}
-			else if(op.operation == OT.COLON)
+			else if(op.operation == OT.TERNARY_SELECT)
 			{
 				Enclosure enclosure = enclosureStack.Pop();
 				while(enclosure.kind != Enclosure.Kind.TERNARY) {
@@ -693,9 +705,9 @@ class ExpressionParser
 				}
 				
 				int memberCount = expression.Count - enclosure.startIndex,
-					count = expression.Count - op.operatorIndex;
+					count = op.operatorIndex - enclosure.startIndex;
 				var logic = new AST_Logic(op.location, OT.TERNARY, memberCount, count, enclosure.node, a, b);
-				expression.Insert(op.operatorIndex, logic);
+				expression.Insert(enclosure.startIndex, logic);
 				values.Push(logic);
 				return;
 			}

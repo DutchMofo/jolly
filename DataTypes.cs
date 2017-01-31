@@ -28,13 +28,15 @@ namespace Jolly
 		}
 		
 		public string name; // TODO: Remove someday
-		public int size, align, typeID;
+		public int size, typeID;
 		public Flags flags;
+		public byte align;
 		
 		public DataType() { this.typeID = lastTypeID++; }
-		public DataType(int size, int align, Flags flags)
+		public DataType(int size, byte align, Flags flags)
 		{
 			this.size = size;
+			this.flags = flags;
 			this.align = align;
 			this.typeID = lastTypeID++;
 		}
@@ -49,9 +51,14 @@ namespace Jolly
 	class DataType_Reference : DataType
 	{
 		public DataType referenced;
+		public byte depth; // How many pointers are there "int**" == 2, "int*" == 1
 		
 		public DataType_Reference(DataType referenced)
-			{ this.referenced = referenced; flags = Flags.BASE_TYPE | Flags.INSTANTIABLE; }
+		{
+			this.referenced = referenced;
+			this.flags = Flags.BASE_TYPE | Flags.INSTANTIABLE;
+			this.depth = (byte)(((referenced as DataType_Reference)?.depth ?? 1) + 1);
+		}
 		
 		public override bool Equals(object obj)
 		{

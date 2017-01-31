@@ -1,9 +1,22 @@
 
+bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
+{
+	a.(count, number) = a.(number, count);
+	return true, a;
+}
 
 int main()
 {
-	int value = +0 || -1 ? +123 : -123;
+	AnalyseTest a;
+	a.count = 10;
+	a.number = 1;
+	swapCountNumber(&a);
 	
-	
-	return 0;
+	return a[1:2];
+}
+
+struct AnalyseTest
+{
+	int count;
+	int number;
 }
