@@ -44,6 +44,12 @@ static class Analyser
 		}
 	}
 	
+	static int tempID = 0;
+	static Value newResult(Value _value)
+		=> new Value{ type = _value.type, kind = _value.kind, tempID = tempID++ };
+	static Value newResult()
+		=> new Value{ tempID = tempID++ };
+	
 	static void enclosureEnd(Enclosure poppedEnclosure)
 	{
 		switch(poppedEnclosure.node.nodeType)
@@ -55,37 +61,37 @@ static class Analyser
 			switch(enclosure.node.nodeType)
 			{
 			case NT.STRUCT: {
-				((DataType_Struct)closure.dataType).finishDefinition(symbol.text, symbol.typeFrom.dataType);
+				((DataType_Struct)closure.result.type).finishDefinition(symbol.text, symbol.typeFrom.result.type);
 			} break;
 			case NT.ARGUMENTS: {
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
-				var functionType = (DataType_Function)function.dataType;
-				functionType.arguments[function.finishedArguments] = symbol.typeFrom.dataType;
+				var functionType = (DataType_Function)function.result.type;
+				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
 				function.finishedArguments += 1;
 			} goto case NT.FUNCTION; // Define the actual variable
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
-				if((symbol.typeFrom.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
-					throw Jolly.addError(symbol.typeFrom.location, "The type {0} is not instantiable.".fill(symbol.typeFrom.dataType));
+				if((symbol.typeFrom.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
+					throw Jolly.addError(symbol.typeFrom.location, "The type {0} is not instantiable.".fill(symbol.typeFrom.result.type));
 				}
-				symbol.dataType = new DataType_Reference(symbol.typeFrom.dataType);
-				DataType.makeUnique(ref symbol.dataType);
-				closure.scope.finishDefinition(symbol.text, symbol.dataType);
-				instructions.Add(new IR_Allocate(symbol.typeFrom.dataType));
+				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
+				DataType.makeUnique(ref symbol.result.type);
+				closure.scope.finishDefinition(symbol.text, symbol.result.type);
+				instructions.Add(new IR_Allocate(symbol.typeFrom.result.type));
 			} break;
 			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
 			}
 		} break;
 		case NT.RETURN_VALUES: {
 			var function = (AST_Function)enclosure.node;
-			var functionType = (DataType_Function)function.dataType;
+			var functionType = (DataType_Function)function.result.type;
 			var tuple = function.returns as AST_Tuple;
 			if(tuple != null) {
 				for(int i = 0; i < tuple.values.Count; i += 1) {
-					functionType.returns[i] = tuple.values[i].dataType;
+					functionType.returns[i] = tuple.values[i].result.type;
 				}
 			} else {
-				functionType.returns[0] = function.returns.dataType;
+				functionType.returns[0] = function.returns.result.type;
 			}
 			
 			if(function.argumentDefinitionCount > 0) {
@@ -97,7 +103,7 @@ static class Analyser
 		} break;
 		case NT.ARGUMENTS: {
 			// Make function type unique
-			DataType.makeUnique(ref enclosure.node.dataType);
+			DataType.makeUnique(ref enclosure.node.result.type);
 			// Skip to end of function enclosure
 			cursor = enclosure.end;
 		} break;
@@ -169,8 +175,7 @@ static class Analyser
 				AST_Operator op = (AST_Operator)node;
 				Debug.Assert(op.operation == OT.GET_MEMBER);
 				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
-				op.dataType = result.Item1;
-				op.typeKind = result.Item2;
+				op.result = result;
 			} },
 			{ NT.BASETYPE, node => { } },
 			{ NT.MEMBER_NAME, node => { } },
@@ -180,12 +185,12 @@ static class Analyser
 			} },
 			{ NT.MODIFY_TYPE, node => {
 				AST_ModifyType tToRef = (AST_ModifyType)node;
-				if((tToRef.target.dataType.flags & DataType.Flags.INSTANTIABLE) == 0) {
-					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.dataType));
+				if((tToRef.target.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
+					throw Jolly.addError(tToRef.target.location, "The type {0} is not instantiable.".fill(tToRef.target.result.type));
 				}
-				tToRef.dataType = new DataType_Reference(tToRef.target.dataType);
-				DataType.makeUnique(ref tToRef.dataType);
-				tToRef.typeKind = tToRef.target.typeKind;
+				tToRef.result.type = new DataType_Reference(tToRef.target.result.type);
+				DataType.makeUnique(ref tToRef.result.type);
+				tToRef.result.kind = tToRef.target.result.kind;
 			} },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
@@ -194,7 +199,7 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
-				instructions.Add(new IR_Function((DataType_Function)function.dataType));
+				instructions.Add(new IR_Function((DataType_Function)function.result.type));
 				// Skip return type and argument definitions
 				cursor += function.returnDefinitionCount + function.argumentDefinitionCount;
 			} },
@@ -207,7 +212,7 @@ static class Analyser
 				// TODO: validate function call
 				// getTypeFromName(functionCall);
 				
-				instructions.Add(new IR_Call(){ arguments = functionCall.arguments.Select(a=>a.dataType).ToArray() });
+				instructions.Add(new IR_Call(){ arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
 				enclosureStack.Push(new Enclosure(node, ((AST_Tuple)node).memberCount + cursor));
@@ -230,7 +235,7 @@ static class Analyser
 	
 	static void defineMemberOrVariable(AST_Node node)
 	{
-		if(node.dataType != null) {
+		if(node.result.type != null) {
 			skipSymbol(node);
 			return;
 		}
@@ -244,38 +249,37 @@ static class Analyser
 			{ OT.MULTIPLY,	 basicOperator },
 			{ OT.DIVIDE,	 basicOperator },
 			{ OT.GET_MEMBER, op => {
-				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
-				op.dataType = result.Item1;
-				op.typeKind = result.Item2;
+				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
 			{ OT.ASSIGN, op => {
 				assign(op.a, op.b);
-				op.dataType = op.b.dataType;
+				op.result.type = op.b.result.type;
 			} },
 			{ OT.REFERENCE, op => {
-				if(op.a.typeKind != TypeKind.VALUE | !(op.a.dataType is DataType_Reference)) {
+				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {
 					throw Jolly.addError(op.location, "Cannot get a reference to this");
 				}
-				op.dataType = op.a.dataType;
-				op.typeKind = TypeKind.ADDRES;
+				op.result.type = op.a.result.type;
+				op.result.kind = Value.Kind.ADDRES;
 			} },
 			{ OT.DEREFERENCE, op => {
-				if(op.a.typeKind == TypeKind.ADDRES) {
-					op.a.typeKind = TypeKind.VALUE;
+				if(op.a.result.kind == Value.Kind.ADDRES) {
+					op.a.result.kind = Value.Kind.VALUE;
 				} else {
 					load(op.a);
 				}
-				op.typeKind = op.a.typeKind;
-				op.dataType = op.a.dataType;
+				op.result.kind = op.a.result.kind;
+				op.result.type = op.a.result.type;
 			} },
 			{ OT.CAST, op => {
 				load(op.b);
-				if(op.a.typeKind != TypeKind.STATIC) {
+				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
-				op.typeKind = op.b.typeKind;
-				op.dataType = op.a.dataType;
-				instructions.Add(new IR_Operator(op));
+				op.result.kind = op.b.result.kind;
+				op.result.type = op.a.result.type;
+				Value toValue = new Value{ kind = Value.Kind.STATIC_TYPE, type = op.a.result.type };
+				instructions.Add(new IR_Cast{ _value = op.b.result, type = toValue, result = toValue });
 			} },
 			
 		};
@@ -288,20 +292,15 @@ static class Analyser
 		{
 			load(b);
 		
-			var target = a.dataType as DataType_Reference;
+			var target = a.result.type as DataType_Reference;
 			if(target == null) {
 				throw Jolly.addError(a.location, "Cannot assign to this");
 			}
-			if(target.referenced != b.dataType ) {
+			if(target.referenced != b.result.type ) {
 				throw Jolly.addError(a.location, "Cannot assign this value type");
 			}
 			
-			instructions.Add(new IR_Operator {
-				instruction = IT.STORE,
-				aType = a.dataType,
-				bType = b.dataType,
-				resultType = b.dataType,
-			});
+			instructions.Add(new IR_STORE{ location = a.result, _value = b.result, result = newResult(b.result) });
 		}
 		else if(aIsTup & bIsTup)
 		{
@@ -323,17 +322,16 @@ static class Analyser
 		}
 	}
 	
-	static Tuple<DataType,TypeKind> operatorGetMember(ref AST_Node a, AST_Symbol b)
+	static Value operatorGetMember(ref AST_Node a, AST_Symbol b)
 	{
 		if(b == null) {
 			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		DataType resultType;
-		TypeKind resultTypeKind;
-		if(a.typeKind != TypeKind.STATIC)
+		Value result = newResult();
+		if(a.result.kind != Value.Kind.STATIC_TYPE)
 		{
-			var varType = ((DataType_Reference)a.dataType).referenced;
+			var varType = ((DataType_Reference)a.result.type).referenced;
 			var definition = varType.getDefinition(b.text);
 			
 			var refType = varType as DataType_Reference;
@@ -342,7 +340,7 @@ static class Analyser
 				load(a);
 				instructions.Add(new IR_Operator() {
 					instruction = IT.LOAD,
-					aType = a.dataType,
+					aType = a.result.type,
 					resultType = refType
 				});
 				definition = refType.referenced.getDefinition(b.text);
@@ -352,54 +350,53 @@ static class Analyser
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
 			}
 			
-			resultTypeKind = definition.Value.typeKind;
-			resultType = new DataType_Reference(definition.Value.dataType);
-			DataType.makeUnique(ref resultType);
+			result.kind = definition.Value.kind;
+			result.type = new DataType_Reference(definition.Value.type);
+			DataType.makeUnique(ref result.type);
 			
 			instructions.Add(new IR_Operator {
 				instruction = IT.GET_MEMBER,
-				aType = a.dataType,
-				bType = resultType,
+				aType = a.result.type,
+				bType = result.type,
 				resultType = resultType,
 			});
 		}
 		else
 		{
 			// Get static member
-			var definition = ((DataType_Struct)a.dataType).structScope.getDefinition(b.text);
+			var definition = ((DataType_Struct)a.result.type).structScope.getDefinition(b.text);
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
-			resultType = definition.Value.dataType;
-			resultTypeKind = definition.Value.typeKind;
+			result = definition.Value;
 		}
-		return new Tuple<DataType, TypeKind>(resultType, resultTypeKind);
+		return newResult(result);
 	}
 	
 	static void basicOperator(AST_Operator op)
 	{
 		load(op.a);
 		load(op.b);
-		if(op.a.dataType != op.b.dataType ) {
+		if(op.a.result.type != op.b.result.type ) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
-		op.dataType = op.a.dataType;
+		op.result.type = op.a.result.type;
 		instructions.Add(new IR_Operator(op));
 	}
 	
 	static void load(AST_Node node)
 	{
-		var refTo = node.dataType as DataType_Reference;
+		var refTo = node.result.type as DataType_Reference;
 		if(refTo != null)
 		{
-			if(node.typeKind == TypeKind.STATIC) {
+			if(node.result.kind == Value.Kind.STATIC_TYPE) {
 				throw Jolly.addError(node.location, "Cannot be used as value");
 			}
 			
-			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.typeKind == TypeKind.ADDRES) {
+			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.result.kind == Value.Kind.ADDRES) {
 				return;
 			}
-			node.dataType = refTo.referenced;
+			node.result.type = refTo.referenced;
 			instructions.Add(new IR_Operator() {
 				instruction = IT.LOAD,
 				aType = refTo,
@@ -411,15 +408,13 @@ static class Analyser
 	static void getTypeFromName(AST_Node node)
 	{
 		// TODO: remove name part from function call
-		if(node.nodeType == NT.NAME & node.dataType == null)
+		if(node.nodeType == NT.NAME & node.result.type == null)
 		{
 			var closure = (AST_Scope)enclosure.node;
 			if(closure.nodeType == NT.MEMBER_TUPLE) {
 				var tup = (AST_Tuple)closure;
 				var hacky = tup.membersFrom; // Prevent ref from messing things up
-				var result = operatorGetMember(ref hacky, node as AST_Symbol);
-				node.dataType = result.Item1;
-				node.typeKind = result.Item2;
+				node.result = operatorGetMember(ref hacky, node as AST_Symbol);
 				return;
 			}
 			AST_Symbol name = (AST_Symbol)node;
@@ -428,11 +423,10 @@ static class Analyser
 			if(definition == null) {
 				throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 			}
-			Debug.Assert(definition.Value.dataType != null);
-			Debug.Assert(definition.Value.typeKind != TypeKind.UNDEFINED);
+			Debug.Assert(definition.Value.type != null);
+			Debug.Assert(definition.Value.kind != Value.Kind.UNDEFINED);
 			
-			node.dataType = definition.Value.dataType;
-			node.typeKind = definition.Value.typeKind;
+			node.result = definition.Value;
 		}
 	}
 }

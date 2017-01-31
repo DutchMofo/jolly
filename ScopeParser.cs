@@ -41,12 +41,13 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			Scope structScope = new Scope(scope);
-			var structType = new DataType_Struct() { name = name.text, structScope = structScope };
-			var structNode = new AST_Scope(name.location, NT.STRUCT, structScope, name.text)
-				{ dataType = structScope.dataType = structType };
+			var structScope       = new Scope(scope);
+			var structType        = new DataType_Struct() { name = name.text, structScope = structScope };
+			var structDefinition  = new Value{ type = structType, kind = Value.Kind.STATIC_TYPE };
+			var structNode        = new AST_Scope(name.location, NT.STRUCT, structScope, name.text) { result = structDefinition };
+			structScope.scopeType = structDefinition;
 			
-			if(!scope.Add(name.text, structType, TypeKind.STATIC)) {
+			if(!scope.Add(name.text, structDefinition)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
 			program.Add(structNode);

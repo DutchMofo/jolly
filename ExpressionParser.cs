@@ -201,14 +201,14 @@ class ExpressionParser
 					if(prevTokenKind == TokenKind.VALUE) {
 						throw Jolly.unexpected(token);
 					}
-					values.Push(new AST_Literal(token.location, true)  { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.STATIC_VALUE });
+					values.Push(new AST_Literal(token.location, true)  { dataType = Lookup.getBaseType(TT.BOOL), typeKind = Value.Kind.STATIC_VALUE });
 					currentTokenKind = TokenKind.VALUE;
 					break;
 				case TT.FALSE:
 					if(prevTokenKind == TokenKind.VALUE) {
 						throw Jolly.unexpected(token);
 					}
-					values.Push(new AST_Literal(token.location, false) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = TypeKind.STATIC_VALUE });
+					values.Push(new AST_Literal(token.location, false) { dataType = Lookup.getBaseType(TT.BOOL), typeKind = Value.Kind.STATIC_VALUE });
 					currentTokenKind = TokenKind.VALUE;
 					break;
 				default:
@@ -352,7 +352,7 @@ class ExpressionParser
 				
 				if(defineMode == DefineMode.MEMBER)
 				{
-					var structType = (DataType_Struct)scope.dataType;
+					var structType = (DataType_Struct)scope.scopeType;
 					if(structType.memberMap.ContainsKey(token.text)) {
 						throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 					}

@@ -3,14 +3,21 @@ using System.Collections.Generic;
 namespace Jolly
 {
     using NT = AST_Node.Type;
-	
-	enum TypeKind
+
+	struct Value
 	{
-		UNDEFINED,
-		STATIC,
-		STATIC_VALUE,
-		VALUE,
-		ADDRES
+		public enum Kind : byte
+		{
+			UNDEFINED = 0,
+			STATIC_TYPE,
+			STATIC_VALUE,
+			VALUE,
+			ADDRES,
+		}
+		
+		public DataType type;
+		public Kind kind;
+		public int tempID;
 	}
 	
 	class AST_Node
@@ -19,7 +26,7 @@ namespace Jolly
 		
 		public enum Type
 		{
-			UNITIALIZED		= 0,
+			UNITIALIZED = 0,
 			BASETYPE,
 			STRUCT,
 			UNION,
@@ -60,9 +67,8 @@ namespace Jolly
 			COUNT // Must be last
 		}
 		
-		public TypeKind typeKind;
+		public Value result;
 		public Type nodeType;
-		public DataType dataType;
 		public SourceLocation location;
 		
 		public override string ToString()
@@ -136,7 +142,7 @@ namespace Jolly
 			: base(loc, name, type) { this.scope = scope; }
 		
 		public Scope scope;
-		public Symbol? getDefinition(string name)
+		public Value? getDefinition(string name)
 			=> scope.searchItem(name);
 	}
 	

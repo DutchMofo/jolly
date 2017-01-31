@@ -39,7 +39,7 @@ namespace Jolly
 			this.typeID = lastTypeID++;
 		}
 		
-		public virtual Symbol? getDefinition(string name) => null;
+		public virtual Value? getDefinition(string name) => null;
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
@@ -91,11 +91,11 @@ namespace Jolly
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
 		
-		public override Symbol? getDefinition(string name)
+		public override Value? getDefinition(string name)
 		{
 			int index;
 			if(memberMap.TryGetValue(name, out index)) {
-				return new Symbol { dataType = members[index], typeKind = TypeKind.VALUE };
+				return new Value { type = members[index], kind = Value.Kind.VALUE };
 			}
 			return null;
 		}

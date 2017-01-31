@@ -16,26 +16,20 @@ namespace Jolly
 		IS_PURE		= 1<<6,
 	};
 	
-	struct Symbol
-	{
-		public DataType dataType;
-		public TypeKind typeKind;
-	}
-	
 	class Scope
 	{
 		Scope parent;
-		public DataType dataType;
 		public int variableCount;
-		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
+		public Value scopeType;
+		public Dictionary<string, Value> children = new Dictionary<string, Value>();
 		
 		public Scope(Scope parent)
 			 { this.parent = parent; }
 		
-		public Symbol? searchItem(string name)
+		public Value? searchItem(string name)
 		{
 			Scope iterator = this;
-			Symbol item;
+			Value item;
 			do {
 				if(iterator.children.TryGetValue(name, out item))
 					return item;
@@ -48,19 +42,19 @@ namespace Jolly
 		{
 			// WTF c# why doesn't: children[name].dataType = type; work
 			var t = children[name];
-			t.dataType = type;
+			t.type = type;
 			children[name] = t;
 		}
 		
-		public Symbol? getDefinition(string name)
+		public Value? getDefinition(string name)
 		{
-			Symbol item;
+			Value item;
 			if(children.TryGetValue(name, out item))
 				return item;
 			return null;
 		}
 		
-		public bool Add(string childName, DataType child, TypeKind typeKind)
+		public bool Add(string childName, Value definition)
 		{
 			Scope iterator = this;
 			do {
@@ -69,7 +63,7 @@ namespace Jolly
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
-			children.Add(childName, new Symbol{ dataType = child, typeKind = typeKind });
+			children.Add(childName, definition);
 			return true;
 		}
 	}
