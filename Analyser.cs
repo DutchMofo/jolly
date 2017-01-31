@@ -66,9 +66,10 @@ static class Analyser
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataType_Function)function.result.type;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
-				DataType refference = new DataType_Reference(symbol.typeFrom.result.type);
-				DataType.makeUnique(ref refference);
-				closure.scope.finishDefinition(symbol.text, refference);
+				DataType reference = new DataType_Reference(symbol.typeFrom.result.type);
+				DataType.makeUnique(ref reference);
+				symbol.result = newResult(symbol.result);
+				closure.scope.finishDefinition(symbol.text, symbol.result);
 				function.finishedArguments += 1;
 			} break;
 			case NT.FUNCTION:
@@ -78,8 +79,9 @@ static class Analyser
 				}
 				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
 				DataType.makeUnique(ref symbol.result.type);
-				closure.scope.finishDefinition(symbol.text, symbol.result.type);
-				instructions.Add(new IR_Allocate(){ type = symbol.typeFrom.result.type, result = newResult(symbol.result) });
+				symbol.result = newResult(symbol.result);
+				closure.scope.finishDefinition(symbol.text, symbol.result);
+				instructions.Add(new IR_Allocate(){ type = symbol.typeFrom.result.type, result = symbol.result });
 			} break;
 			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
 			}
@@ -176,8 +178,7 @@ static class Analyser
 			{ NT.OPERATOR, node => {
 				AST_Operator op = (AST_Operator)node;
 				Debug.Assert(op.operation == OT.GET_MEMBER);
-				var result = operatorGetMember(ref op.a, op.b as AST_Symbol);
-				op.result = result;
+				op.result = operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
@@ -217,12 +218,22 @@ static class Analyser
 			{ NT.NAME, getTypeFromName },
 			{ NT.RETURN, node => {
 				var returns = (AST_Return)node;
-				Value[] values = null;
-				if(returns.values != null) {
-					values = (returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result };
+				Value[] values = (returns.values != null) ?
+					(returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result } :
+					new Value[0];
+				
+				AST_Function function = null;
+				foreach(var closure in enclosureStack) {
+					function = closure.node as AST_Function;
+					if(function != null) break;
 				}
-				// TODOL Validate return values
-				instructions.Add(new IR_Return{ values = values ?? new Value[0] });
+				Debug.Assert(function != null);
+				
+				// if(function.returns)
+				
+				
+				// TODO: Validate return values
+				instructions.Add(new IR_Return{ values = values });
 			} },
 		};
 	
@@ -355,9 +366,9 @@ static class Analyser
 	
 	static void assign(AST_Node a, AST_Node b)
 	{
-		bool aIsTup = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
-		bool bIsTup = b.nodeType == NT.TUPLE | b.nodeType == NT.MEMBER_TUPLE;
-		if(!aIsTup & !bIsTup)
+		bool aIsTuple = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
+		bool bIsTuple = b.nodeType == NT.TUPLE | b.nodeType == NT.MEMBER_TUPLE;
+		if(!aIsTuple & !bIsTuple)
 		{
 			load(b);
 		
@@ -371,7 +382,7 @@ static class Analyser
 			
 			instructions.Add(new IR_Store{ location = a.result, _value = b.result, result = b.result });
 		}
-		else if(aIsTup & bIsTup)
+		else if(aIsTuple & bIsTuple)
 		{
 			var aVals = ((AST_Tuple)a).values;
 			var bVals = ((AST_Tuple)b).values;
@@ -382,7 +393,7 @@ static class Analyser
 				assign(aVals[i], bVals[i]);
 			}
 		}
-		else if(aIsTup & !bIsTup) {
+		else if(aIsTuple & !bIsTuple) {
 			foreach(AST_Node node in ((AST_Tuple)a).values) {
 				assign(node, b);
 			}
@@ -418,7 +429,7 @@ static class Analyser
 			result.type = new DataType_Reference(definition.Value.type);
 			DataType.makeUnique(ref result.type);
 			
-			instructions.Add(new IR_GetMember{ _struct = a.result, index = index, result = newResult(result) });
+			instructions.Add(new IR_GetMember{ _struct = a.result, index = index, result = result = newResult(result) });
 		}
 		else
 		{
@@ -429,7 +440,7 @@ static class Analyser
 			}
 			return definition.Value;
 		}
-		return newResult(result);
+		return result;
 	}
 	
 	static void basicOperator(AST_Operator op)

@@ -70,7 +70,7 @@ namespace Jolly
 	class IR_Return : IR
 	{
 		public Value[] values;
-		// public override string ToString() => "ret {0}".fill((values?.Length == 0) ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+		public override string ToString() => "ret {0}".fill((values?.Length == 0) ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
 	}
 	
 	class IR_Call : IR
@@ -92,6 +92,9 @@ namespace Jolly
 	{
 		public IR_Function(DataType_Function functionType) { this.functionType = functionType; }
 		public DataType_Function functionType;
-		public override string ToString() => "define @{0}".fill(functionType.name);
+		public override string ToString() => "define {0} @{1}({2})".fill(
+			functionType.returns.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b),
+			functionType.name,
+			(functionType.arguments.Length != 0) ? functionType.arguments.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b) : "");
 	}
 }

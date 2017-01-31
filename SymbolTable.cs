@@ -38,12 +38,9 @@ namespace Jolly
 			return null;
 		}
 		
-		public void finishDefinition(string name, DataType type)
+		public void finishDefinition(string name, Value type)
 		{
-			// WTF c# why doesn't: children[name].dataType = type; work
-			var t = children[name];
-			t.type = type;
-			children[name] = t;
+			children[name] = type;
 		}
 		
 		public Value? getDefinition(string name)

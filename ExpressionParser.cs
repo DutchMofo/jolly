@@ -170,10 +170,10 @@ class ExpressionParser
 	Stack<Op> operators = new Stack<Op>();
 	Stack<Enclosure> enclosureStack = new Stack<Enclosure>();
 	
-	static Value BOOL  (object data) => new Value{ type = Lookup.BOOL,    kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value INT   (object data) => new Value{ type = Lookup.I32,     kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value FLOAT (object data) => new Value{ type = Lookup.F32,     kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value STRING(object data) => new Value{ type = Lookup.STRING,  kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value   BOOL(bool   data) => new Value{ type = Lookup.BOOL,    kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value    INT(ulong  data) => new Value{ type = Lookup.I32,     kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,     kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value STRING(string data) => new Value{ type = Lookup.STRING,  kind = Value.Kind.STATIC_VALUE, data = data };
 	
 	public AST_Node getResult() => values.PeekOrDefault();
 	
@@ -193,11 +193,11 @@ class ExpressionParser
 				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
 				case TT.PARENTHESIS_OPEN:  parseParenthesisOpen();  break;
 				case TT.PARENTHESIS_CLOSE: parseParenthesisClose(); break;
-				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result = INT(token._integer)   }; goto case 0;
-				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result = STRING(token._string) }; goto case 0;
-				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result = FLOAT(token._float)   }; goto case 0;
-				case TT.TRUE:              _value = new AST_Node(token.location, NT.LITERAL) { result = BOOL(true)            }; goto case 0;
-				case TT.FALSE:             _value = new AST_Node(token.location, NT.LITERAL) { result = BOOL(false)           }; goto case 0;
+				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result =    INT(token._integer) }; goto case 0;
+				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result = STRING(token._string)  }; goto case 0;
+				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result =  FLOAT(token._float)   }; goto case 0;
+				case TT.TRUE:              _value = new AST_Node(token.location, NT.LITERAL) { result =   BOOL(true)           }; goto case 0;
+				case TT.FALSE:             _value = new AST_Node(token.location, NT.LITERAL) { result =   BOOL(false)          }; goto case 0;
 				default:
 					if(token.type >= TT.I8 & token.type <= TT.AUTO) {
 						_value = new AST_Node(token.location, NT.BASETYPE) 
@@ -256,10 +256,10 @@ class ExpressionParser
 				throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 			}
 			
-			var functionScope = new Scope(scope);
-			var functionType = new DataType_Function() { name = token.text };
+			var functionScope      = new Scope(parent: scope);
+			var functionType       = new DataType_Function() { name = token.text };
 			var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_FUNCTION };
-			var functionNode = new AST_Function(token.location, functionScope, token.text)
+			var functionNode       = new AST_Function(token.location, functionScope, token.text)
 				{ result = functionDefinition, returns = prev };
 			expression.Insert(startNodeCount, functionNode);
 			functionNode.returnDefinitionCount = expression.Count - (startNodeCount += 1);

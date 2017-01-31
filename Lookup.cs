@@ -34,10 +34,10 @@ static class Lookup
 		U64    = new DataType(8, 8, BASE_TYPE)    { name = "u64" },
 		F32    = new DataType(4, 4, BASE_TYPE)    { name = "f32" },
 		F64    = new DataType(4, 4, BASE_TYPE)    { name = "f64" },
-		VOID   = new DataType(0, 0, BASE_TYPE)    { name = "void" },
-		STRING = new DataType(16,8, INSTANTIABLE) { name = "string" },
-		BOOL   = new DataType(1, 1, BASE_TYPE)    { name = "bool" },
-		AUTO   = new DataType(0, 0, 0)            { name = "auto" },
+		VOID   = new DataType(0, 0, BASE_TYPE),
+		STRING = new DataType(16,8, INSTANTIABLE),
+		BOOL   = new DataType(1, 1, BASE_TYPE)    { name = "i1" },
+		AUTO   = new DataType(0, 0, 0),
 		TUPLE  = new DataType(0, 0, 0);
 	
 	static readonly DataType[] baseTypes = new DataType[] {
