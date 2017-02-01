@@ -38,11 +38,6 @@ namespace Jolly
 			return null;
 		}
 		
-		public void finishDefinition(string name, Value type)
-		{
-			children[name] = type;
-		}
-		
 		public Value? getDefinition(string name)
 		{
 			Value item;

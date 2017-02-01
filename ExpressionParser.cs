@@ -93,11 +93,13 @@ class ExpressionParser
 	{
 		public enum Kind : byte
 		{
-			STATEMENT = 0,
-			GROUP     = 1, // (A group are the values between parenthesis)
-			TERNARY   = 2,
-			SUBSCRIPT = 3,
-			TUPLE     = 4,
+			STATEMENT     = 0,
+			GROUP         = 1, // (A group are the values between parenthesis)
+			TERNARY       = 2,
+			SUBSCRIPT     = 3,
+			TUPLE         = 4,
+			OBJECT        = 5,
+			TEMPLATE_LIST = 6,
 		}
 		
 		public Enclosure(int startIndex, Kind kind)
@@ -173,10 +175,10 @@ class ExpressionParser
 	Stack<AST_Node> values = new Stack<AST_Node>();
 	Stack<Op> operators = new Stack<Op>();
 	
-	static Value   BOOL(bool   data) => new Value{ type = Lookup.I1,      kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value    INT(ulong  data) => new Value{ type = Lookup.I32,     kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,     kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value STRING(string data) => new Value{ type = Lookup.STRING,  kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value   BOOL(bool   data) => new Value{ type = Lookup.I1,     kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value    INT(ulong  data) => new Value{ type = Lookup.I32,    kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,    kind = Value.Kind.STATIC_VALUE, data = data };
+	static Value STRING(string data) => new Value{ type = Lookup.STRING, kind = Value.Kind.STATIC_VALUE, data = data };
 	
 	public AST_Node getValue() => values.PeekOrDefault();
 	public void addValue(AST_Node _value)

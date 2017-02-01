@@ -172,8 +172,8 @@ namespace Jolly
 		public AST_Function(SourceLocation loc, Scope scope, string name)
 			: base(loc, Type.FUNCTION, scope, name) {  }
 		
-		public AST_Node returns;
 		public int returnDefinitionCount, argumentDefinitionCount, finishedArguments;
+		public AST_Node returns;
 	}
 		
 	class AST_Tuple : AST_Scope
