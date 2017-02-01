@@ -270,7 +270,7 @@ class ExpressionParser
 			var functionNode       = new AST_Function(token.location, functionScope, token.text)
 				{ result = functionDefinition, returns = prev };
 			parseData.ast.Insert(startNodeCount, functionNode);
-			functionNode.returnDefinitionCount = parseData.ast.Count - (startNodeCount += 1);
+			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1);
 			int _startNodeCount2 = parseData.ast.Count;
 			
 			if(!scope.Add(token.text, functionDefinition)) {
@@ -281,9 +281,9 @@ class ExpressionParser
 			parseData.cursor += 2;
 			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, DefineMode.ARGUMENT, functionScope).parse();
 			
-			functionType.arguments = new DataType[functionScope.variableCount];
-			functionType.returns = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
-			functionNode.argumentDefinitionCount = parseData.ast.Count - _startNodeCount2;
+			functionType.arguments     = new DataType[functionScope.variableCount];
+			functionType.returns       = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
+			functionNode.argumentCount = parseData.ast.Count - _startNodeCount2;
 			
 			Token brace = parseData.tokens[parseData.cursor + 1];
 			if(brace.type != TT.BRACE_OPEN) {

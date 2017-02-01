@@ -30,10 +30,17 @@ static class Analyser
 	
 	struct Enclosure
 	{
-		public Enclosure(AST_Scope n, Scope s, int e) { node = n; end = e; scope = s; }
-		public AST_Scope node;
+		public Enclosure(NT t, AST_Scope n, Scope s, int e)
+		{
+			scope = s;
+			type = t;
+			node = n;
+			end = e;
+		}
+		public AST_Scope node; // Node may be null
 		public Scope scope;
 		public int end;
+		public NT type;
 	}
 	
 	static void incrementCursor()
@@ -53,13 +60,13 @@ static class Analyser
 	
 	static void enclosureEnd(Enclosure poppedEnclosure)
 	{
-		switch(poppedEnclosure.node.nodeType)
+		switch(poppedEnclosure.type)
 		{
 			case NT.VARIABLE_DEFINITION: {
 				var closure = (AST_Scope)enclosure.node;
 				var symbol = (AST_VariableDefinition)poppedEnclosure.node;
 				
-				switch(enclosure.node.nodeType)
+				switch(enclosure.type)
 				{
 					case NT.ARGUMENTS:
 					case NT.FUNCTION:
@@ -68,9 +75,10 @@ static class Analyser
 						DataType resultRef = new DataType_Reference(variableValue.type);
 						DataType.makeUnique(ref resultRef);
 						symbol.result.type = resultRef;
+						enclosure.scope.children[symbol.text] = symbol.result;
 						instructions.Add(new IR_Allocate(){ type = variableValue.type, result = symbol.result });
 						
-						if(enclosure.node.nodeType == NT.ARGUMENTS) {
+						if(enclosure.type == NT.ARGUMENTS) {
 							var function = (AST_Function)enclosureStack.ElementAt(1).node;
 							var functionType = (DataType_Function)function.result.type;
 							functionType.arguments[function.finishedArguments] = variableValue.type;
@@ -109,19 +117,11 @@ static class Analyser
 		}
 	}
 	
-	static readonly AST_Scope
-		global = new AST_Scope(new SourceLocation(), NT.GLOBAL, null, null),
-		return_values = new AST_Scope(new SourceLocation(), NT.RETURN_VALUES, null, null),
-		arguments = new AST_Scope(new SourceLocation(), NT.ARGUMENTS, null, null);
-	
 	public static List<IR> analyse(List<AST_Node> program, Scope globalScope)
 	{
-		global.scope = globalScope;
-		// instructions = new List<Node>(program.Count);
 		instructions = new List<IR>();
-		enclosureStack = new EnclosureStack(16);
-		
-		enclosureStack.Push(new Enclosure(global, globalScope, int.MaxValue));
+		enclosureStack = new EnclosureStack(16);	
+		enclosureStack.Push(new Enclosure(NT.GLOBAL, null, globalScope, int.MaxValue));
 		
 		cursor = 0;
 		for(AST_Node node = program[cursor];
@@ -158,13 +158,13 @@ static class Analyser
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
-				enclosureStack.Push(new Enclosure(function, function.scope, function.memberCount + cursor));
-				enclosureStack.Push(new Enclosure(arguments, function.scope, function.returnDefinitionCount + function.argumentDefinitionCount + cursor));
-				enclosureStack.Push(new Enclosure(return_values, function.scope, function.returnDefinitionCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.FUNCTION,      function, function.scope, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.ARGUMENTS,     null,     function.scope, function.returnCount + function.argumentCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.RETURN_VALUES, null,     function.scope, function.returnCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
 				var structNode = ((AST_Scope)node);
-				enclosureStack.Push(new Enclosure(structNode, structNode.scope, structNode.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, structNode.scope, structNode.memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
 				AST_Operator op = (AST_Operator)node;
@@ -175,7 +175,7 @@ static class Analyser
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple, tuple.scope, ((AST_Tuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, ((AST_Tuple)node).memberCount + cursor));
 			} },
 			{ NT.MODIFY_TYPE, modifyType },
 		},
@@ -187,8 +187,8 @@ static class Analyser
 				AST_Function function = (AST_Function)node;
 				tempID = ((DataType_Function)function.result.type).returns.Length + 1;
 				instructions.Add(new IR_Function((DataType_Function)function.result.type));
-				enclosureStack.Push(new Enclosure(function, function.scope, function.memberCount + cursor));
-				cursor += function.returnDefinitionCount;
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, function.scope, function.memberCount + cursor));
+				cursor += function.returnCount;
 			} },
 			{ NT.OPERATOR, node => {
 				AST_Operator o = (AST_Operator)node;
@@ -202,11 +202,11 @@ static class Analyser
 			} },
 			{ NT.TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple, tuple.scope, tuple.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple, tuple.scope, tuple.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
@@ -261,7 +261,7 @@ static class Analyser
 			return;
 		}
 		var symbol = (AST_VariableDefinition)node;
-		enclosureStack.Push(new Enclosure(symbol, symbol.scope, symbol.memberCount + cursor));
+		enclosureStack.Push(new Enclosure(NT.VARIABLE_DEFINITION, symbol, symbol.scope, symbol.memberCount + cursor));
 	}
 	
 	static bool implicitCast(AST_Node a, AST_Node b)
@@ -480,15 +480,14 @@ static class Analyser
 	{
 		Debug.Assert(node.result.type == null);
 		
-		var closure = (AST_Scope)enclosure.node;
-		if(closure.nodeType == NT.MEMBER_TUPLE) {
-			var tup = (AST_Tuple)closure;
+		if(enclosure.type == NT.MEMBER_TUPLE) {
+			var tup = (AST_Tuple)enclosure.node;
 			var hacky = tup.membersFrom; // Prevent ref from messing things up
 			node.result = operatorGetMember(ref hacky, node as AST_Symbol);
 			return;
 		}
 		AST_Symbol name = (AST_Symbol)node;
-		var definition = closure.getDefinition(name.text);
+		var definition = enclosure.scope.searchItem(name.text);
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
