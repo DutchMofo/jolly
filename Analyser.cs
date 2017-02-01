@@ -46,8 +46,9 @@ static class Analyser
 	static int tempID = 0;
 	static Value newResult(Value _value)
 		=> new Value{ type = _value.type, kind = _value.kind, tempID = tempID++ };
-	static Value newResult()
-		=> new Value{ tempID = tempID++ };
+		
+	static bool valueIsStatic(Value val)
+		=> val.kind == Value.Kind.STATIC_TYPE | val.kind == Value.Kind.STATIC_FUNCTION;
 	
 	static void enclosureEnd(Enclosure poppedEnclosure)
 	{
@@ -66,8 +67,8 @@ static class Analyser
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataType_Function)function.result.type;
 				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
-				DataType reference = new DataType_Reference(symbol.typeFrom.result.type);
-				DataType.makeUnique(ref reference);
+				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
+				DataType.makeUnique(ref symbol.result.type);
 				symbol.result = newResult(symbol.result);
 				closure.scope.finishDefinition(symbol.text, symbol.result);
 				function.finishedArguments += 1;
@@ -409,7 +410,7 @@ static class Analyser
 		}
 		
 		Value result = new Value();
-		if(a.result.kind != Value.Kind.STATIC_TYPE)
+		if(!valueIsStatic(a.result))
 		{
 			int index;
 			var varType = ((DataType_Reference)a.result.type).referenced;
@@ -431,7 +432,7 @@ static class Analyser
 			
 			instructions.Add(new IR_GetMember{ _struct = a.result, index = index, result = result = newResult(result) });
 		}
-		else
+		else if(a.result.kind == Value.Kind.STATIC_TYPE)
 		{
 			// Get static member
 			var definition = ((DataType_Struct)a.result.type).structScope.getDefinition(b.text);
@@ -439,6 +440,10 @@ static class Analyser
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
 			return definition.Value;
+		}
+		else
+		{
+			throw Jolly.unexpected(a);
 		}
 		return result;
 	}

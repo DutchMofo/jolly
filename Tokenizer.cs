@@ -12,75 +12,75 @@ class Token
 		UNDEFINED = 0,
 		
 		/*############
-			Tokens
+		    Tokens
 		#############*/
-		TILDE,				// ~
-		BACK_QUOTE,			// `
-		EXCLAMATION,		// !
-		AT,					// @
-		HASH,				// #
-		DOLLAR,				// $
-		PERCENT, 			// %
-		CARET,				// ^
-		AND,				// &
-		ASTERISK,			// *
-		PARENTHESIS_OPEN,	// (
-		PARENTHESIS_CLOSE,	// )
-		BRACKET_OPEN,		// [
-		BRACKET_CLOSE,		// ]
-		BRACE_OPEN,			// {
-		BRACE_CLOSE,		// }
-		MINUS,				// -
-		PLUS,				// +
-		EQUAL,				// =
-		COLON,				// :
-		SEMICOLON,			// ;
-		APOSTROPHE,			// '
-		QUOTE,				// "
-		PIPE,				// |
-		BACKSLASH,			// \
-		SLASH,				// /
-		LESS,				// <
-		COMMA,				// ,
-		GREATER,			// >
-		PERIOD,				// .
-		QUESTION_MARK,		// ?
+		TILDE,             // ~
+		BACK_QUOTE,        // `
+		EXCLAMATION,       // !
+		AT,                // @
+		HASH,              // #
+		DOLLAR,            // $
+		PERCENT,           // %
+		CARET,             // ^
+		AND,               // &
+		ASTERISK,          // *
+		PARENTHESIS_OPEN,  // (
+		PARENTHESIS_CLOSE, // )
+		BRACKET_OPEN,      // [
+		BRACKET_CLOSE,     // ]
+		BRACE_OPEN,        // {
+		BRACE_CLOSE,       // }
+		MINUS,             // -
+		PLUS,              // +
+		EQUAL,             // =
+		COLON,             // :
+		SEMICOLON,         // ;
+		APOSTROPHE,        // '
+		QUOTE,             // "
+		PIPE,              // |
+		BACKSLASH,         // \
+		SLASH,             // /
+		LESS,              // <
+		COMMA,             // ,
+		GREATER,           // >
+		PERIOD,            // .
+		QUESTION_MARK,     // ?
 		
-		COLON_COLON,		// ::
-		COLON_TILDE,		// :~
-		QUESTION_MARKx2,	// ??
+		COLON_COLON,       // ::
+		COLON_TILDE,       // :~
+		QUESTION_MARKx2,   // ??
 		
-		AND_AND,			// &&
-		OR_OR, 				// ||
-		MINUS_MINUS,		// --
-		PLUS_PLUS,			// ++
-		EQUAL_EQUAL,		// ==
-		LESS_LESS,			// <<
-		DOT_DOT,			// ..
-		GREATER_GREATER,	// >>
+		AND_AND,           // &&
+		OR_OR,             // ||
+		MINUS_MINUS,       // --
+		PLUS_PLUS,         // ++
+		EQUAL_EQUAL,       // ==
+		LESS_LESS,         // <<
+		DOT_DOT,           // ..
+		GREATER_GREATER,   // >>
 		
 		/*#############
-			Assigns
+		    Assigns
 		#############*/
-		AND_EQUAL,			// &=
-		OR_EQUAL,			// |=
-		ASTERISK_EQUAL,		// *=
-		MINUS_EQUAL,		// -=
-		PLUS_EQUAL,			// +=
-		SLASH_EQUAL,		// /=
-		PERCENT_EQUAL,		// %=
-		CARET_EQUAL,		// ^=
+		AND_EQUAL,         // &=
+		OR_EQUAL,          // |=
+		ASTERISK_EQUAL,    // *=
+		MINUS_EQUAL,       // -=
+		PLUS_EQUAL,        // +=
+		SLASH_EQUAL,       // /=
+		PERCENT_EQUAL,     // %=
+		CARET_EQUAL,       // ^=
 		
 		/*#############
-			Compare
+		    Compare
 		#############*/
-		NOT_EQUAL,			// !=
-		LESS_EQUAL,			// <=
-		GREATER_EQUAL,		// >=
-		EQUAL_GREATER,		// =>
+		NOT_EQUAL,         // !=
+		LESS_EQUAL,        // <=
+		GREATER_EQUAL,     // >=
+		EQUAL_GREATER,     // =>
 		
 		/*###############
-			Constants
+		    Constants
 		###############*/
 		IDENTIFIER,
 		STRING_LITERAL,
@@ -88,9 +88,11 @@ class Token
 		FLOAT_LITERAL,
 		
 		/*##############
-			Keywords
+		    Keywords
 		##############*/
 		// TODO: Maybe just register these to the global scope
+		I1,
+		BOOL,
 		I8,
 		BYTE,
 		U8,
@@ -114,7 +116,6 @@ class Token
 		
 		VOID,
 		STRING,
-		BOOL,
 		AUTO,
 
 		ENUM,
@@ -170,13 +171,13 @@ class Token
 	{
 		string text = Jolly.formatEnum(type);
 		
-		if(type <= Type.EQUAL_GREATER)		return "token " + text;
-		if(type == Type.IDENTIFIER)			return text + " " + token?.text;
-		if(type == Type.STRING_LITERAL)		return text + " " + token?._string;
-		if(type == Type.INTEGER_LITERAL)	return text + " " + token?._integer;
-		if(type == Type.FLOAT_LITERAL)		return text + " " + token?._float;
-		if(type <= Type.WHILE)				return "keyword " + text;
-		if(type <= Type.SORT_DESC)			return "directive " + text;
+		if(type <= Type.EQUAL_GREATER)   return "token " + text;
+		if(type == Type.IDENTIFIER)      return text + " " + token?.text;
+		if(type == Type.STRING_LITERAL)  return text + " " + token?._string;
+		if(type == Type.INTEGER_LITERAL) return text + " " + token?._integer;
+		if(type == Type.FLOAT_LITERAL)   return text + " " + token?._float;
+		if(type <= Type.WHILE)           return "keyword " + text;
+		if(type <= Type.SORT_DESC)       return "directive " + text;
 		
 		return text;
 	}
@@ -422,7 +423,7 @@ class Tokenizer
 		else if (chr == 'x' || chr == 'X')
 		{ // Hexadecimal numbers
 			if(integer != 0) {
-				Jolly.addWarning(getLocation(), ".. Before x must be 0");
+				Jolly.addWarning(getLocation(), "Number before x should be 0");
 			}
 			
 			incrementCursor();
@@ -522,13 +523,10 @@ class Tokenizer
 							indent--;
 						} else if (prevC == '/' && c == '*') {
 							indent++;
+						} else if (c == '\n') {
+							cursorNewLine();
 						}
-						else
-						{
-							if (c == '\n')
-								cursorNewLine();
-							prevC = c;
-						}
+						prevC = c;
 					} while (indent > 0);
 					incrementCursor();
 					prevToken = emptyToken;

@@ -38,10 +38,11 @@ i32 main()
 {
 	// Unicode variable names
 	f32 π = 3.14159265359;
-	// Cast f32 to i32
-	i32 three = (i32: π);
 	
-	u8* data = new u8[100];
+	i32 three = (i32:  π); // Cast
+	i32 bits  = (i32:~ π); // Reinterpret cast
+	
+	u8[:] data = new u8[100];
 	// Defer a statement so it gets run at the end of the scope
 	defer delete data;
 	
