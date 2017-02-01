@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 
 namespace Jolly
 {
@@ -8,12 +7,11 @@ namespace Jolly
 	
     class ScopeParser
 	{
-		protected SharedParseData parseData;
-		protected Scope scope;
-		protected Token token;
-		protected int end;
-		
 		public AST_Symbol scopeHead;
+		SharedParseData parseData;
+		Scope scope;
+		Token token;
+		int end;
 		
 		public ScopeParser(SharedParseData parseData, int end, Scope scope)
 		{
@@ -22,11 +20,72 @@ namespace Jolly
 			this.end = end;
 		}
 		
-		protected bool parseStruct()
+		public void parseStructScope()
 		{
-			if(token.type != TT.STRUCT)
-				return false;
-			
+			int startNodeCount = parseData.ast.Count;
+			for (token = parseData.tokens[parseData.cursor];
+				parseData.cursor < end;
+				token = parseData.tokens[parseData.cursor += 1])
+			{
+				switch(token.type)
+				{
+				case TT.STRUCT:     parseStruct();  break;
+				// case TT.UNION:     parseStruct();  break;
+				default:
+					new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.MEMBER, scope).parse();
+					break;
+				}
+			}
+		}
+		
+		public void parseBlockScope()
+		{
+			int startNodeCount = parseData.ast.Count;
+			for (token = parseData.tokens[parseData.cursor];
+				parseData.cursor < end;
+				token = parseData.tokens[parseData.cursor += 1])
+			{
+				switch(token.type)
+				{
+				// case TT.IF:         parseIf();      break;
+				// case TT.FOR:        parseFor();     break;
+				case TT.RETURN:     parseReturn();  break;
+				// case TT.WHILE:      parseWhile();   break;
+				// case TT.BRACE_OPEN: parseBraceOpen; break;
+				default:
+					new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.FUNCTION_OR_VARIABLE, scope).parse();
+					break;
+				}
+			}
+			if(scopeHead != null) {
+				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			}
+		}
+		
+		public void parseGlobalScope()
+		{
+			int startNodeCount = parseData.ast.Count;
+			for (token = parseData.tokens[parseData.cursor];
+				parseData.cursor < end;
+				token = parseData.tokens[parseData.cursor += 1])
+			{
+				switch(token.type)
+				{
+				case TT.STRUCT:     parseStruct();  break;
+				// case TT.UNION:     parseStruct();  break;
+				// case TT.NAMESPACE:     parseStruct();  break;
+				default:
+					new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.FUNCTION_OR_VARIABLE, scope).parse();
+					break;
+				}
+			}
+			if(scopeHead != null) {
+				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			}
+		}
+		
+		void parseStruct()
+		{
 			Token name = parseData.tokens[parseData.cursor += 1];
 			if(name.type != TT.IDENTIFIER) {
 				throw Jolly.unexpected(token);
@@ -48,93 +107,19 @@ namespace Jolly
 			}
 			parseData.ast.Add(structNode);
 			parseData.cursor += 1;
-			new StructParser(parseData, brace.partnerIndex, structScope)
+			new ScopeParser(parseData, brace.partnerIndex, structScope)
 				{ scopeHead = structNode } // Hacky
-				.parseBlock();
+				.parseStructScope();
 			
 			structType.members = new DataType[structType.memberMap.Count];
-			// cursor = brace.partnerIndex;
-			
-			return true;
 		}
 				
-		protected bool parseReturn()
+		void parseReturn()
 		{
-			if(token.type != TT.RETURN)
-				return false;
-			
 			parseData.cursor += 1;
 			var parser = new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.NONE, scope);
-			parser.parseExpression();
+			parser.parse();
 			parseData.ast.Add(new AST_Return(token.location, parser.getValue()));
-			
-			return true;
-		}
-				
-		protected virtual void _parse()
-		{
-			switch(token.type)
-			{
-			case TT.STRUCT:     parseStruct();  break;
-			// case TT.UNION:     parseStruct();  break;
-			// case TT.NAMESPACE:     parseStruct();  break;
-			default:
-				new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.FUNCTION_OR_VARIABLE, scope).parseExpression();
-				break;
-			}
-		}
-		
-		public void parseBlock()
-		{
-			int startNodeCount = parseData.ast.Count;
-			for (token = parseData.tokens[parseData.cursor];
-				parseData.cursor < end;
-				token = parseData.tokens[parseData.cursor += 1])
-			{
-				_parse();
-			}
-			if(scopeHead != null) {
-				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
-			}
-		}
-	}
-	
-	class BlockParser : ScopeParser
-	{
-		public BlockParser(SharedParseData parseData, int end, Scope scope)
-			: base(parseData, end, scope) { }
-		
-		protected override void _parse()
-		{
-			switch(token.type)
-			{
-			// case TT.IF:         parseIf();      break;
-			// case TT.FOR:        parseFor();     break;
-			case TT.RETURN:     parseReturn();  break;
-			// case TT.WHILE:      parseWhile();   break;
-			// case TT.BRACE_OPEN: parseBraceOpen; break;
-			default:
-				new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.FUNCTION_OR_VARIABLE, scope).parseExpression();
-				break;
-			}
-		}
-	}
-	
-	class StructParser : ScopeParser
-	{
-		public StructParser(SharedParseData parseData, int end, Scope scope)
-			: base(parseData, end, scope) { }
-		
-		protected override void _parse()
-		{
-			switch(token.type)
-			{
-			case TT.STRUCT:     parseStruct();  break;
-			// case TT.UNION:     parseStruct();  break;
-			default:
-				new ExpressionParser(parseData, TT.SEMICOLON, DefineMode.MEMBER, scope).parseExpression();
-				break;
-			}
 		}
 	}
 }

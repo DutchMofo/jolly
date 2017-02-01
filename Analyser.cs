@@ -44,79 +44,65 @@ static class Analyser
 	}
 	
 	static int tempID = 0;
-	static Value newResult(Value _value)
+	public static Value newResult(Value _value)
 		=> new Value{ type = _value.type, kind = _value.kind, tempID = tempID++ };
 		
-	static bool valueIsStatic(Value val)
+	public static bool valueIsStatic(Value val)
 		=> val.kind == Value.Kind.STATIC_TYPE | val.kind == Value.Kind.STATIC_FUNCTION;
 	
 	static void enclosureEnd(Enclosure poppedEnclosure)
 	{
 		switch(poppedEnclosure.node.nodeType)
 		{
-		case NT.VARIABLE_DEFINITION: {
-			var closure = (AST_Scope)enclosure.node;
-			var symbol = (AST_VariableDefinition)poppedEnclosure.node;
-			
-			switch(enclosure.node.nodeType)
-			{
-			case NT.STRUCT: {
-				((DataType_Struct)closure.result.type).finishDefinition(symbol.text, symbol.typeFrom.result.type);
+			case NT.VARIABLE_DEFINITION: {
+				var closure = (AST_Scope)enclosure.node;
+				var symbol = (AST_VariableDefinition)poppedEnclosure.node;
+				
+				switch(enclosure.node.nodeType)
+				{
+					case NT.STRUCT: {
+						((DataType_Struct)closure.result.type).finishDefinition(symbol.text, symbol.typeFrom.result.type);
+					} break;
+					case NT.ARGUMENTS: {
+						var function = (AST_Function)enclosureStack.ElementAt(1).node;
+						var functionType = (DataType_Function)function.result.type;
+						functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
+						function.finishedArguments += 1;
+					} break;
+					case NT.FUNCTION:
+					case NT.GLOBAL: {
+						var variableValue = symbol.typeFrom.result;
+						DataType resultRef = new DataType_Reference(variableValue.type);
+						DataType.makeUnique(ref resultRef);
+						symbol.result.type = resultRef;
+						instructions.Add(new IR_Allocate(){ type = variableValue.type, result = symbol.result });
+					} break;
+					default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
+				}
 			} break;
-			case NT.ARGUMENTS: {
+			case NT.RETURN_VALUES: {
 				var function = (AST_Function)enclosureStack.ElementAt(1).node;
 				var functionType = (DataType_Function)function.result.type;
-				functionType.arguments[function.finishedArguments] = symbol.typeFrom.result.type;
-				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
-				DataType.makeUnique(ref symbol.result.type);
-				symbol.result = newResult(symbol.result);
-				closure.scope.finishDefinition(symbol.text, symbol.result);
-				function.finishedArguments += 1;
-			} break;
-			case NT.FUNCTION:
-			case NT.GLOBAL: {
-				if((symbol.typeFrom.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
-					throw Jolly.addError(symbol.typeFrom.location, "The type {0} is not instantiable.".fill(symbol.typeFrom.result.type));
+				var tuple = function.returns as AST_Tuple;
+				if(tuple != null) {
+					for(int i = 0; i < tuple.values.Count; i += 1) {
+						functionType.returns[i] = tuple.values[i].result.type;
+					}
+				} else {
+					functionType.returns[0] = function.returns.result.type;
 				}
-				symbol.result.type = new DataType_Reference(symbol.typeFrom.result.type);
-				DataType.makeUnique(ref symbol.result.type);
-				symbol.result = newResult(symbol.result);
-				closure.scope.finishDefinition(symbol.text, symbol.result);
-				instructions.Add(new IR_Allocate(){ type = symbol.typeFrom.result.type, result = symbol.result });
 			} break;
-			default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
-			}
-		} break;
-		case NT.RETURN_VALUES: {
-			var function = (AST_Function)enclosure.node;
-			var functionType = (DataType_Function)function.result.type;
-			var tuple = function.returns as AST_Tuple;
-			if(tuple != null) {
-				for(int i = 0; i < tuple.values.Count; i += 1) {
-					functionType.returns[i] = tuple.values[i].result.type;
-				}
-			} else {
-				functionType.returns[0] = function.returns.result.type;
-			}
-			
-			if(function.argumentDefinitionCount > 0) {
-				arguments.scope = function.scope;
-				enclosureStack.Push(new Enclosure(arguments, function.argumentDefinitionCount + cursor));	
-			} else {
-				goto case NT.ARGUMENTS;
-			}
-		} break;
-		case NT.ARGUMENTS: {
-			// Make function type unique
-			DataType.makeUnique(ref enclosure.node.result.type);
-			// Skip to end of function enclosure
-			cursor = enclosure.end;
-		} break;
-		case NT.MEMBER_TUPLE: break;
-		case NT.FUNCTION: break;
-		case NT.STRUCT: break;
-		case NT.TUPLE: break;
-		default: throw Jolly.addError(poppedEnclosure.node.location, "Internal compiler error: illigal node used as enclosure");
+			case NT.ARGUMENTS: {
+				// Make function type unique
+				DataType.makeUnique(ref enclosure.node.result.type);
+				// Skip to end of function enclosure
+				cursor = enclosure.end;
+			} break;
+			case NT.MEMBER_TUPLE: break;
+			case NT.FUNCTION: break;
+			case NT.STRUCT: break;
+			case NT.TUPLE: break;
+			default: throw Jolly.addError(poppedEnclosure.node.location, "Internal compiler error: illigal node used as enclosure");
 		}
 	}
 	
@@ -169,8 +155,9 @@ static class Analyser
 			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
 				AST_Function function = (AST_Function)node;
-				return_values.scope = function.scope;
+				return_values.scope = arguments.scope = function.scope;
 				enclosureStack.Push(new Enclosure(function, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(arguments, function.returnDefinitionCount + function.argumentDefinitionCount + cursor));
 				enclosureStack.Push(new Enclosure(return_values, function.returnDefinitionCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
@@ -249,9 +236,9 @@ static class Analyser
 		}
 		
 		switch(mod.toType) {
-		case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
-		case AST_ModifyType.TO_ARRAY: Debug.Assert(false); break;
-		case AST_ModifyType.TO_SLICE: Debug.Assert(false); break;
+			case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
+			case AST_ModifyType.TO_ARRAY: Debug.Assert(false); break;
+			case AST_ModifyType.TO_SLICE: Debug.Assert(false); break;
 		}
 		
 		DataType.makeUnique(ref mod.result.type);
@@ -373,6 +360,10 @@ static class Analyser
 		{
 			load(b);
 		
+			if((a.triggers & AST_Node.Trigger.STORE) != 0) {
+				// a.onStore(b.result);
+			}
+			
 			var target = a.result.type as DataType_Reference;
 			if(target == null) {
 				throw Jolly.addError(a.location, "Cannot assign to this");

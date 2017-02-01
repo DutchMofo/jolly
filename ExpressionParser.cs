@@ -185,7 +185,7 @@ class ExpressionParser
 		values.Push(_value);
 	}
 	
-	public void parseExpression()
+	public void parse()
 	{
 		AST_Node _value = null;
 		
@@ -277,7 +277,7 @@ class ExpressionParser
 			}
 			
 			parseData.cursor += 2;
-			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, DefineMode.ARGUMENT, functionScope).parseExpression();
+			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, DefineMode.ARGUMENT, functionScope).parse();
 			
 			functionType.arguments = new DataType[functionScope.variableCount];
 			functionType.returns = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
@@ -289,7 +289,7 @@ class ExpressionParser
 			}
 			
 			parseData.cursor += 2;
-			new BlockParser(parseData, brace.partnerIndex, functionScope).parseBlock();
+			new ScopeParser(parseData, brace.partnerIndex, functionScope).parseBlockScope();
 			parseData.cursor = brace.partnerIndex - 1;
 			
 			functionNode.memberCount = parseData.ast.Count - startNodeCount;

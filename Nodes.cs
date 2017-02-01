@@ -68,13 +68,18 @@ namespace Jolly
 			MEMBER_DEFINITION,
 			VARIABLE_DEFINITION,
 			WHILE,
-			
-			COUNT // Must be last
 		}
 		
-		public Value result;
-		public Type nodeType;
+		public enum Trigger : byte
+		{
+			STORE,
+			USED,
+		}
+		
 		public SourceLocation location;
+		public Trigger triggers;
+		public Type nodeType;
+		public Value result;
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);

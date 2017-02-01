@@ -3,9 +3,12 @@ int main()
 {
 	AnalyseTest a;
 	
+	auto implicit = 10;
+	
 	a.count = 10;
 	a.number = 1;
 	swapCountNumber(&a);
+	
 	
 	return 0;
 }
