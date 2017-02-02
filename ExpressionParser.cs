@@ -257,14 +257,15 @@ class ExpressionParser
 			pushOperator(operators.Pop());
 		}
 		
+		Token nextToken = parseData.tokens[parseData.cursor + 1];
+		
 		if(!canDefine) {
-			throw Jolly.addError(token.location, "Can't define a {0} \"{1}\" here.".fill(
-				(parseData.tokens[parseData.cursor + 1].type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
+			throw Jolly.addError(token.location, "Can't define the {0} \"{1}\" here.".fill(
+				(nextToken.type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
 				token.text));
 		}
 		
 		AST_Node prev = values.Pop();
-		Token nextToken = parseData.tokens[parseData.cursor + 1];
 		int startNodeCount = contextStack.Peek().startIndex;
 		Context context = contextStack.Peek();
 		// Define
