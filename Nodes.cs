@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 
 namespace Jolly
 {
@@ -6,6 +7,15 @@ namespace Jolly
 
 	struct Value
 	{
+		public enum Trigger : byte
+		{
+			STORE = 1<<0,
+			LOAD  = 1<<1,
+		}
+		
+		public Action<Value> onStore;
+		public Action<Value> onLoad;
+		
 		public enum Kind : byte
 		{
 			UNDEFINED = 0,
@@ -16,10 +26,11 @@ namespace Jolly
 			ADDRES,
 		}
 		
-		public object data;
+		public Trigger triggers;
 		public DataType type;
-		public Kind kind;
+		public object data;
 		public int tempID;
+		public Kind kind;
 		
 		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
 			"{0} {1}".fill(type, data) :
@@ -69,14 +80,7 @@ namespace Jolly
 			WHILE,
 		}
 		
-		public enum Trigger : byte
-		{
-			STORE = 1<<0,
-			USED  = 1<<1,
-		}
-		
 		public SourceLocation location;
-		public Trigger triggers;
 		public Type nodeType;
 		public Value result;
 		
@@ -191,9 +195,9 @@ namespace Jolly
 		public bool closed;
 	}
 		
-	class AST_Operator : AST_Node
+	class AST_Operation : AST_Node
 	{
-		public AST_Operator(SourceLocation loc, OperatorType operation, AST_Node a, AST_Node b)
+		public AST_Operation(SourceLocation loc, OperatorType operation, AST_Node a, AST_Node b)
 			: base(loc, Type.OPERATOR)
 		{
 			this.operation = operation;

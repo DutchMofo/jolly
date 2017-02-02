@@ -100,9 +100,10 @@ class ExpressionParser
 			EXPRESSION, // Only a expression, can't define anything
 			
 			GROUP,      // (A group are the values between parenthesis)
+			OBJECT,
 			TERNARY,
 			SUBSCRIPT,
-			OBJECT,
+			DEFINITION,
 			TEMPLATE_LIST,
 		}
 		
@@ -309,12 +310,11 @@ class ExpressionParser
 				throw Jolly.unexpected(brace);
 			}
 			
-			parseData.cursor += 2;
+			parseData.cursor += 2; // Skip parenthesis close and brace open
 			new ScopeParser(parseData, brace.partnerIndex, functionTable).parseBlockScope();
-			parseData.cursor = brace.partnerIndex - 1;
-			
 			functionNode.memberCount = parseData.ast.Count - startNodeCount;
 			
+			parseData.cursor = brace.partnerIndex - 1;
 			terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
 		}
 		else
@@ -335,8 +335,8 @@ class ExpressionParser
 			else if(contextKind == Context.Kind.STATEMENT ||
 				    contextKind == Context.Kind.ARGUMENT)
 			{
-				Symbol variableSymbol = new Symbol(scope);
-				       variableNode   = new AST_Definition(token.location, prev);
+				Symbol variableSymbol   = new Symbol(scope);
+				       variableNode     = new AST_Definition(token.location, prev);
 				
 				variableNode.symbol     = variableSymbol;
 				variableNode.text       = name;
@@ -349,15 +349,10 @@ class ExpressionParser
 			} else {
 				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
-			
-			variableNode.memberCount = parseData.ast.Count - startNodeCount;
-			
-			if(variableNode.memberCount == 0) {
-				parseData.ast.Add(variableNode);
-			} else {
-				parseData.ast.Insert(startNodeCount, variableNode);
-			}
+			parseData.ast.Add(variableNode);
 			values.Push(variableNode);
+			
+			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = variableNode });
 		}
 	} // parseIdentifier()
 	
@@ -538,7 +533,7 @@ class ExpressionParser
 		{
 			var node = values.Peek();
 			if(node.nodeType == NT.OPERATOR) {
-				var slice = node as AST_Operator;
+				var slice = node as AST_Operation;
 				if(slice.operation != OT.SLICE) {
 					throw Jolly.unexpected(node);
 				}
@@ -558,7 +553,7 @@ class ExpressionParser
 				values.Push(mod);
 				return;
 			}
-			var opNode = new AST_Operator(token.location, OT.SUBSCRIPT, a, null);
+			var opNode = new AST_Operation(token.location, OT.SUBSCRIPT, a, null);
 			parseData.ast.Add(opNode);
 			values.Push(opNode);
 		}
@@ -642,6 +637,11 @@ class ExpressionParser
 	
 	void contextEnd(Context context)
 	{
+		if(context.kind == Context.Kind.DEFINITION) {
+			((AST_Definition)context.target).memberCount = parseData.ast.Count - context.startIndex;
+			return;
+		}
+		
 		// Not sure what kind of error to throw yet.
 		// This code 'SHOULD' not be reachable
 		throw new ParseException();
@@ -686,8 +686,8 @@ class ExpressionParser
 				}
 				// Slice allows a value to be null
 				var slice = (a == null) ?
-					new AST_Operator(op.location, OT.SLICE, b, null) :
-					new AST_Operator(op.location, OT.SLICE, a, b);
+					new AST_Operation(op.location, OT.SLICE, b, null) :
+					new AST_Operation(op.location, OT.SLICE, a, b);
 				parseData.ast.Add(slice);
 				values.Push(slice);
 				return;
@@ -759,7 +759,7 @@ class ExpressionParser
 			}
 		} // if(op.isSpecial)
 		
-		AST_Operator opNode = new AST_Operator(op.location, op.operation, a, b);
+		AST_Operation opNode = new AST_Operation(op.location, op.operation, a, b);
 		parseData.ast.Add(opNode);
 		values.Push(opNode);
 	} // pushOperator()

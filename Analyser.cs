@@ -63,42 +63,9 @@ static class Analyser
 		switch(poppedEnclosure.type)
 		{
 			case NT.DEFINITION: {
-				var enclosureNode = (AST_Scope)enclosure.node;
-				var definition = (AST_Definition)poppedEnclosure.node;
-				DataType allocType = definition.typeFrom.result.type;
 				
-				switch(enclosure.type)
-				{
-					case NT.FUNCTION_DEFINITION:
-					case NT.FUNCTION:
-					case NT.GLOBAL: {
-						Value resultValue = new Value {
-							tempID = definition.allocation.result.tempID,
-							kind   = Value.Kind.VALUE,
-						};
-						
-						resultValue.type = new DataType_Reference(allocType);
-						DataType.makeUnique(ref resultValue.type);
-						
-						definition.allocation.type   = allocType;
-						definition.allocation.result = resultValue;
-						definition.symbol.type       = resultValue;
-						definition.result            = resultValue;
-						
-						if(enclosure.type == NT.FUNCTION_DEFINITION)
-						{
-							var function          = (AST_Function)enclosureStack.ElementAt(1).node;
-							var functionType      = (DataType_Function)function.result.type;
-							functionType.arguments[function.finishedArguments] = allocType;
-							function.finishedArguments += 1;
-							cursor = enclosure.end;
-						}
-					} break;
-					case NT.STRUCT: {
-						((DataType_Struct)enclosureNode.result.type).finishDefinition(definition.text, allocType);
-					} break;
-					default: throw Jolly.addError(definition.location, "Cannot define a variable here");
-				}
+				// TODO: finish auto types
+				
 			} break;
 			case NT.FUNCTION_DEFINITION: {
 				var function = (AST_Function)enclosure.node;
@@ -158,7 +125,7 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.DEFINITION, node => define(node) },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
@@ -177,7 +144,7 @@ static class Analyser
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
-				AST_Operator op = (AST_Operator)node;
+				AST_Operation op = (AST_Operation)node;
 				Debug.Assert(op.operation == OT.GET_MEMBER);
 				op.result = operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
@@ -190,7 +157,7 @@ static class Analyser
 			{ NT.MODIFY_TYPE, modifyType },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.DEFINITION, node => define(node) },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
@@ -208,10 +175,10 @@ static class Analyser
 				tempID = 1 + table.allocations.Count;
 				
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
-				cursor += function.returnCount;
+				cursor += function.definitionCount;
 			} },
 			{ NT.OPERATOR, node => {
-				AST_Operator o = (AST_Operator)node;
+				AST_Operation o = (AST_Operation)node;
 				operatorAnalysers[o.operation](o);
 			} },
 			{ NT.FUNCTION_CALL, node => {
@@ -275,14 +242,51 @@ static class Analyser
 	static void skipSymbol(AST_Node node)
 		=> cursor += (node as AST_Scope).memberCount;
 	
-	static void defineMemberOrVariable(AST_Node node)
+	static void define(AST_Node node)
 	{
 		if(node.result.type != null) {
 			skipSymbol(node);
 			return;
 		}
-		var symbol = (AST_Definition)node;
-		enclosureStack.Push(new Enclosure(NT.DEFINITION, symbol, enclosure.scope, symbol.memberCount + cursor));
+		
+		var enclosureNode = (AST_Scope)enclosure.node;
+		var definition = (AST_Definition)node;
+		DataType allocType = definition.typeFrom.result.type;
+		
+		switch(enclosure.type)
+		{
+			case NT.FUNCTION_DEFINITION:
+			case NT.FUNCTION:
+			case NT.GLOBAL: {
+				Value resultValue = new Value {
+					tempID = definition.allocation.result.tempID,
+					kind   = Value.Kind.VALUE,
+				};
+				
+				resultValue.type = new DataType_Reference(allocType);
+				DataType.makeUnique(ref resultValue.type);
+				
+				definition.allocation.type   = allocType;
+				definition.allocation.result = resultValue;
+				definition.symbol.type       = resultValue;
+				definition.result            = resultValue;
+				
+				if(enclosure.type == NT.FUNCTION_DEFINITION)
+				{
+					var function          = (AST_Function)enclosureStack.ElementAt(1).node;
+					var functionType      = (DataType_Function)function.result.type;
+					functionType.arguments[function.finishedArguments] = allocType;
+					function.finishedArguments += 1;
+					cursor = enclosure.end;
+				}
+			} break;
+			case NT.STRUCT: {
+				((DataType_Struct)enclosureNode.result.type).finishDefinition(definition.text, allocType);
+			} break;
+			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
+		}
+		
+		enclosureStack.Push(new Enclosure(NT.DEFINITION, definition, enclosure.scope, definition.memberCount + cursor));
 	}
 	
 	static bool implicitCast(AST_Node a, AST_Node b)
@@ -329,8 +333,8 @@ static class Analyser
 		return false;
 	}
 	
-	static readonly Dictionary<OT, Action<AST_Operator>>
-		operatorAnalysers = new Dictionary<OT, Action<AST_Operator>>() {
+	static readonly Dictionary<OT, Action<AST_Operation>>
+		operatorAnalysers = new Dictionary<OT, Action<AST_Operation>>() {
 			{ OT.MINUS,		 basicOperator },
 			{ OT.PLUS,		 basicOperator },
 			{ OT.MULTIPLY,	 basicOperator },
@@ -388,8 +392,8 @@ static class Analyser
 		{
 			load(b);
 		
-			if((a.triggers & AST_Node.Trigger.STORE) != 0) {
-				// a.onStore(b.result);
+			if((a.result.triggers & Value.Trigger.STORE) != 0) {
+				a.result.onStore(b.result);
 			}
 			
 			var target = a.result.type as DataType_Reference;
@@ -463,7 +467,7 @@ static class Analyser
 		return result;
 	}
 	
-	static void basicOperator(AST_Operator op)
+	static void basicOperator(AST_Operation op)
 	{
 		load(op.a);
 		load(op.b);

@@ -110,7 +110,7 @@ namespace Jolly
 			
 			structNode.symbol = structTable;
 			structNode.text   = structType.name  = name.text;
-			structNode.result = structTable.type = new Value { kind = Value.Kind.STATIC_FUNCTION, type = structType };
+			structNode.result = structTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = structType };
 			
 			if(!scope.Add(name.text, structTable)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));

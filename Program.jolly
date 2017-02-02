@@ -2,18 +2,17 @@
 int main()
 {
 	AnalyseTest a;
-	
-	a.count = a.number = 10;
+	a.count = a.number = z;
 	
 	swapCountNumber(&a);
 	
 	return 0;
 }
 
-AnalyseTest* swapCountNumber(AnalyseTest* a)
+AnalyseTest* swapCountNumber(AnalyseTest* b)
 {
-	a.(count, number, inner.data) = a.(number, count, inner.data);
-	return a;
+	b.(count, number, inner.data) = b.(number, count, inner.data);
+	return b;
 }
 
 struct AnalyseTest
