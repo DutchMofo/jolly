@@ -18,8 +18,9 @@ namespace Jolly
 	
 	class Symbol
 	{
+		public Symbol() { }
 		public Symbol(SymbolTable parent) { this.parent = parent; }
-		protected SymbolTable parent;
+		public SymbolTable parent;
 		public Value type;
 		
 		public virtual Symbol searchSymbol(string name) => null;
@@ -72,6 +73,7 @@ namespace Jolly
 		
 		public IR_Allocate allocateVariable()
 		{
+			// Bubble allocations to functions or global scope
 			if(canAllocate) {
 				var alloc = new IR_Allocate();
 				allocations.Add(alloc);

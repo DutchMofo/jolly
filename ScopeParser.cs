@@ -104,18 +104,17 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			var structType        = new DataType_Struct() { name = name.text };
-			var structTable       = new SymbolTable(scope) { 
-				type = new Value{ type = structType, kind = Value.Kind.STATIC_TYPE }
-			};
-			structType.structScope = structTable;
+			DataType_Struct structType  = new DataType_Struct();
+			AST_Scope       structNode  = new AST_Scope(token.location, NT.STRUCT);
+			SymbolTable     structTable = new SymbolTable(scope);
+			
+			structNode.symbol = structTable;
+			structNode.text   = structType.name  = name.text;
+			structNode.result = structTable.type = new Value { kind = Value.Kind.STATIC_FUNCTION, type = structType };
+			
 			if(!scope.Add(name.text, structTable)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
-			var structNode = new AST_Scope(name.location, NT.STRUCT, structTable, name.text) { 
-				result = structTable.type,
-				definition = structTable,
-			};
 			
 			parseData.ast.Add(structNode);
 			parseData.cursor += 1;

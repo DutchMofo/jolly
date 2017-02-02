@@ -35,6 +35,9 @@ namespace Jolly
 		public static void forEach<T>(this IEnumerable<T> list, Action<T> action)
 			{ foreach(T i in list) action(i); }
 			
+		public static void forEach<T>(this List<T> list, Action<T, int> action)
+			{ for(int i = 0; i < list.Count; ++i) action(list[i], i); }
+			
 		public static bool any<T>(this T[] list, Func<T, int, bool> action)
 			{ for(int i = 0; i < list.Length; i += 1) if(action(list[i], i)) return true; return false; }
 	}

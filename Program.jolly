@@ -3,30 +3,30 @@ int main()
 {
 	AnalyseTest a;
 	
-	a.count = 10;
-	a.number = 1;
-	swapCountNumber(&a);
+	a.count = a.number = 10;
 	
-	int b = 0;
-	int c = 19;
+	swapCountNumber(&a);
 	
 	return 0;
 }
 
-bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
+AnalyseTest* swapCountNumber(AnalyseTest* a)
 {
 	a.(count, number, inner.data) = a.(number, count, inner.data);
-	return true, a;
+	return a;
 }
 
 struct AnalyseTest
 {
 	int count;
 	int number;
-	Inner inner;
+	Inner.InnerInner inner;
 }
 
 struct Inner
 {
-	int data;
+	struct InnerInner
+	{
+		int data;
+	}
 }

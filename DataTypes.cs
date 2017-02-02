@@ -94,7 +94,6 @@ namespace Jolly
 	class DataType_Struct : DataType
 	{
 		public DataType_Struct() { flags = Flags.INSTANTIABLE; }
-		public SymbolTable structScope;
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
 		
@@ -118,7 +117,7 @@ namespace Jolly
 		public void finishDefinition(string name, DataType type)
 			=> members[ memberMap[name] ] = type;
 				
-		public override string ToString() => name;
+		public override string ToString() => '%'+name;
 	}
 	
 	class DataType_Function : DataType
@@ -141,6 +140,6 @@ namespace Jolly
 			return hash;
 		}
 		
-		public override string ToString() => name;
+		public override string ToString() => '%'+name;
 	}
 }

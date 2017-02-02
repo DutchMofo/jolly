@@ -63,55 +63,55 @@ static class Analyser
 		switch(poppedEnclosure.type)
 		{
 			case NT.DEFINITION: {
-				var closure = (AST_Scope)enclosure.node;
-				var symbol = (AST_Definition)poppedEnclosure.node;
+				var enclosureNode = (AST_Scope)enclosure.node;
+				var definition = (AST_Definition)poppedEnclosure.node;
+				DataType allocType = definition.typeFrom.result.type;
 				
 				switch(enclosure.type)
 				{
-					case NT.ARGUMENTS:
+					case NT.FUNCTION_DEFINITION:
 					case NT.FUNCTION:
 					case NT.GLOBAL: {
-						var variableValue = symbol.typeFrom.result;
-						symbol.result.type = new DataType_Reference(variableValue.type);
-						DataType.makeUnique(ref symbol.result.type);
-						symbol.definition.type = symbol.result;
+						Value resultValue = new Value {
+							tempID = definition.allocation.result.tempID,
+							kind   = Value.Kind.VALUE,
+						};
 						
-						symbol.result.tempID = symbol.allocatedAt.result.tempID;
-						symbol.allocatedAt.type = symbol.result.type;
-						symbol.allocatedAt.result.type = symbol.result.type;
+						resultValue.type = new DataType_Reference(allocType);
+						DataType.makeUnique(ref resultValue.type);
 						
-						if(enclosure.type == NT.ARGUMENTS) {
-							var functionEnclosure = enclosureStack.ElementAt(1);
-							var function = (AST_Function)functionEnclosure.node;
-							var functionType = (DataType_Function)function.result.type;
-							functionType.arguments[function.finishedArguments] = variableValue.type;
+						definition.allocation.type   = allocType;
+						definition.allocation.result = resultValue;
+						definition.symbol.type       = resultValue;
+						definition.result            = resultValue;
+						
+						if(enclosure.type == NT.FUNCTION_DEFINITION)
+						{
+							var function          = (AST_Function)enclosureStack.ElementAt(1).node;
+							var functionType      = (DataType_Function)function.result.type;
+							functionType.arguments[function.finishedArguments] = allocType;
 							function.finishedArguments += 1;
-							cursor = functionEnclosure.end;
+							cursor = enclosure.end;
 						}
 					} break;
 					case NT.STRUCT: {
-						((DataType_Struct)closure.result.type).finishDefinition(symbol.text, symbol.typeFrom.result.type);
+						((DataType_Struct)enclosureNode.result.type).finishDefinition(definition.text, allocType);
 					} break;
-					default: throw Jolly.addError(symbol.location, "Cannot define a variable here");
+					default: throw Jolly.addError(definition.location, "Cannot define a variable here");
 				}
 			} break;
-			case NT.RETURN_VALUES: {
-				var function = (AST_Function)enclosureStack.ElementAt(1).node;
+			case NT.FUNCTION_DEFINITION: {
+				var function = (AST_Function)enclosure.node;
 				var functionType = (DataType_Function)function.result.type;
 				var tuple = function.returns as AST_Tuple;
 				if(tuple != null) {
-					for(int i = 0; i < tuple.values.Count; i += 1) {
-						functionType.returns[i] = tuple.values[i].result.type;
-					}
+					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.type);
 				} else {
 					functionType.returns[0] = function.returns.result.type;
 				}
-			} break;
-			case NT.ARGUMENTS: {
-				// Make function type unique
-				DataType.makeUnique(ref enclosure.node.result.type);
-				// Skip to end of function enclosure
-				cursor = enclosure.end;
+				
+				DataType.makeUnique(ref function.result.type);
+				cursor = enclosure.end; // Skip to end of function enclosure
 			} break;
 			case NT.MEMBER_TUPLE: break;
 			case NT.FUNCTION: break;
@@ -158,18 +158,21 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.MEMBER_DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
-				var table = (SymbolTable)function.definition;
-				enclosureStack.Push(new Enclosure(NT.FUNCTION,      function, table, function.memberCount + cursor));
-				enclosureStack.Push(new Enclosure(NT.ARGUMENTS,     null,     table, function.returnCount + function.argumentCount + cursor));
-				enclosureStack.Push(new Enclosure(NT.RETURN_VALUES, null,     table, function.returnCount + cursor));
+				var table = (SymbolTable)function.symbol;
+				tempID = 1;
+				// Allocate id's
+				foreach(var allocation in table.allocations) {
+					allocation.result.tempID = tempID++;
+				}
+				enclosureStack.Push(new Enclosure(NT.FUNCTION,            function, table, function.memberCount     + cursor));
+				enclosureStack.Push(new Enclosure(NT.FUNCTION_DEFINITION, null,     table, function.definitionCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
-				var table = (SymbolTable)structNode.definition;
+				var table = (SymbolTable)structNode.symbol;
 				instructions.Add(new IR_Struct{ structType = (DataType_Struct)structNode.result.type });
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
@@ -192,18 +195,17 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
-				var table = (SymbolTable)function.definition;
+				var table = (SymbolTable)function.symbol;
 				instructions.Add(new IR_Function((DataType_Function)function.result.type));
 				
-				tempID = 1;
-				foreach(var returns in ((DataType_Function)function.result.type).returns) {
-					instructions.Add(new IR_Allocate{ result = new Value{ tempID = tempID++, type = returns } });
-				}
-				
+				// TODO: Is this necessary?
+				// foreach(var returns in ((DataType_Function)function.result.type).returns) {
+				// 	instructions.Add(new IR_Allocate{ type = returns, result = new Value{ tempID = tempID++, type = returns } });
+				// }
 				foreach(var allocation in table.allocations) {
-					allocation.result.tempID = tempID++;
 					instructions.Add(allocation);
 				}
+				tempID = 1 + table.allocations.Count;
 				
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				cursor += function.returnCount;
@@ -260,6 +262,7 @@ static class Analyser
 		}
 		
 		switch(mod.toType) {
+			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
 			case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
 			case AST_ModifyType.TO_ARRAY: Debug.Assert(false); break;
 			case AST_ModifyType.TO_SLICE: Debug.Assert(false); break;
@@ -406,14 +409,10 @@ static class Analyser
 			if(aVals.Count != bVals.Count) {
 				throw Jolly.addError(a.location, "Tuple's not the same size");
 			}
-			for(int i = 0; i < aVals.Count; i += 1) {
-				assign(aVals[i], bVals[i]);
-			}
+			aVals.forEach((aVal, i) => assign(aVal, bVals[i]));
 		}
 		else if(aIsTuple & !bIsTuple) {
-			foreach(AST_Node node in ((AST_Tuple)a).values) {
-				assign(node, b);
-			}
+			((AST_Tuple)a).values.forEach(v => assign(v, b));
 		} else {
 			throw Jolly.addError(a.location, "Cannot assign tuple to variable");
 		}
@@ -451,7 +450,7 @@ static class Analyser
 		else if(a.result.kind == Value.Kind.STATIC_TYPE)
 		{
 			// Get static member
-			var definition = ((AST_Symbol)a).definition.getChildSymbol(b.text);
+			var definition = ((AST_Symbol)a).symbol.getChildSymbol(b.text);
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
@@ -513,7 +512,7 @@ static class Analyser
 		Debug.Assert(definition.type.type != null);
 		Debug.Assert(definition.type.kind != Value.Kind.UNDEFINED);
 		
-		name.definition = definition;
+		name.symbol = definition;
 		name.result = definition.type;
 	}
 }

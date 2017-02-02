@@ -159,6 +159,7 @@ class ExpressionParser
 	public ExpressionParser setContext(Context.Kind kind)
 	{
 		contextStack.Push(new Context(parseData.ast.Count, kind));
+		contextKind = kind;
 		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
 	}
 	
@@ -166,10 +167,11 @@ class ExpressionParser
 	          currentTokenKind = TokenKind.VALUE;     // Is the current token being parsed an operator or a value
 	
 	SharedParseData parseData;
+	Context.Kind contextKind;
+	SymbolTable scope;
 	bool canDefine;
 	TT terminator;
 	Token token;
-	SymbolTable scope;
 
 	Stack<Context> contextStack = new Stack<Context>();
 	Stack<AST_Node> values = new Stack<AST_Node>();
@@ -266,41 +268,41 @@ class ExpressionParser
 		
 		AST_Node prev = values.Pop();
 		int startNodeCount = contextStack.Peek().startIndex;
-		Context context = contextStack.Peek();
+		string name = token.text;
+		
 		// Define
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
 		{ // Function
-			if(context.kind != Context.Kind.STATEMENT) {
-				throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
+			if(contextKind != Context.Kind.STATEMENT) {
+				throw Jolly.addError(token.location, "Can't define the function \"{0}\" here".fill(name));
 			}
 			
-			var functionType  = new DataType_Function() { name = token.text };
-			var functionTable = new SymbolTable(parent: scope) {
-				type = new Value{ type = functionType, kind = Value.Kind.STATIC_FUNCTION },
-				canAllocate = true,
-			};
+			DataType_Function functionType  = new DataType_Function();
+			AST_Function      functionNode  = new AST_Function(token.location);
+			SymbolTable       functionTable = new SymbolTable(scope);
 			
-			if(!scope.Add(token.text, functionTable)) {
+			functionNode.symbol = functionTable;
+			functionNode.text   = functionType.name  = name;
+			functionNode.result = functionTable.type = new Value { kind = Value.Kind.STATIC_FUNCTION, type = functionType };
+			
+			if(!scope.Add(name, functionTable)) {
 				// TODO: add overloads
 				Jolly.addError(token.location, "Trying to redefine function");
 			}
-			var functionNode = new AST_Function(token.location, functionTable, token.text) {
-				result = functionTable.type,
-				definition = functionTable,
-				returns = prev,
-			};
+			
 			parseData.ast.Insert(startNodeCount, functionNode);
-			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1);
-			int _startNodeCount2 = parseData.ast.Count;
+			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1); // Skip the function node itself
 			
 			parseData.cursor += 2;
+			functionTable.canAllocate = true;
 			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable)
 				.setContext(Context.Kind.ARGUMENT)
 				.parse();
 			
-			functionType.arguments     = new DataType[functionTable.allocations.Count];
-			functionType.returns       = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
-			functionNode.argumentCount = parseData.ast.Count - _startNodeCount2;
+			functionNode.returns = prev;
+			functionType.arguments       = new DataType[functionTable.allocations.Count];
+			functionType.returns         = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
+			functionNode.definitionCount = parseData.ast.Count - startNodeCount;
 			
 			Token brace = parseData.tokens[parseData.cursor + 1];
 			if(brace.type != TT.BRACE_OPEN) {
@@ -317,64 +319,75 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			var variable = new AST_Definition(token.location, scope, token.text, prev);
+			AST_Definition variableNode;
 			
-			if(context.kind == Context.Kind.MEMBER)
+			if(contextKind == Context.Kind.MEMBER)
 			{
 				var structType = (DataType_Struct)scope.type.type;
-				if(structType.memberMap.ContainsKey(token.text)) {
-					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
+				if(structType.memberMap.ContainsKey(name)) {
+					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
 				}
-				structType.memberMap.Add(token.text, structType.memberMap.Count);
-				variable.result.kind = Value.Kind.VALUE;
+				structType.memberMap.Add(name, structType.memberMap.Count);
+				
+				variableNode = new AST_Definition(token.location, prev, scope, name);
+				variableNode.result.kind = Value.Kind.VALUE;
 			}
-			else if(context.kind == Context.Kind.STATEMENT ||
-				    context.kind == Context.Kind.ARGUMENT)
+			else if(contextKind == Context.Kind.STATEMENT ||
+				    contextKind == Context.Kind.ARGUMENT)
 			{
-				variable.result.kind = Value.Kind.VALUE;
-				var varSymbol = new Symbol(scope) { type = variable.result };
-				variable.definition = varSymbol;
-				if(!scope.Add(token.text, varSymbol)) {
+				Symbol variableSymbol = new Symbol(scope);
+				       variableNode   = new AST_Definition(token.location, prev);
+				
+				variableNode.symbol     = variableSymbol;
+				variableNode.text       = name;
+				variableNode.result     = variableSymbol.type = new Value { kind = Value.Kind.VALUE };
+				variableNode.allocation = scope.allocateVariable();
+				
+				if(!scope.Add(name, variableSymbol)) {
 					throw Jolly.addError(token.location, "Trying to redefine variable");
 				}
-				variable.allocatedAt = scope.allocateVariable();
 			} else {
-				throw Jolly.addError(token.location, "Can't define a variable \"{0}\" here.".fill(token.text));
+				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
 			
-			variable.memberCount = parseData.ast.Count - startNodeCount;
+			variableNode.memberCount = parseData.ast.Count - startNodeCount;
 			
-			if(variable.memberCount == 0) {
-				parseData.ast.Add(variable);
+			if(variableNode.memberCount == 0) {
+				parseData.ast.Add(variableNode);
 			} else {
-				parseData.ast.Insert(startNodeCount, variable);
+				parseData.ast.Insert(startNodeCount, variableNode);
 			}
-			values.Push(variable);
+			values.Push(variableNode);
 		}
 	} // parseIdentifier()
 	
-	bool prevToPointer()
+	void modifyType(byte toType)
 	{
-		if(operators.PeekOrDefault().operation == OT.MULTIPLY)
-		{
-			operators.Pop(); // Remove multiply
-			AST_Node target = values.PopOrDefault();
-			if(target == null) {
-				throw Jolly.unexpected(token);
-			}
-			
-			currentTokenKind = TokenKind.VALUE;
-			var mod = new AST_ModifyType(token.location, target, AST_ModifyType.TO_POINTER);
-			parseData.ast.Add(mod);
-			values.Push(mod);
-			return true;
+		AST_Node target = values.PopOrDefault();
+		if(target == null) {
+			throw Jolly.unexpected(token);
 		}
-		return false;
+		
+		currentTokenKind = TokenKind.VALUE;
+		var mod = new AST_ModifyType(token.location, target, toType);
+		parseData.ast.Add(mod);
+		values.Push(mod);
+	}
+	
+	bool prevIsTypeModifier()
+	{
+		switch(operators.PeekOrDefault().operation) {
+			case OT.MULTIPLY: modifyType(AST_ModifyType.TO_POINTER ); break;
+			case OT.TERNARY:  modifyType(AST_ModifyType.TO_NULLABLE); break;
+			default: return false;
+		}
+		operators.Pop(); // Remove multiply / ternary
+		return true;
 	}
 	
 	void parseComma()
 	{		
-		if(prevTokenKind != TokenKind.VALUE && !prevToPointer()) {
+		if(prevTokenKind != TokenKind.VALUE && !prevIsTypeModifier()) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -396,7 +409,7 @@ class ExpressionParser
 		
 		if(prevTokenKind != TokenKind.VALUE)
 		{
-			if(prevToPointer())
+			if(prevIsTypeModifier())
 				return true;
 			
 			switch(token.type) {
@@ -427,22 +440,19 @@ class ExpressionParser
 			
 			if(op.operation == OT.MULTIPLY)
 			{
-				op.isSpecial = false;
 				if(canDefine) {
 					currentTokenKind = TokenKind.VALUE;
-					
-					AST_Node target = values.PopOrDefault();
-					if(target == null) {
-						throw Jolly.unexpected(token);
-					}
-					var mod = new AST_ModifyType(token.location, target, AST_ModifyType.TO_POINTER);
-					parseData.ast.Add(mod);
-					values.Push(mod);
+					modifyType(AST_ModifyType.TO_POINTER);
 					return true;
 				}
 			}
-			if(op.operation == OT.TERNARY)
+			else if(op.operation == OT.TERNARY)
 			{
+				if(canDefine) {
+					currentTokenKind = TokenKind.VALUE;
+					modifyType(AST_ModifyType.TO_NULLABLE);
+					return true;
+				}
 				contextStack.Push(new Context(parseData.ast.Count, Context.Kind.TERNARY));
 			}
 			else if(op.operation == OT.COLON)
@@ -524,7 +534,6 @@ class ExpressionParser
 			context = contextStack.Pop();
 		}
 		
-		// TODO: should check if there are enough values
 		if(context.hasColon)
 		{
 			var node = values.Peek();

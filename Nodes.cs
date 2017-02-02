@@ -21,17 +21,14 @@ namespace Jolly
 		public Kind kind;
 		public int tempID;
 		
-		public string typeString() => ((type.flags & DataType.Flags.BASE_TYPE) != 0) ?
-			"@"+type :
-			""+type;
-				
 		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
-			"{0} {1}".fill(typeString(), data) :
-			"{0} %{1}".fill(typeString(), tempID);
+			"{0} {1}".fill(type, data) :
+			"{0} %{1}".fill(type, tempID);
 	}
 	
 	class AST_Node
 	{
+		public AST_Node() { }
 		public AST_Node(SourceLocation l, Type nT) { nodeType = nT; location = l; }
 		
 		public enum Type
@@ -41,17 +38,17 @@ namespace Jolly
 			STRUCT,
 			UNION,
 			ENUM,
-			USERTYPE,
 			
-			ARGUMENTS,
-			RETURN_VALUES,
+			DEFINITION,
+			FUNCTION_DEFINITION,
+			FUNCTION,
+			
 			NAME,
-			MODIFY_TYPE,
+			MEMBER_NAME,
 			TUPLE,
 			MEMBER_TUPLE,
-			MEMBER_NAME,
 			GLOBAL,
-			STATEMENT,
+			MODIFY_TYPE,
 			LOGIC,
 			
 			ALIAS,
@@ -59,26 +56,23 @@ namespace Jolly
 			BREAK,
 			CAST,
 			FOR,
-			FUNCTION,
 			FUNCTION_CALL,
 			GOTO,
 			IF,
-			IF_ELSE,
+			ELSE,
 			LABEL,
 			LITERAL,
 			LOOP_CONTROL,
 			OPERATOR,
 			RETURN,
 			USING,
-			MEMBER_DEFINITION,
-			DEFINITION,
 			WHILE,
 		}
 		
 		public enum Trigger : byte
 		{
-			STORE,
-			USED,
+			STORE = 1<<0,
+			USED  = 1<<1,
 		}
 		
 		public SourceLocation location;
@@ -129,7 +123,8 @@ namespace Jolly
 			this.toType = toType;
 			this.target = target;
 		}
-		public const byte TO_POINTER = 1, TO_ARRAY = 2, TO_SLICE = 3;
+		// TODO: Should i put these in an enum to be consistant?
+		public const byte TO_POINTER = 1, TO_ARRAY = 2, TO_SLICE = 3, TO_NULLABLE = 4;
 		public AST_Node target;
 		public byte toType;
 	}
@@ -137,20 +132,23 @@ namespace Jolly
 	
 	class AST_Symbol : AST_Node
 	{
+		public AST_Symbol(SourceLocation loc, NT type) : base(loc, type) { }
 		public AST_Symbol(SourceLocation loc, Symbol symbol, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
-		public Symbol definition;
+		public Symbol symbol;
 		public string text;
 	}
 	
 	class AST_Definition : AST_Scope
 	{
-		public AST_Definition(SourceLocation loc, SymbolTable scope, string name, AST_Node typeFrom, NT type = NT.DEFINITION)
-			: base(loc, type, scope, name)
-		{ this.typeFrom = typeFrom; }
+		public AST_Definition(SourceLocation loc, AST_Node typeFrom)
+			: base(loc, NT.DEFINITION) { this.typeFrom = typeFrom; }
 		
-		public IR_Allocate allocatedAt;
+		public AST_Definition(SourceLocation loc, AST_Node typeFrom, SymbolTable scope, string name)
+			: base(loc, NT.DEFINITION, scope, name) { this.typeFrom = typeFrom; }
+		
+		public IR_Allocate allocation;
 		public AST_Node typeFrom;
 	}
 	
@@ -165,6 +163,7 @@ namespace Jolly
 	
 	class AST_Scope : AST_Symbol
 	{
+		public AST_Scope(SourceLocation loc, NT type) : base(loc, type) { }
 		public AST_Scope(SourceLocation loc, NT type, SymbolTable scope, string name)
 			: base(loc, scope, name, type) { }
 			
@@ -173,10 +172,11 @@ namespace Jolly
 	
 	class AST_Function : AST_Scope
 	{
+		public AST_Function(SourceLocation loc) : base(loc, NT.FUNCTION) { }
 		public AST_Function(SourceLocation loc, SymbolTable scope, string name)
 			: base(loc, Type.FUNCTION, scope, name) {  }
 		
-		public int returnCount, argumentCount, finishedArguments;
+		public int returnCount, definitionCount, finishedArguments;
 		public AST_Node returns;
 	}
 		
