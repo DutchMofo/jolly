@@ -170,6 +170,7 @@ static class Analyser
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
 				var table = (SymbolTable)structNode.definition;
+				instructions.Add(new IR_Struct{ structType = (DataType_Struct)structNode.result.type });
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {

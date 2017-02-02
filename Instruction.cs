@@ -82,11 +82,11 @@ namespace Jolly
 			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.typeString()).Aggregate((a,b)=>a+", "+b));
 	}
 		
-	// class InstructionStruct : Instruction
-	// {
-	// 	public DataTypeStruct structType;
-	// 	public override string ToString() => "@{0} = struct {{ {1} }}".fill(structType.name, structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
-	// }
+	class IR_Struct : IR
+	{
+		public DataType_Struct structType;
+		public override string ToString() => "@{0} = struct {{ {1} }}".fill(structType.name, structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b));
+	}
 	
 	class IR_Function : IR
 	{

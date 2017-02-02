@@ -15,7 +15,7 @@ int main()
 
 bool, AnalyseTest* swapCountNumber(AnalyseTest* a)
 {
-	a.(count, number) = a.(number, count);
+	a.(count, number, inner.data) = a.(number, count, inner.data);
 	return true, a;
 }
 
@@ -23,4 +23,10 @@ struct AnalyseTest
 {
 	int count;
 	int number;
+	Inner inner;
+}
+
+struct Inner
+{
+	int data;
 }
