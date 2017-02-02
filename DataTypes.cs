@@ -94,7 +94,7 @@ namespace Jolly
 	class DataType_Struct : DataType
 	{
 		public DataType_Struct() { flags = Flags.INSTANTIABLE; }
-		public Scope structScope;
+		public SymbolTable structScope;
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
 		

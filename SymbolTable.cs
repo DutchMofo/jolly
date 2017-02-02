@@ -16,20 +16,30 @@ namespace Jolly
 		IS_PURE		= 1<<6,
 	};
 	
-	class Scope
+	class Symbol
 	{
-		Scope parent;
-		public int variableCount;
-		public Value scopeType;
-		public Dictionary<string, Value> children = new Dictionary<string, Value>();
+		public Symbol(SymbolTable parent) { this.parent = parent; }
+		protected SymbolTable parent;
+		public Value type;
 		
-		public Scope(Scope parent)
-			 { this.parent = parent; }
+		public virtual Symbol searchSymbol(string name) => null;
+		public virtual Symbol getChildSymbol(string name) => null;
+	}
+	
+	class SymbolTable : Symbol
+	{
+		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
 		
-		public Value? searchItem(string name)
+		public List<IR_Allocate> allocations = new List<IR_Allocate>();
+		public bool canAllocate;
+		
+		
+		public SymbolTable(SymbolTable parent) : base(parent) { }
+		
+		public override Symbol searchSymbol(string name)
 		{
-			Scope iterator = this;
-			Value item;
+			SymbolTable iterator = this;
+			Symbol item;
 			do {
 				if(iterator.children.TryGetValue(name, out item))
 					return item;
@@ -38,25 +48,36 @@ namespace Jolly
 			return null;
 		}
 		
-		public Value? getDefinition(string name)
+		public override Symbol getChildSymbol(string name)
 		{
-			Value item;
+			Symbol item;
 			if(children.TryGetValue(name, out item))
 				return item;
 			return null;
 		}
 		
-		public bool Add(string childName, Value definition)
+		public bool Add(string childName, Symbol definition)
 		{
-			Scope iterator = this;
+			SymbolTable iterator = this;
 			do {
-				if(iterator.children.ContainsKey(childName))
+				if(iterator.children.ContainsKey(childName)) {
 					return false;
+				}
 				iterator = iterator.parent;
 			} while(iterator != null);
 			
 			children.Add(childName, definition);
 			return true;
+		}
+		
+		public IR_Allocate allocateVariable()
+		{
+			if(canAllocate) {
+				var alloc = new IR_Allocate();
+				allocations.Add(alloc);
+				return alloc;
+			}
+			return parent.allocateVariable();
 		}
 	}
 }

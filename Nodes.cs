@@ -20,9 +20,14 @@ namespace Jolly
 		public DataType type;
 		public Kind kind;
 		public int tempID;
+		
+		public string typeString() => ((type.flags & DataType.Flags.BASE_TYPE) != 0) ?
+			"@"+type :
+			""+type;
+				
 		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
-			"{0} {1}".fill(type, data):
-			"{0} %{1}".fill(type, tempID);
+			"{0} {1}".fill(typeString(), data) :
+			"{0} %{1}".fill(typeString(), tempID);
 	}
 	
 	class AST_Node
@@ -66,7 +71,7 @@ namespace Jolly
 			RETURN,
 			USING,
 			MEMBER_DEFINITION,
-			VARIABLE_DEFINITION,
+			DEFINITION,
 			WHILE,
 		}
 		
@@ -132,19 +137,20 @@ namespace Jolly
 	
 	class AST_Symbol : AST_Node
 	{
-		public AST_Symbol(SourceLocation loc, string name, NT type = NT.NAME)
+		public AST_Symbol(SourceLocation loc, Symbol symbol, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
-		public int memberCount;
+		public Symbol definition;
 		public string text;
 	}
 	
-	class AST_VariableDefinition : AST_Scope
+	class AST_Definition : AST_Scope
 	{
-		public AST_VariableDefinition(SourceLocation loc, Scope scope, string name, AST_Node typeFrom, NT type = NT.VARIABLE_DEFINITION)
+		public AST_Definition(SourceLocation loc, SymbolTable scope, string name, AST_Node typeFrom, NT type = NT.DEFINITION)
 			: base(loc, type, scope, name)
 		{ this.typeFrom = typeFrom; }
 		
+		public IR_Allocate allocatedAt;
 		public AST_Node typeFrom;
 	}
 	
@@ -159,30 +165,29 @@ namespace Jolly
 	
 	class AST_Scope : AST_Symbol
 	{
-		public AST_Scope(SourceLocation loc, NT type, Scope scope, string name)
-			: base(loc, name, type) { this.scope = scope; }
-		
-		public Scope scope;
-		public Value? getDefinition(string name)
-			=> scope.searchItem(name);
+		public AST_Scope(SourceLocation loc, NT type, SymbolTable scope, string name)
+			: base(loc, scope, name, type) { }
+			
+		public int memberCount;
 	}
 	
 	class AST_Function : AST_Scope
 	{
-		public AST_Function(SourceLocation loc, Scope scope, string name)
+		public AST_Function(SourceLocation loc, SymbolTable scope, string name)
 			: base(loc, Type.FUNCTION, scope, name) {  }
 		
 		public int returnCount, argumentCount, finishedArguments;
 		public AST_Node returns;
 	}
 		
-	class AST_Tuple : AST_Scope
+	class AST_Tuple : AST_Node
 	{
-		public AST_Tuple(SourceLocation loc, Scope scope, NT tupType)
-			: base(loc, tupType, scope, null) { }
+		public AST_Tuple(SourceLocation loc, NT tupType)
+			: base(loc, tupType) { }
 		
 		public List<AST_Node> values = new List<AST_Node>();
 		public AST_Node membersFrom;
+		public int memberCount;
 		public bool closed;
 	}
 		

@@ -6,13 +6,13 @@ namespace Jolly
 	
     class ScopeParser
 	{
-		public AST_Symbol scopeHead;
+		public AST_Scope scopeHead;
 		SharedParseData parseData;
-		Scope scope;
+		SymbolTable scope;
 		Token token;
 		int end;
 		
-		public ScopeParser(SharedParseData parseData, int end, Scope scope)
+		public ScopeParser(SharedParseData parseData, int end, SymbolTable scope)
 		{
 			this.parseData = parseData;
 			this.scope = scope;
@@ -36,6 +36,9 @@ namespace Jolly
 						.parse();
 					break;
 				}
+			}
+			if(scopeHead != null) {
+				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
 			}
 		}
 		
@@ -101,18 +104,22 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			var structScope       = new Scope(scope);
-			var structType        = new DataType_Struct() { name = name.text, structScope = structScope };
-			var structDefinition  = new Value{ type = structType, kind = Value.Kind.STATIC_TYPE };
-			var structNode        = new AST_Scope(name.location, NT.STRUCT, structScope, name.text) { result = structDefinition };
-			structScope.scopeType = structDefinition;
-			
-			if(!scope.Add(name.text, structDefinition)) {
+			var structType        = new DataType_Struct() { name = name.text };
+			var structTable       = new SymbolTable(scope) { 
+				type = new Value{ type = structType, kind = Value.Kind.STATIC_TYPE }
+			};
+			structType.structScope = structTable;
+			if(!scope.Add(name.text, structTable)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
 			}
+			var structNode = new AST_Scope(name.location, NT.STRUCT, structTable, name.text) { 
+				result = structTable.type,
+				definition = structTable,
+			};
+			
 			parseData.ast.Add(structNode);
 			parseData.cursor += 1;
-			new ScopeParser(parseData, brace.partnerIndex, structScope)
+			new ScopeParser(parseData, brace.partnerIndex, structTable)
 				{ scopeHead = structNode } // Hacky
 				.parseStructScope();
 			

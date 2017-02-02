@@ -30,15 +30,15 @@ static class Analyser
 	
 	struct Enclosure
 	{
-		public Enclosure(NT t, AST_Scope n, Scope s, int e)
+		public Enclosure(NT t, AST_Node n, SymbolTable s, int e)
 		{
 			scope = s;
 			type = t;
 			node = n;
 			end = e;
 		}
-		public AST_Scope node; // Node may be null
-		public Scope scope;
+		public SymbolTable scope;
+		public AST_Node node; // Node may be null
 		public int end;
 		public NT type;
 	}
@@ -62,9 +62,9 @@ static class Analyser
 	{
 		switch(poppedEnclosure.type)
 		{
-			case NT.VARIABLE_DEFINITION: {
+			case NT.DEFINITION: {
 				var closure = (AST_Scope)enclosure.node;
-				var symbol = (AST_VariableDefinition)poppedEnclosure.node;
+				var symbol = (AST_Definition)poppedEnclosure.node;
 				
 				switch(enclosure.type)
 				{
@@ -72,17 +72,21 @@ static class Analyser
 					case NT.FUNCTION:
 					case NT.GLOBAL: {
 						var variableValue = symbol.typeFrom.result;
-						DataType resultRef = new DataType_Reference(variableValue.type);
-						DataType.makeUnique(ref resultRef);
-						symbol.result.type = resultRef;
-						enclosure.scope.children[symbol.text] = symbol.result;
-						instructions.Add(new IR_Allocate(){ type = variableValue.type, result = symbol.result });
+						symbol.result.type = new DataType_Reference(variableValue.type);
+						DataType.makeUnique(ref symbol.result.type);
+						symbol.definition.type = symbol.result;
+						
+						symbol.result.tempID = symbol.allocatedAt.result.tempID;
+						symbol.allocatedAt.type = symbol.result.type;
+						symbol.allocatedAt.result.type = symbol.result.type;
 						
 						if(enclosure.type == NT.ARGUMENTS) {
-							var function = (AST_Function)enclosureStack.ElementAt(1).node;
+							var functionEnclosure = enclosureStack.ElementAt(1);
+							var function = (AST_Function)functionEnclosure.node;
 							var functionType = (DataType_Function)function.result.type;
 							functionType.arguments[function.finishedArguments] = variableValue.type;
 							function.finishedArguments += 1;
+							cursor = functionEnclosure.end;
 						}
 					} break;
 					case NT.STRUCT: {
@@ -117,7 +121,7 @@ static class Analyser
 		}
 	}
 	
-	public static List<IR> analyse(List<AST_Node> program, Scope globalScope)
+	public static List<IR> analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
 		instructions = new List<IR>();
 		enclosureStack = new EnclosureStack(16);	
@@ -155,16 +159,18 @@ static class Analyser
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.MEMBER_DEFINITION, node => defineMemberOrVariable(node) },
-			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.FUNCTION, node => {
-				AST_Function function = (AST_Function)node;
-				enclosureStack.Push(new Enclosure(NT.FUNCTION,      function, function.scope, function.memberCount + cursor));
-				enclosureStack.Push(new Enclosure(NT.ARGUMENTS,     null,     function.scope, function.returnCount + function.argumentCount + cursor));
-				enclosureStack.Push(new Enclosure(NT.RETURN_VALUES, null,     function.scope, function.returnCount + cursor));
+				var function = (AST_Function)node;
+				var table = (SymbolTable)function.definition;
+				enclosureStack.Push(new Enclosure(NT.FUNCTION,      function, table, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.ARGUMENTS,     null,     table, function.returnCount + function.argumentCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.RETURN_VALUES, null,     table, function.returnCount + cursor));
 			} },
 			{ NT.STRUCT, node => {
-				var structNode = ((AST_Scope)node);
-				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, structNode.scope, structNode.memberCount + cursor));
+				var structNode = (AST_Scope)node;
+				var table = (SymbolTable)structNode.definition;
+				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
 			{ NT.OPERATOR, node => {
 				AST_Operator op = (AST_Operator)node;
@@ -175,19 +181,30 @@ static class Analyser
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, ((AST_Tuple)node).memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MODIFY_TYPE, modifyType },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.VARIABLE_DEFINITION, node => defineMemberOrVariable(node) },
+			{ NT.DEFINITION, node => defineMemberOrVariable(node) },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.FUNCTION, node => {
-				AST_Function function = (AST_Function)node;
-				tempID = ((DataType_Function)function.result.type).returns.Length + 1;
+				var function = (AST_Function)node;
+				var table = (SymbolTable)function.definition;
 				instructions.Add(new IR_Function((DataType_Function)function.result.type));
-				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, function.scope, function.memberCount + cursor));
+				
+				tempID = 1;
+				foreach(var returns in ((DataType_Function)function.result.type).returns) {
+					instructions.Add(new IR_Allocate{ result = new Value{ tempID = tempID++, type = returns } });
+				}
+				
+				foreach(var allocation in table.allocations) {
+					allocation.result.tempID = tempID++;
+					instructions.Add(allocation);
+				}
+				
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				cursor += function.returnCount;
 			} },
 			{ NT.OPERATOR, node => {
@@ -202,11 +219,11 @@ static class Analyser
 			} },
 			{ NT.TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, tuple.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, tuple.scope, tuple.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
@@ -252,7 +269,7 @@ static class Analyser
 	}
 	
 	static void skipSymbol(AST_Node node)
-		=> cursor += (node as AST_Symbol).memberCount;
+		=> cursor += (node as AST_Scope).memberCount;
 	
 	static void defineMemberOrVariable(AST_Node node)
 	{
@@ -260,8 +277,8 @@ static class Analyser
 			skipSymbol(node);
 			return;
 		}
-		var symbol = (AST_VariableDefinition)node;
-		enclosureStack.Push(new Enclosure(NT.VARIABLE_DEFINITION, symbol, symbol.scope, symbol.memberCount + cursor));
+		var symbol = (AST_Definition)node;
+		enclosureStack.Push(new Enclosure(NT.DEFINITION, symbol, enclosure.scope, symbol.memberCount + cursor));
 	}
 	
 	static bool implicitCast(AST_Node a, AST_Node b)
@@ -433,11 +450,11 @@ static class Analyser
 		else if(a.result.kind == Value.Kind.STATIC_TYPE)
 		{
 			// Get static member
-			var definition = ((DataType_Struct)a.result.type).structScope.getDefinition(b.text);
+			var definition = ((AST_Symbol)a).definition.getChildSymbol(b.text);
 			if(definition == null) {
 				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
 			}
-			return definition.Value;
+			return definition.type;
 		}
 		else
 		{
@@ -487,15 +504,16 @@ static class Analyser
 			return;
 		}
 		AST_Symbol name = (AST_Symbol)node;
-		var definition = enclosure.scope.searchItem(name.text);
+		var definition = enclosure.scope.searchSymbol(name.text);
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 		}
-		Debug.Assert(definition.Value.type != null);
-		Debug.Assert(definition.Value.kind != Value.Kind.UNDEFINED);
+		Debug.Assert(definition.type.type != null);
+		Debug.Assert(definition.type.kind != Value.Kind.UNDEFINED);
 		
-		node.result = definition.Value;
+		name.definition = definition;
+		name.result = definition.type;
 	}
 }
 }

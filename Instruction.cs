@@ -64,7 +64,7 @@ namespace Jolly
 	class IR_Allocate : IR
 	{
 		public DataType type;
-		public override string ToString() => "%{0} = allocate {1}".fill(result.tempID, type);
+		public override string ToString() => "%{0} = allocate {1}".fill(result.tempID, result.typeString());
 	}
 	
 	class IR_Return : IR
@@ -77,9 +77,9 @@ namespace Jolly
 	{
 		public Value function;
 		public Value[] arguments;
-		public override string ToString() => "call {0}({1})".fill(
+		public override string ToString() => "call @{0}({1})".fill(
 			(function.kind == Value.Kind.STATIC_FUNCTION) ? function.type.name : function.ToString(),
-			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.typeString()).Aggregate((a,b)=>a+", "+b));
 	}
 		
 	// class InstructionStruct : Instruction

@@ -148,7 +148,7 @@ class ExpressionParser
 		SEPARATOR = 3,
 	}
 	
-	public ExpressionParser(SharedParseData parseData, Token.Type terminator, Scope scope)
+	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope)
 	{
 		this.terminator = terminator;
 		this.parseData = parseData;
@@ -158,7 +158,7 @@ class ExpressionParser
 	
 	public ExpressionParser setContext(Context.Kind kind)
 	{
-		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.STATEMENT));
+		contextStack.Push(new Context(parseData.ast.Count, kind));
 		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
 	}
 	
@@ -169,7 +169,7 @@ class ExpressionParser
 	bool canDefine;
 	TT terminator;
 	Token token;
-	Scope scope;
+	SymbolTable scope;
 
 	Stack<Context> contextStack = new Stack<Context>();
 	Stack<AST_Node> values = new Stack<AST_Node>();
@@ -239,14 +239,14 @@ class ExpressionParser
 		}
 		
 		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
-	} // parseparseData.ast()
+	} // parseExpression()
 	
 	void parseIdentifier()
 	{
 		currentTokenKind = TokenKind.VALUE;
 		
 		if(prevTokenKind != TokenKind.VALUE) {
-			var symbol = new AST_Symbol(token.location, token.text);
+			var symbol = new AST_Symbol(token.location, null, token.text);
 			parseData.ast.Add(symbol);
 			values.Push(symbol);
 			return;
@@ -258,7 +258,6 @@ class ExpressionParser
 		}
 		
 		Token nextToken = parseData.tokens[parseData.cursor + 1];
-		
 		if(!canDefine) {
 			throw Jolly.addError(token.location, "Can't define the {0} \"{1}\" here.".fill(
 				(nextToken.type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
@@ -275,26 +274,31 @@ class ExpressionParser
 				throw Jolly.addError(token.location, "Can't define function \"{0}\" here".fill(token.text));
 			}
 			
-			var functionScope      = new Scope(parent: scope);
-			var functionType       = new DataType_Function() { name = token.text };
-			var functionDefinition = new Value{ type = functionType, kind = Value.Kind.STATIC_FUNCTION };
-			var functionNode       = new AST_Function(token.location, functionScope, token.text)
-				{ result = functionDefinition, returns = prev };
+			var functionType  = new DataType_Function() { name = token.text };
+			var functionTable = new SymbolTable(parent: scope) {
+				type = new Value{ type = functionType, kind = Value.Kind.STATIC_FUNCTION },
+				canAllocate = true,
+			};
+			
+			if(!scope.Add(token.text, functionTable)) {
+				// TODO: add overloads
+				Jolly.addError(token.location, "Trying to redefine function");
+			}
+			var functionNode = new AST_Function(token.location, functionTable, token.text) {
+				result = functionTable.type,
+				definition = functionTable,
+				returns = prev,
+			};
 			parseData.ast.Insert(startNodeCount, functionNode);
 			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1);
 			int _startNodeCount2 = parseData.ast.Count;
 			
-			if(!scope.Add(token.text, functionDefinition)) {
-				// TODO: add overloads
-				Jolly.addError(token.location, "Trying to redefine function");
-			}
-			
 			parseData.cursor += 2;
-			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionScope)
+			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable)
 				.setContext(Context.Kind.ARGUMENT)
 				.parse();
 			
-			functionType.arguments     = new DataType[functionScope.variableCount];
+			functionType.arguments     = new DataType[functionTable.allocations.Count];
 			functionType.returns       = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
 			functionNode.argumentCount = parseData.ast.Count - _startNodeCount2;
 			
@@ -304,7 +308,7 @@ class ExpressionParser
 			}
 			
 			parseData.cursor += 2;
-			new ScopeParser(parseData, brace.partnerIndex, functionScope).parseBlockScope();
+			new ScopeParser(parseData, brace.partnerIndex, functionTable).parseBlockScope();
 			parseData.cursor = brace.partnerIndex - 1;
 			
 			functionNode.memberCount = parseData.ast.Count - startNodeCount;
@@ -313,11 +317,11 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			var variable = new AST_VariableDefinition(token.location, scope, token.text, prev);
+			var variable = new AST_Definition(token.location, scope, token.text, prev);
 			
 			if(context.kind == Context.Kind.MEMBER)
 			{
-				var structType = (DataType_Struct)scope.scopeType.type;
+				var structType = (DataType_Struct)scope.type.type;
 				if(structType.memberMap.ContainsKey(token.text)) {
 					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, token.text));
 				}
@@ -327,11 +331,13 @@ class ExpressionParser
 			else if(context.kind == Context.Kind.STATEMENT ||
 				    context.kind == Context.Kind.ARGUMENT)
 			{
-				scope.variableCount += 1;
 				variable.result.kind = Value.Kind.VALUE;
-				if(!scope.Add(token.text, variable.result)) {
+				var varSymbol = new Symbol(scope) { type = variable.result };
+				variable.definition = varSymbol;
+				if(!scope.Add(token.text, varSymbol)) {
 					throw Jolly.addError(token.location, "Trying to redefine variable");
 				}
+				variable.allocatedAt = scope.allocateVariable();
 			} else {
 				throw Jolly.addError(token.location, "Can't define a variable \"{0}\" here.".fill(token.text));
 			}
@@ -652,7 +658,7 @@ class ExpressionParser
 					}
 					return;
 				}
-				tuple = new AST_Tuple(op.location, scope, NT.TUPLE)
+				tuple = new AST_Tuple(op.location, NT.TUPLE)
 					{ result = new Value{ type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE } };
 				values.Push(tuple);
 				tuple.values.Add(a);
