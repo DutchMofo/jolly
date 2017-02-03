@@ -6,7 +6,6 @@ namespace Jolly
 {
 using System.Linq;
 using NT = AST_Node.Type;
-using OT = OperatorType;
 
 static class Analyser
 {
@@ -63,11 +62,16 @@ static class Analyser
 		switch(poppedEnclosure.type)
 		{
 			case NT.DEFINITION: {
+				// The definition ends after an auto variable is should be assigned to.
+				var definition = (AST_Definition)poppedEnclosure.node;
 				
-				// TODO: finish auto types
+				if(definition.result.type == Lookup.AUTO) {
+					throw Jolly.addError(definition.location, "Implicitly-typed variables must be initialized.");
+				}
 				
 			} break;
 			case NT.FUNCTION_DEFINITION: {
+				// The definition ends after the return values and arguments are parsed.
 				var function = (AST_Function)enclosure.node;
 				var functionType = (DataType_Function)function.result.type;
 				var tuple = function.returns as AST_Tuple;
@@ -121,7 +125,7 @@ static class Analyser
 		
 		return instructions;
 	}
-		
+	
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
@@ -143,10 +147,9 @@ static class Analyser
 				instructions.Add(new IR_Struct{ structType = (DataType_Struct)structNode.result.type });
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
-			{ NT.OPERATOR, node => {
-				AST_Operation op = (AST_Operation)node;
-				Debug.Assert(op.operation == OT.GET_MEMBER);
-				op.result = operatorGetMember(ref op.a, op.b as AST_Symbol);
+			{ NT.GET_MEMBER, node => {
+				var op = (AST_Operation)node;
+				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
@@ -177,10 +180,6 @@ static class Analyser
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				cursor += function.definitionCount;
 			} },
-			{ NT.OPERATOR, node => {
-				AST_Operation o = (AST_Operation)node;
-				operatorAnalysers[o.operation](o);
-			} },
 			{ NT.FUNCTION_CALL, node => {
 				var functionCall = (AST_FunctionCall)node;
 				// TODO: validate function call
@@ -188,8 +187,8 @@ static class Analyser
 				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
 			} },
 			{ NT.TUPLE, node => {
-				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
+				// var tuple = (AST_Tuple)node;
+				// enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
@@ -200,8 +199,7 @@ static class Analyser
 			{ NT.RETURN, node => {
 				var returns = (AST_Return)node;
 				Value[] values = (returns.values != null) ?
-					(returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result } :
-					new Value[0];
+					(returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result } : new Value[0];
 				
 				AST_Function function = null;
 				foreach(var closure in enclosureStack) {
@@ -215,6 +213,49 @@ static class Analyser
 				
 				// TODO: Validate return values
 				instructions.Add(new IR_Return{ values = values });
+			} },
+			{ NT.MINUS,		 basicOperator },
+			{ NT.PLUS,		 basicOperator },
+			{ NT.MULTIPLY,	 basicOperator },
+			{ NT.DIVIDE,	 basicOperator },
+			{ NT.SLICE,		 basicOperator },
+			{ NT.GET_MEMBER, node => {
+				var op = (AST_Operation)node;
+				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
+			} },
+			{ NT.ASSIGN, node => {
+				var op = (AST_Operation)node;
+				assign(op.a, op.b);
+				op.result = op.b.result;
+			} },
+			{ NT.REFERENCE, node => {
+				var op = (AST_Operation)node;
+				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {
+					throw Jolly.addError(op.location, "Cannot get a reference to this");
+				}
+				op.result.type = op.a.result.type;
+				op.result.kind = Value.Kind.ADDRES;
+			} },
+			{ NT.DEREFERENCE, node => {
+				var op = (AST_Operation)node;
+				if(op.a.result.kind == Value.Kind.ADDRES) {
+					op.a.result.kind = Value.Kind.VALUE;
+				} else {
+					load(op.a);
+				}
+				op.result.kind = op.a.result.kind;
+				op.result.type = op.a.result.type;
+			} },
+			{ NT.CAST, node => {
+				var op = (AST_Operation)node;
+				load(op.b);
+				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
+					throw Jolly.addError(op.a.location, "Cannot cast to this");
+				}
+				op.result.kind = op.b.result.kind;
+				op.result.type = op.a.result.type;
+				Value toValue = new Value{ kind = Value.Kind.STATIC_TYPE, type = op.a.result.type };
+				instructions.Add(new IR_Cast{ _value = op.b.result, type = toValue, result = toValue });
 			} },
 		};
 	
@@ -249,8 +290,8 @@ static class Analyser
 			return;
 		}
 		
-		var enclosureNode = (AST_Scope)enclosure.node;
-		var definition = (AST_Definition)node;
+		var enclosureNode  = (AST_Scope)enclosure.node;
+		var definition     = (AST_Definition)node;
 		DataType allocType = definition.typeFrom.result.type;
 		
 		switch(enclosure.type)
@@ -273,8 +314,8 @@ static class Analyser
 				
 				if(enclosure.type == NT.FUNCTION_DEFINITION)
 				{
-					var function          = (AST_Function)enclosureStack.ElementAt(1).node;
-					var functionType      = (DataType_Function)function.result.type;
+					var function     = (AST_Function)enclosureStack.ElementAt(1).node;
+					var functionType = (DataType_Function)function.result.type;
 					functionType.arguments[function.finishedArguments] = allocType;
 					function.finishedArguments += 1;
 					cursor = enclosure.end;
@@ -285,8 +326,9 @@ static class Analyser
 			} break;
 			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
 		}
-		
-		enclosureStack.Push(new Enclosure(NT.DEFINITION, definition, enclosure.scope, definition.memberCount + cursor));
+		if(allocType == Lookup.AUTO) {
+			enclosureStack.Push(new Enclosure(NT.DEFINITION, definition, enclosure.scope, definition.memberCount + cursor));
+		}
 	}
 	
 	static bool implicitCast(AST_Node a, AST_Node b)
@@ -332,58 +374,7 @@ static class Analyser
 		
 		return false;
 	}
-	
-	static readonly Dictionary<OT, Action<AST_Operation>>
-		operatorAnalysers = new Dictionary<OT, Action<AST_Operation>>() {
-			{ OT.MINUS,		 basicOperator },
-			{ OT.PLUS,		 basicOperator },
-			{ OT.MULTIPLY,	 basicOperator },
-			{ OT.DIVIDE,	 basicOperator },
-			{ OT.SLICE,		 basicOperator },
-			/*{ OT.PLUS,		 op => {
-				load(op.a);
-				load(op.b);
-				if(!implicitCast(op.a, op.b)) {
-					throw Jolly.addError(op.location, "Types not the same");
-				}
-				
-				
-			} },*/
-			{ OT.GET_MEMBER, op => {
-				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
-			} },
-			{ OT.ASSIGN, op => {
-				assign(op.a, op.b);
-				op.result = op.b.result;
-			} },
-			{ OT.REFERENCE, op => {
-				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {
-					throw Jolly.addError(op.location, "Cannot get a reference to this");
-				}
-				op.result.type = op.a.result.type;
-				op.result.kind = Value.Kind.ADDRES;
-			} },
-			{ OT.DEREFERENCE, op => {
-				if(op.a.result.kind == Value.Kind.ADDRES) {
-					op.a.result.kind = Value.Kind.VALUE;
-				} else {
-					load(op.a);
-				}
-				op.result.kind = op.a.result.kind;
-				op.result.type = op.a.result.type;
-			} },
-			{ OT.CAST, op => {
-				load(op.b);
-				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
-					throw Jolly.addError(op.a.location, "Cannot cast to this");
-				}
-				op.result.kind = op.b.result.kind;
-				op.result.type = op.a.result.type;
-				Value toValue = new Value{ kind = Value.Kind.STATIC_TYPE, type = op.a.result.type };
-				instructions.Add(new IR_Cast{ _value = op.b.result, type = toValue, result = toValue });
-			} },
-		};
-	
+
 	static void assign(AST_Node a, AST_Node b)
 	{
 		bool aIsTuple = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
@@ -392,9 +383,9 @@ static class Analyser
 		{
 			load(b);
 		
-			if((a.result.triggers & Value.Trigger.STORE) != 0) {
-				a.result.onStore(b.result);
-			}
+			// if((a.result.triggers & Value.Trigger.STORE) != 0) {
+			// 	a.result.onStore(b.result);
+			// }
 			
 			var target = a.result.type as DataType_Reference;
 			if(target == null) {
@@ -467,8 +458,9 @@ static class Analyser
 		return result;
 	}
 	
-	static void basicOperator(AST_Operation op)
+	static void basicOperator(AST_Node node)
 	{
+		var op = (AST_Operation)node;
 		load(op.a);
 		load(op.b);
 		if(op.a.result.type != op.b.result.type ) {

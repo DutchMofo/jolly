@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System;
+// using System;
 
 namespace Jolly
 {
@@ -13,8 +13,8 @@ namespace Jolly
 			LOAD  = 1<<1,
 		}
 		
-		public Action<Value> onStore;
-		public Action<Value> onLoad;
+		// public Action<Value> onStore;
+		// public Action<Value> onLoad;
 		
 		public enum Kind : byte
 		{
@@ -26,7 +26,7 @@ namespace Jolly
 			ADDRES,
 		}
 		
-		public Trigger triggers;
+		// public Trigger triggers;
 		public DataType type;
 		public object data;
 		public int tempID;
@@ -44,7 +44,7 @@ namespace Jolly
 		
 		public enum Type
 		{
-			UNITIALIZED = 0,
+			UNDEFINED = 0,
 			BASETYPE,
 			STRUCT,
 			UNION,
@@ -61,11 +61,11 @@ namespace Jolly
 			GLOBAL,
 			MODIFY_TYPE,
 			LOGIC,
+			OBJECT,
 			
 			ALIAS,
 			BLOCK,
 			BREAK,
-			CAST,
 			FOR,
 			FUNCTION_CALL,
 			GOTO,
@@ -74,10 +74,76 @@ namespace Jolly
 			LABEL,
 			LITERAL,
 			LOOP_CONTROL,
-			OPERATOR,
 			RETURN,
 			USING,
 			WHILE,
+			
+			/*##############
+				Operators
+			##############*/
+			REFERENCE,
+			DEREFERENCE,
+			PLUS,
+			MINUS,
+			LOGIC_AND,
+			LOGIC_OR,
+			LOGIC_NOT,
+			BIT_NOT,
+			BIT_AND,
+			BIT_OR,
+			BIT_XOR,
+			MODULO,
+			DIVIDE,
+			MULTIPLY,
+			GET_MEMBER,
+			SUBSCRIPT,
+			READ,
+			ASSIGN,
+			SHIFT_LEFT,
+			SHIFT_RIGHT,
+			SLICE,
+			CAST,
+			BITCAST,
+			LESS,
+			GREATER,
+			NEW,
+			DELETE,
+			
+			TERNARY,
+			TERNARY_SELECT,
+			/*##########################
+				Compound assignment
+			##########################*/
+			AND_ASSIGN,
+			OR_ASSIGN,
+			ASTERISK_ASSIGN,
+			MINUS_ASSIGN,
+			PLUS_ASSIGN,
+			SLASH_ASSIGN,
+			PERCENT_ASSIGN,
+			CARET_ASSIGN,
+			/*##########################
+				Relational operators 
+			##########################*/
+			EQUAL_TO,
+			NOT_EQUAL,	
+			LESS_EQUAL,
+			GREATER_EQUAL,
+			/*########################
+				Not really operators
+			########################*/
+			LAMBDA,
+			COLON,
+			
+			INITIALIZER,
+			TYPE_TO_REFERENCE,
+			BRACKET_OPEN,
+			BRACKET_CLOSE,
+			BRACE_OPEN,
+			BRACE_CLOSE,
+			PARENTHESIS_OPEN,
+			PARENTHESIS_CLOSE,
+			COMMA,
 		}
 		
 		public SourceLocation location;
@@ -101,22 +167,18 @@ namespace Jolly
 	
 	class AST_Logic : AST_Node
 	{
-		public AST_Logic(SourceLocation loc, OperatorType operation, int memberCount, int count, AST_Node condition, AST_Node a, AST_Node b)
-			: base(loc, NT.LOGIC)
+		public AST_Logic(SourceLocation loc, NT operation, int memberCount, int count, AST_Node condition, AST_Node a, AST_Node b)
+			: base(loc, operation)
 		{
 			this.memberCount = memberCount;
 			this.condition = condition;
-			this.operation = operation;
 			this.count = count;
 			this.a = a;
 			this.b = b;
 		}
 		
 		public int memberCount, count;
-		public OperatorType operation;
 		public AST_Node condition, a, b;
-		public override string ToString()
-			=> base.ToString() + " " + operation;
 	}
 	
 	class AST_ModifyType : AST_Node
@@ -198,17 +260,13 @@ namespace Jolly
 		
 	class AST_Operation : AST_Node
 	{
-		public AST_Operation(SourceLocation loc, OperatorType operation, AST_Node a, AST_Node b)
-			: base(loc, Type.OPERATOR)
+		public AST_Operation(SourceLocation loc, NT operation, AST_Node a, AST_Node b)
+			: base(loc, operation)
 		{
-			this.operation = operation;
 			this.a = a;
 			this.b = b;
 		}
-		
-		public override string ToString() { return base.ToString() + " " + operation.ToString(); }
-		
-		public OperatorType operation;
+				
 		public AST_Node a, b;
 	}
 }

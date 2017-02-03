@@ -1,10 +1,10 @@
 
 int main()
 {
-	AnalyseTest a, b = a;
+	AnalyseTest a;//, b = { };
 	a.count = a.number = 10;
 	
-	
+	int? c;
 	swapCountNumber(&a);
 	
 	return 0;

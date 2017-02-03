@@ -5,78 +5,6 @@ namespace Jolly
 {
 using TT = Token.Type;
 using NT = AST_Node.Type;
-using OT = OperatorType;
-
-enum OperatorType
-{
-	UNDEFINED = 0,
-	/*##############
-	    Operators
-	##############*/
-	REFERENCE,
-	DEREFERENCE,
-	PLUS,
-	MINUS,
-	INCREMENT,
-	DECREMENT,
-	LOGIC_AND,
-	EQUAL_TO,
-	LOGIC_OR,
-	LOGIC_NOT,
-	BIT_NOT,
-	BIT_AND,
-	BIT_OR,
-	BIT_XOR,
-	MODULO,
-	DIVIDE,
-	MULTIPLY,
-	GET_MEMBER,
-	SUBSCRIPT,
-	READ,
-	ASSIGN,
-	SHIFT_LEFT,
-	SHIFT_RIGHT,
-	SLICE,
-	CAST,
-	BITCAST,
-	LESS,
-	GREATER,
-	NEW,
-	DELETE,
-	
-	TERNARY,
-	TERNARY_SELECT,
-	COLON,
-	/*##########################
-	    Compound assignment
-	##########################*/
-	AND_ASSIGN,
-	OR_ASSIGN,
-	ASTERISK_ASSIGN,
-	MINUS_ASSIGN,
-	PLUS_ASSIGN,
-	SLASH_ASSIGN,
-	PERCENT_ASSIGN,
-	CARET_ASSIGN,
-	/*##########################
-	    Relational operators 
-	##########################*/
-	NOT_EQUAL,	
-	LESS_EQUAL,
-	GREATER_EQUAL,
-	/*########################
-	    Not really operators
-	########################*/
-	//TODO implement lambda
-	lambda_thing,
-	
-	TYPE_TO_REFERENCE,
-	BRACKET_OPEN,
-	BRACKET_CLOSE,
-	PARENTHESIS_OPEN,
-	PARENTHESIS_CLOSE,
-	COMMA,
-};
 
 class SharedParseData
 {
@@ -124,7 +52,7 @@ class ExpressionParser
 	
 	public struct Op
 	{
-		public Op(byte precedence, byte valCount, bool leftToRight, OT operation, bool isSpecial = false, SourceLocation location = new SourceLocation())
+		public Op(byte precedence, byte valCount, bool leftToRight, NT operation, bool isSpecial = false, SourceLocation location = new SourceLocation())
 		{
 			this.leftToRight = leftToRight;
 			this.precedence = precedence;
@@ -136,9 +64,9 @@ class ExpressionParser
 		}
 		public byte precedence, valCount;
 		public SourceLocation location;
-		public bool leftToRight, isSpecial; // TODO: Maybe change these to flags?
+		public bool leftToRight, isSpecial;
 		public int operatorIndex;
-		public OT operation;
+		public NT operation;
 	}
 
 	enum TokenKind : byte
@@ -164,9 +92,10 @@ class ExpressionParser
 		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
 	}
 	
-	TokenKind prevTokenKind    = TokenKind.SEPARATOR, // Was the previous parsed token an operator or a value
+	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
 	          currentTokenKind = TokenKind.VALUE;     // Is the current token being parsed an operator or a value
 	
+	AST_Definition firstDefined;
 	SharedParseData parseData;
 	Context.Kind contextKind;
 	SymbolTable scope;
@@ -194,7 +123,7 @@ class ExpressionParser
 	{
 		AST_Node _value = null;
 		Debug.Assert(contextStack.Count > 0); // Context must be set
-				
+		
 		for(token = parseData.tokens[parseData.cursor];
 			token.type != terminator/* & cursor < end*/;
 			token = parseData.tokens[parseData.cursor += 1])
@@ -203,10 +132,12 @@ class ExpressionParser
 			{
 				case TT.IDENTIFIER:        parseIdentifier();       break;
 				case TT.COMMA:             parseComma();            break;
-				case TT.BRACKET_OPEN:      parseBracketOpen();      break;
-				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
 				case TT.PARENTHESIS_OPEN:  parseParenthesisOpen();  break;
 				case TT.PARENTHESIS_CLOSE: parseParenthesisClose(); break;
+				case TT.BRACKET_OPEN:      parseBracketOpen();      break;
+				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
+				case TT.BRACE_OPEN:        parseBraceOpen();        break;
+				case TT.BRACE_CLOSE:       parseBraceClose();		break;
 				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result =    INT(token._integer) }; goto case 0;
 				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result = STRING(token._string)  }; goto case 0;
 				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result =  FLOAT(token._float)   }; goto case 0;
@@ -247,29 +178,39 @@ class ExpressionParser
 	void parseIdentifier()
 	{
 		currentTokenKind = TokenKind.VALUE;
+		string name = token.text;
+		AST_Node target = null;
 		
-		if(prevTokenKind != TokenKind.VALUE) {
-			var symbol = new AST_Symbol(token.location, null, token.text);
-			parseData.ast.Add(symbol);
-			values.Push(symbol);
-			return;
-		}
-		
-		// Pop eventual period and comma operators
-		while(operators.Count > 0) {
-			pushOperator(operators.Pop());
+		switch(prevTokenKind)
+		{
+			case TokenKind.VALUE:
+				// Pop eventual period and comma operators
+				while(operators.Count > 0) {
+					pushOperator(operators.Pop());
+				}
+				target = values.Pop();
+				break;
+			case TokenKind.SEPARATOR:
+				if(firstDefined != null) {
+					target = firstDefined.typeFrom;
+					break;
+				}
+				goto default;
+			default:
+				var symbol = new AST_Symbol(token.location, null, name);
+				parseData.ast.Add(symbol);
+				values.Push(symbol);
+				return;
 		}
 		
 		Token nextToken = parseData.tokens[parseData.cursor + 1];
+		int startNodeCount = contextStack.Peek().startIndex;
+		
 		if(!canDefine) {
 			throw Jolly.addError(token.location, "Can't define the {0} \"{1}\" here.".fill(
 				(nextToken.type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
 				token.text));
 		}
-		
-		AST_Node prev = values.Pop();
-		int startNodeCount = contextStack.Peek().startIndex;
-		string name = token.text;
 		
 		// Define
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
@@ -300,9 +241,9 @@ class ExpressionParser
 				.setContext(Context.Kind.ARGUMENT)
 				.parse();
 			
-			functionNode.returns = prev;
+			functionNode.returns         = target;
 			functionType.arguments       = new DataType[functionTable.allocations.Count];
-			functionType.returns         = new DataType[(prev as AST_Tuple)?.values.Count ?? 1];
+			functionType.returns         = new DataType[(target as AST_Tuple)?.values.Count ?? 1];
 			functionNode.definitionCount = parseData.ast.Count - startNodeCount;
 			
 			Token brace = parseData.tokens[parseData.cursor + 1];
@@ -319,8 +260,9 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			var variableNode = defineVariable(name, prev);
+			var variableNode = defineVariable(name, target);
 			
+			firstDefined = variableNode;
 			parseData.ast.Add(variableNode);
 			values.Push(variableNode);
 			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = variableNode });
@@ -378,8 +320,8 @@ class ExpressionParser
 	bool prevIsTypeModifier()
 	{
 		switch(operators.PeekOrDefault().operation) {
-			case OT.MULTIPLY: modifyType(AST_ModifyType.TO_POINTER ); break;
-			case OT.TERNARY:  modifyType(AST_ModifyType.TO_NULLABLE); break;
+			case NT.MULTIPLY: modifyType(AST_ModifyType.TO_POINTER ); break;
+			case NT.TERNARY:  modifyType(AST_ModifyType.TO_NULLABLE); break;
 			default: return false;
 		}
 		operators.Pop(); // Remove multiply / ternary
@@ -398,10 +340,7 @@ class ExpressionParser
 		
 		parseOperator();
 		currentTokenKind = TokenKind.SEPARATOR;
-		
-		
-		
-		
+		canDefine = true;
 	} // parseComma()
 	
 	// Returns true if it parsed the token
@@ -419,8 +358,8 @@ class ExpressionParser
 			
 			switch(token.type) {
 				case TT.COLON: break;
-				case TT.ASTERISK: op = new Op(02, 1, false, OT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
-				case TT.AND:	  op = new Op(02, 1, false, OT.REFERENCE  ); break;
+				case TT.ASTERISK: op = new Op(02, 1, false, NT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
+				case TT.AND:	  op = new Op(02, 1, false, NT.REFERENCE  ); break;
 				case TT.PLUS: case TT.MINUS: values.Push(new AST_Node(token.location, NT.LITERAL) { result = INT(0) }); break;
 				default: throw Jolly.unexpected(token);
 			}
@@ -443,7 +382,7 @@ class ExpressionParser
 		{
 			op.operatorIndex = parseData.ast.Count;
 			
-			if(op.operation == OT.MULTIPLY)
+			if(op.operation == NT.MULTIPLY)
 			{
 				if(canDefine) {
 					currentTokenKind = TokenKind.VALUE;
@@ -451,7 +390,7 @@ class ExpressionParser
 					return true;
 				}
 			}
-			else if(op.operation == OT.TERNARY)
+			else if(op.operation == NT.TERNARY)
 			{
 				if(canDefine) {
 					currentTokenKind = TokenKind.VALUE;
@@ -460,7 +399,7 @@ class ExpressionParser
 				}
 				contextStack.Push(new Context(parseData.ast.Count, Context.Kind.TERNARY));
 			}
-			else if(op.operation == OT.COLON)
+			else if(op.operation == NT.COLON)
 			{
 				Context context = contextStack.Pop();
 				if(context.hasColon) {
@@ -469,14 +408,18 @@ class ExpressionParser
 				context.hasColon = true;
 				
 				if(context.kind == Context.Kind.SUBSCRIPT) {
-					op.operation = OT.SLICE;
+					op.operation = NT.SLICE;
 					op.leftToRight = true;
 					op.isSpecial = false;
 				} else if(context.kind == Context.Kind.TERNARY) {
-					op.operation = OT.TERNARY_SELECT;
+					op.operation = NT.TERNARY_SELECT;
 					op.leftToRight = false;
 				} else if(context.kind == Context.Kind.GROUP) {
-					op.operation = OT.CAST;
+					op.operation = NT.CAST;
+					op.leftToRight = false;
+					op.isSpecial = false;
+				} else if(context.kind == Context.Kind.OBJECT) {
+					op.operation = NT.INITIALIZER;
 					op.leftToRight = false;
 					op.isSpecial = false;
 				} else {
@@ -484,7 +427,7 @@ class ExpressionParser
 				}
 				contextStack.Push(context);
 			}
-			else if(op.operation == OT.BITCAST)
+			else if(op.operation == NT.BITCAST)
 			{
 				Context context = contextStack.Pop();
 				if(context.hasColon) {
@@ -506,6 +449,56 @@ class ExpressionParser
 		return true;
 	} // parseOperator()
 	
+	void parseBraceOpen()
+	{
+		currentTokenKind = TokenKind.OPERATOR;
+		
+		AST_Node targetType = null;
+		if(prevTokenKind == TokenKind.VALUE) {
+			targetType = values.Pop();
+		}
+		
+		operators.Push(new Op(255, 0, false, NT.BRACE_OPEN, false, token.location));
+		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.OBJECT){ target = targetType });
+	}
+	
+	void parseBraceClose()
+	{
+		currentTokenKind = TokenKind.VALUE;
+
+		Op op;
+		while((op = operators.PopOrDefault()).operation != NT.BRACE_OPEN) {
+			if(op.operation == NT.UNDEFINED) {
+				throw Jolly.unexpected(token);
+			}
+			pushOperator(op);
+		}
+		
+		Context context = contextStack.Pop();
+		while(context.kind != Context.Kind.OBJECT) {
+			contextEnd(context);
+			context = contextStack.Pop();
+		}
+		
+		AST_Node[] initializers = null;
+		if(context.startIndex != parseData.ast.Count) {
+			AST_Node node = values.Pop();
+			initializers = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
+		}
+		
+		initializers?.forEach(i => { 
+			if(i.nodeType != NT.INITIALIZER) {
+				throw Jolly.addError(i.location, "Invalid intializer member declarator");
+			}
+		});
+		
+		// Use an AST_Definition for now
+		var _object = new AST_Definition(op.location, context.target) { 
+			memberCount = parseData.ast.Count - context.startIndex,
+			nodeType = NT.OBJECT,
+		};
+	}
+	
 	void parseBracketOpen()
 	{
 		currentTokenKind = TokenKind.OPERATOR;
@@ -517,7 +510,7 @@ class ExpressionParser
 		AST_Node target = values.PopOrDefault();
 		Debug.Assert(target != null);
 		
-		operators.Push(new Op(255, 0, false, OT.BRACKET_OPEN, false, token.location));
+		operators.Push(new Op(255, 0, false, NT.BRACKET_OPEN, false, token.location));
 		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.SUBSCRIPT){ target = target });
 	}
 	
@@ -526,8 +519,8 @@ class ExpressionParser
 		currentTokenKind = TokenKind.VALUE;
 
 		Op op;
-		while((op = operators.PopOrDefault()).operation != OT.BRACKET_OPEN) {
-			if(op.operation == OT.UNDEFINED) {
+		while((op = operators.PopOrDefault()).operation != NT.BRACKET_OPEN) {
+			if(op.operation == NT.UNDEFINED) {
 				throw Jolly.unexpected(token);
 			}
 			pushOperator(op);
@@ -542,14 +535,9 @@ class ExpressionParser
 		if(context.hasColon)
 		{
 			var node = values.Peek();
-			if(node.nodeType == NT.OPERATOR) {
-				var slice = node as AST_Operation;
-				if(slice.operation != OT.SLICE) {
-					throw Jolly.unexpected(node);
-				}
-			} else if(node.nodeType == NT.MODIFY_TYPE) {
+			if(node.nodeType == NT.MODIFY_TYPE) {
 				((AST_ModifyType)node).target = context.target;
-			} else {
+			} else if(node.nodeType != NT.SLICE) {
 				throw Jolly.unexpected(node);
 			}
 		}
@@ -563,7 +551,7 @@ class ExpressionParser
 				values.Push(mod);
 				return;
 			}
-			var opNode = new AST_Operation(token.location, OT.SUBSCRIPT, a, null);
+			var opNode = new AST_Operation(token.location, NT.SUBSCRIPT, a, null);
 			parseData.ast.Add(opNode);
 			values.Push(opNode);
 		}
@@ -579,7 +567,7 @@ class ExpressionParser
 			context.target = values.Pop();
 		}
 		contextStack.Push(context);
-		operators.Push(new Op(255, 0, false, OT.PARENTHESIS_OPEN, false, token.location));
+		operators.Push(new Op(255, 0, false, NT.PARENTHESIS_OPEN, false, token.location));
 	} // parseParenthesisOpen()
 	
 	void parseParenthesisClose()
@@ -587,8 +575,8 @@ class ExpressionParser
 		currentTokenKind = TokenKind.VALUE;
 		
 		Op op;
-		while((op = operators.PopOrDefault()).operation != OT.PARENTHESIS_OPEN) {
-			if(op.operation == OT.UNDEFINED) {
+		while((op = operators.PopOrDefault()).operation != NT.PARENTHESIS_OPEN) {
+			if(op.operation == NT.UNDEFINED) {
 				throw Jolly.unexpected(token);
 			}
 			pushOperator(op);
@@ -645,7 +633,7 @@ class ExpressionParser
 			// Close list so you can't add to it: (a, b), c
 			tup.closed = true;
 			tup.memberCount = parseData.ast.Count - context.startIndex;
-			if(operators.PeekOrDefault().operation == OT.GET_MEMBER) {
+			if(operators.PeekOrDefault().operation == NT.GET_MEMBER) {
 				operators.Pop(); // Remove GET_MEMBER
 				tup.membersFrom = values.Pop();
 				tup.nodeType = NT.MEMBER_TUPLE;
@@ -694,7 +682,7 @@ class ExpressionParser
 			b = values.PopOrDefault();
 			a = values.PopOrDefault();
 			
-			if(op.operation == OT.COMMA)
+			if(op.operation == NT.COMMA)
 			{
 				AST_Tuple tuple = a as AST_Tuple;
 				if(tuple != null && !tuple.closed)
@@ -714,7 +702,7 @@ class ExpressionParser
 				}
 				return;
 			}
-			else if(op.operation == OT.SLICE)
+			else if(op.operation == NT.SLICE)
 			{
 				if(a == null & b == null) {
 					var mod = new AST_ModifyType(op.location, null, AST_ModifyType.TO_SLICE);
@@ -724,8 +712,8 @@ class ExpressionParser
 				}
 				// Slice allows a value to be null
 				var slice = (a == null) ?
-					new AST_Operation(op.location, OT.SLICE, b, null) :
-					new AST_Operation(op.location, OT.SLICE, a, b);
+					new AST_Operation(op.location, NT.SLICE, b, null) :
+					new AST_Operation(op.location, NT.SLICE, a, b);
 				parseData.ast.Add(slice);
 				values.Push(slice);
 				return;
@@ -734,7 +722,7 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(op.location, "Expecting 2 values");
 			}
-			if(op.operation == OT.GET_MEMBER && b.nodeType == NT.NAME) {
+			if(op.operation == NT.GET_MEMBER && b.nodeType == NT.NAME) {
 				b.nodeType = NT.MEMBER_NAME;
 			}
 		}
@@ -746,29 +734,29 @@ class ExpressionParser
 			}
 		}
 		
-		if(op.operation != OT.GET_MEMBER) {
+		if(op.operation != NT.GET_MEMBER) {
 			canDefine = false;
 		}
 		
 		if(op.isSpecial)
 		{
-			if(op.operation == OT.LOGIC_AND)
+			if(op.operation == NT.LOGIC_AND)
 			{
 				int memberCount = parseData.ast.Count - op.operatorIndex;
-				var logic = new AST_Logic(op.location, OT.LOGIC_OR, memberCount, memberCount, condition: a, a: b, b: null);
+				var logic = new AST_Logic(op.location, NT.LOGIC_OR, memberCount, memberCount, condition: a, a: b, b: null);
 				parseData.ast.Insert(op.operatorIndex, logic);
 				values.Push(logic);
 				return;
 			}
-			else if(op.operation == OT.LOGIC_OR)
+			else if(op.operation == NT.LOGIC_OR)
 			{
 				int memberCount = parseData.ast.Count - op.operatorIndex;
-				var logic = new AST_Logic(op.location, OT.LOGIC_AND, memberCount, memberCount, condition: a, a: b, b: null);
+				var logic = new AST_Logic(op.location, NT.LOGIC_AND, memberCount, memberCount, condition: a, a: b, b: null);
 				parseData.ast.Insert(op.operatorIndex, logic);
 				values.Push(logic);
 				return;
 			}
-			else if(op.operation == OT.TERNARY)
+			else if(op.operation == NT.TERNARY)
 			{
 				Context context = contextStack.Pop();
 				while(context.kind != Context.Kind.TERNARY) {
@@ -780,7 +768,7 @@ class ExpressionParser
 				values.Push(b);
 				return;
 			}
-			else if(op.operation == OT.TERNARY_SELECT)
+			else if(op.operation == NT.TERNARY_SELECT)
 			{
 				Context context = contextStack.Pop();
 				while(context.kind != Context.Kind.TERNARY) {
@@ -790,7 +778,7 @@ class ExpressionParser
 				
 				int memberCount = parseData.ast.Count - context.startIndex,
 					count = op.operatorIndex - context.startIndex;
-				var logic = new AST_Logic(op.location, OT.TERNARY, memberCount, count, context.target, a, b);
+				var logic = new AST_Logic(op.location, NT.TERNARY, memberCount, count, context.target, a, b);
 				parseData.ast.Insert(context.startIndex, logic);
 				values.Push(logic);
 				return;

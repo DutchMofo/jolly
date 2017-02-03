@@ -52,6 +52,7 @@ namespace Jolly
 			this.column = column;
 			this.line = line;
 		}
+		public override string ToString() => "{0}: {1}:{2}".fill(sourceFile, line, column);
 	}
 	
 /*	// Hacky way of checking for double items in a list
