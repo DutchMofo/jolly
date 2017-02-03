@@ -2,7 +2,7 @@
 int main()
 {
 	AnalyseTest a, b;
-	b = {
+	b = AnalyseTest {
 		count: 0,
 		number: 1,
 		inner: Inner.InnerInner {
@@ -12,8 +12,14 @@ int main()
 	
 	a.count = a.number = 10;
 	
-	int? c;
-	swapCountNumber(&a);
+	if(int* c = 0; c != 0) {
+		
+	}
+	
+	if(a.count <= a.number) {
+		swapCountNumber(&a);
+	}
+	
 	
 	return 0;
 }

@@ -6,7 +6,7 @@ namespace Jolly
 {
 using TT = Token.Type;
 using NT = AST_Node.Type;
-using Op = ExpressionParser.Op;
+using Operator = ExpressionParser.Operator;
 
 static class Lookup 
 {
@@ -63,45 +63,45 @@ static class Lookup
 		return baseTypes[(type < TT.VOID) ? (type - TT.I1) & (~1) : type - TT.I1];
 	}
 	
-	public readonly static Dictionary<TT, Op>
-		OPERATORS = new Dictionary<TT, Op>() {
-			{ TT.PERIOD,          new Op(01, 2, true,  NT.GET_MEMBER      )},
-			{ TT.EXCLAMATION,     new Op(02, 1, false, NT.LOGIC_NOT       )},
-			{ TT.TILDE,           new Op(02, 1, false, NT.BIT_NOT         )},
-			{ TT.NEW,             new Op(02, 1, false, NT.NEW             )},
-			{ TT.DELETE,          new Op(02, 1, false, NT.DELETE          )},
-			{ TT.AS,              new Op(03, 2, true,  NT.CAST            )},
-			{ TT.PERCENT,         new Op(03, 2, true,  NT.MODULO          )},
-			{ TT.ASTERISK,        new Op(03, 2, true,  NT.MULTIPLY,  true )},
-			{ TT.SLASH,           new Op(03, 2, true,  NT.DIVIDE          )},
-			{ TT.MINUS,           new Op(04, 2, true,  NT.MINUS           )},
-			{ TT.PLUS,            new Op(04, 2, true,  NT.PLUS            )},
-			{ TT.GREATER_GREATER, new Op(05, 2, true,  NT.SHIFT_RIGHT     )},
-			{ TT.LESS_LESS,       new Op(05, 2, true,  NT.SHIFT_LEFT      )},
-			{ TT.LESS_EQUAL,      new Op(06, 2, true,  NT.LESS_EQUAL      )},
-			{ TT.LESS,            new Op(06, 2, true,  NT.LESS            )},
-			{ TT.GREATER_EQUAL,   new Op(06, 2, true,  NT.GREATER_EQUAL   )},
-			{ TT.GREATER,         new Op(06, 2, true,  NT.GREATER         )},
-			{ TT.NOT_EQUAL,       new Op(07, 2, true,  NT.NOT_EQUAL       )},
-			{ TT.EQUAL_EQUAL,     new Op(07, 2, true,  NT.EQUAL_TO        )},
-			{ TT.AND,             new Op(08, 2, true,  NT.BIT_AND         )},
-			{ TT.CARET,           new Op(09, 2, true,  NT.BIT_XOR         )},
-			{ TT.PIPE,            new Op(10, 2, true,  NT.BIT_OR          )},
-			{ TT.AND_AND,         new Op(11, 2, true,  NT.LOGIC_AND, true )},
-			{ TT.OR_OR,           new Op(12, 2, true,  NT.LOGIC_OR,  true )},
-			{ TT.COLON_TILDE,     new Op(13, 2, false, NT.BITCAST,   true )},
-			{ TT.QUESTION_MARK,   new Op(14, 2, false, NT.TERNARY,   true )},
-			{ TT.COLON,           new Op(14, 2, true,  NT.COLON,     true )},
-			{ TT.COMMA,           new Op(15, 2, true,  NT.COMMA           )},
-			{ TT.EQUAL,           new Op(16, 2, false, NT.ASSIGN          )},
-			{ TT.AND_EQUAL,       new Op(16, 2, false, NT.AND_ASSIGN      )},
-			{ TT.SLASH_EQUAL,     new Op(16, 2, false, NT.SLASH_ASSIGN    )},
-			{ TT.MINUS_EQUAL,     new Op(16, 2, false, NT.MINUS_ASSIGN    )},
-			{ TT.PERCENT_EQUAL,   new Op(16, 2, false, NT.PERCENT_ASSIGN  )},
-			{ TT.ASTERISK_EQUAL,  new Op(16, 2, false, NT.ASTERISK_ASSIGN )},
-			{ TT.OR_EQUAL,        new Op(16, 2, false, NT.OR_ASSIGN       )},
-			{ TT.PLUS_EQUAL,      new Op(16, 2, false, NT.PLUS_ASSIGN     )},
-			{ TT.CARET_EQUAL,     new Op(16, 2, false, NT.CARET_ASSIGN    )},
+	public readonly static Dictionary<TT, Operator>
+		OPERATORS = new Dictionary<TT, Operator>() {
+			{ TT.PERIOD,          new Operator(01, 2, true,  NT.GET_MEMBER      )},
+			{ TT.EXCLAMATION,     new Operator(02, 1, false, NT.LOGIC_NOT       )},
+			{ TT.TILDE,           new Operator(02, 1, false, NT.BIT_NOT         )},
+			{ TT.NEW,             new Operator(02, 1, false, NT.NEW             )},
+			{ TT.DELETE,          new Operator(02, 1, false, NT.DELETE          )},
+			{ TT.AS,              new Operator(03, 2, true,  NT.CAST            )},
+			{ TT.PERCENT,         new Operator(03, 2, true,  NT.MODULO          )},
+			{ TT.ASTERISK,        new Operator(03, 2, true,  NT.MULTIPLY,  true )},
+			{ TT.SLASH,           new Operator(03, 2, true,  NT.DIVIDE          )},
+			{ TT.MINUS,           new Operator(04, 2, true,  NT.MINUS           )},
+			{ TT.PLUS,            new Operator(04, 2, true,  NT.PLUS            )},
+			{ TT.GREATER_GREATER, new Operator(05, 2, true,  NT.SHIFT_RIGHT     )},
+			{ TT.LESS_LESS,       new Operator(05, 2, true,  NT.SHIFT_LEFT      )},
+			{ TT.LESS_EQUAL,      new Operator(06, 2, true,  NT.LESS_EQUAL      )},
+			{ TT.LESS,            new Operator(06, 2, true,  NT.LESS            )},
+			{ TT.GREATER_EQUAL,   new Operator(06, 2, true,  NT.GREATER_EQUAL   )},
+			{ TT.GREATER,         new Operator(06, 2, true,  NT.GREATER         )},
+			{ TT.NOT_EQUAL,       new Operator(07, 2, true,  NT.NOT_EQUAL       )},
+			{ TT.EQUAL_EQUAL,     new Operator(07, 2, true,  NT.EQUAL_TO        )},
+			{ TT.AND,             new Operator(08, 2, true,  NT.BIT_AND         )},
+			{ TT.CARET,           new Operator(09, 2, true,  NT.BIT_XOR         )},
+			{ TT.PIPE,            new Operator(10, 2, true,  NT.BIT_OR          )},
+			{ TT.AND_AND,         new Operator(11, 2, true,  NT.LOGIC_AND, true )},
+			{ TT.OR_OR,           new Operator(12, 2, true,  NT.LOGIC_OR,  true )},
+			{ TT.COLON_TILDE,     new Operator(13, 2, false, NT.BITCAST,   true )},
+			{ TT.QUESTION_MARK,   new Operator(14, 2, false, NT.TERNARY,   true )},
+			{ TT.COLON,           new Operator(14, 2, true,  NT.COLON,     true )},
+			{ TT.COMMA,           new Operator(15, 2, true,  NT.COMMA           )},
+			{ TT.EQUAL,           new Operator(16, 2, false, NT.ASSIGN          )},
+			{ TT.AND_EQUAL,       new Operator(16, 2, false, NT.AND_ASSIGN      )},
+			{ TT.SLASH_EQUAL,     new Operator(16, 2, false, NT.SLASH_ASSIGN    )},
+			{ TT.MINUS_EQUAL,     new Operator(16, 2, false, NT.MINUS_ASSIGN    )},
+			{ TT.PERCENT_EQUAL,   new Operator(16, 2, false, NT.PERCENT_ASSIGN  )},
+			{ TT.ASTERISK_EQUAL,  new Operator(16, 2, false, NT.ASTERISK_ASSIGN )},
+			{ TT.OR_EQUAL,        new Operator(16, 2, false, NT.OR_ASSIGN       )},
+			{ TT.PLUS_EQUAL,      new Operator(16, 2, false, NT.PLUS_ASSIGN     )},
+			{ TT.CARET_EQUAL,     new Operator(16, 2, false, NT.CARET_ASSIGN    )},
 		};
 	
 	//In ascii order

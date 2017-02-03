@@ -175,6 +175,14 @@ namespace Jolly
 		public AST_Node condition, a, b;
 	}
 	
+	class AST_If : AST_Node
+	{
+		public AST_If(SourceLocation loc) : base(loc, NT.IF) { }
+		
+		public int ifCount, elseCount;
+		public SymbolTable scope;
+	}
+	
 	class AST_ModifyType : AST_Node
 	{
 		public AST_ModifyType(SourceLocation loc, AST_Node target, byte toType)
@@ -194,6 +202,7 @@ namespace Jolly
 		public AST_Object(SourceLocation loc, NT type) : base(loc, type) { }
 		public int memberCount, startIndex, resetIndex;
 		public AST_Node inferFrom;
+		public bool isArray;
 	}
 	
 	class AST_Symbol : AST_Node
