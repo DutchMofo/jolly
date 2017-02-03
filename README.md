@@ -13,7 +13,7 @@ struct Foo
 {
 	FooType type;
 	string name;
-	i32* someCounter;
+	i32? someCounter;
 }
 
 enum FooType : ubyte
@@ -24,7 +24,7 @@ enum FooType : ubyte
 }
 
 // Multiple return values
-bool, Foo* bar()
+bool, Foo? bar()
 {
 	return false, null;
 }
@@ -54,13 +54,19 @@ i32 main()
 	// indexing operations are bounds checked.
 	i32[:] slice = i32_array[1:-1];
 	
-	// Raw pointer, indexing operations are not bounds checked (No count).
+	// Pointer, indexing operations are not bounds checked (No count).
 	i32* sliceData = slice.data;
+	
+	// Pointers are not allowed to be null
+	i32* pointer = &three;
+	
+	// If you want to store null in you can use a nullable pointer
+	i32? pointingAtNothing = null;
 	
 	// Initializing struct with object (??? Not sure what is's called).
 	Example example = {
-		type = FooType.THREE,
-		name = "Example name",
+		type: FooType.THREE,
+		name: "Example name",
 	};
 	
 	// Normal function call.
@@ -82,7 +88,7 @@ i32 main()
 	
 	{
 		auto (status, foo) = bar();
-		i32* someCounter = foo?.someCounter;
+		i32? someCounter = foo?.someCounter;
 	}
 	
 	// Initialize if condition.
@@ -120,6 +126,7 @@ i32 main()
 	*/
 	auto (data, handle) = new i32[123];
 	
+	// ...
 	
 } // <-- handle is out of scope and the "new i32[123]" gets deleted.
 ```
