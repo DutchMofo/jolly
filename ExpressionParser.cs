@@ -319,42 +319,48 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			AST_Definition variableNode;
+			var variableNode = defineVariable(name, prev);
 			
-			if(contextKind == Context.Kind.MEMBER)
-			{
-				var structType = (DataType_Struct)scope.type.type;
-				if(structType.memberMap.ContainsKey(name)) {
-					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
-				}
-				structType.memberMap.Add(name, structType.memberMap.Count);
-				
-				variableNode = new AST_Definition(token.location, prev, scope, name);
-				variableNode.result.kind = Value.Kind.VALUE;
-			}
-			else if(contextKind == Context.Kind.STATEMENT ||
-				    contextKind == Context.Kind.ARGUMENT)
-			{
-				Symbol variableSymbol   = new Symbol(scope);
-				       variableNode     = new AST_Definition(token.location, prev);
-				
-				variableNode.symbol     = variableSymbol;
-				variableNode.text       = name;
-				variableNode.result     = variableSymbol.type = new Value { kind = Value.Kind.VALUE };
-				variableNode.allocation = scope.allocateVariable();
-				
-				if(!scope.Add(name, variableSymbol)) {
-					throw Jolly.addError(token.location, "Trying to redefine variable");
-				}
-			} else {
-				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
-			}
 			parseData.ast.Add(variableNode);
 			values.Push(variableNode);
-			
 			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = variableNode });
 		}
 	} // parseIdentifier()
+	
+	AST_Definition defineVariable(string name, AST_Node target)
+	{
+		AST_Definition variableNode;
+			
+		if(contextKind == Context.Kind.MEMBER)
+		{
+			var structType = (DataType_Struct)scope.type.type;
+			if(structType.memberMap.ContainsKey(name)) {
+				throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
+			}
+			structType.memberMap.Add(name, structType.memberMap.Count);
+			
+			variableNode = new AST_Definition(token.location, target, scope, name);
+			variableNode.result.kind = Value.Kind.VALUE;
+		}
+		else if(contextKind == Context.Kind.STATEMENT ||
+				contextKind == Context.Kind.ARGUMENT)
+		{
+			Symbol variableSymbol   = new Symbol(scope);
+			       variableNode     = new AST_Definition(token.location, target);
+			
+			variableNode.symbol     = variableSymbol;
+			variableNode.text       = name;
+			variableNode.result     = variableSymbol.type = new Value { kind = Value.Kind.VALUE };
+			variableNode.allocation = scope.allocateVariable();
+			
+			if(!scope.Add(name, variableSymbol)) {
+				throw Jolly.addError(token.location, "Trying to redefine variable");
+			}
+		} else {
+			throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
+		}
+		return variableNode;
+	}
 	
 	void modifyType(byte toType)
 	{
@@ -391,7 +397,11 @@ class ExpressionParser
 		}
 		
 		parseOperator();
-		currentTokenKind = TokenKind.SEPARATOR;	
+		currentTokenKind = TokenKind.SEPARATOR;
+		
+		
+		
+		
 	} // parseComma()
 	
 	// Returns true if it parsed the token
@@ -592,14 +602,42 @@ class ExpressionParser
 		
 		if(context.isFunctionCall)
 		{
-			AST_Node[] arguments = null;
-			if(context.startIndex != parseData.ast.Count) {
-				AST_Node node = values.Pop();
-				arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
+			if(canDefine)
+			{
+				Debug.Fail("Not implemented");
+				// Define multiple varibales: int (i, j, k);
+				
+				var target = context.target;
+				var tup = values.PeekOrDefault() as AST_Tuple;
+				if(tup == null) {
+					throw Jolly.addError(op.location, "Expected a list of names");
+				}
+				
+				parseData.ast.RemoveRange(parseData.ast.Count - tup.values.Count, tup.values.Count);
+				for(int i = 0; i < tup.values.Count; i += 1)
+				{
+					var name = tup.values[i] as AST_Symbol;
+					if(name == null) {
+						throw Jolly.addError(tup.values[i].location, "Expected a name");
+					}	
+					var definition = defineVariable(name.text, target);
+					parseData.ast.Add(tup.values[i] = definition);
+				}
+				
+				// contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = v });
+				parseData.ast.Add(tup);
 			}
-			var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
-			parseData.ast.Add(call);
-			values.Push(call);
+			else
+			{
+				AST_Node[] arguments = null;
+				if(context.startIndex != parseData.ast.Count) {
+					AST_Node node = values.Pop();
+					arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
+				}
+				var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
+				parseData.ast.Add(call);
+				values.Push(call);
+			}
 		}
 		else if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
 		{
@@ -644,7 +682,7 @@ class ExpressionParser
 		
 		// Not sure what kind of error to throw yet.
 		// This code 'SHOULD' not be reachable
-		throw new ParseException();
+		Debug.Fail("Illigal context popped");
 	}
 	
 	void pushOperator(Op op)

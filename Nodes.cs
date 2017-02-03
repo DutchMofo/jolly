@@ -154,6 +154,7 @@ namespace Jolly
 		
 		public IR_Allocate allocation;
 		public AST_Node typeFrom;
+		// public string[] names;
 	}
 	
 	class AST_FunctionCall : AST_Node

@@ -230,9 +230,9 @@ static class Analyser
 		
 		switch(mod.toType) {
 			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
+			case AST_ModifyType.TO_ARRAY: /*Debug.Assert(false); break;*/
+			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
 			case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
-			case AST_ModifyType.TO_ARRAY: Debug.Assert(false); break;
-			case AST_ModifyType.TO_SLICE: Debug.Assert(false); break;
 		}
 		
 		DataType.makeUnique(ref mod.result.type);

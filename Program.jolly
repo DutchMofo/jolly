@@ -1,8 +1,9 @@
 
 int main()
 {
-	AnalyseTest a;
-	a.count = a.number = z;
+	AnalyseTest a, b = a;
+	a.count = a.number = 10;
+	
 	
 	swapCountNumber(&a);
 	
