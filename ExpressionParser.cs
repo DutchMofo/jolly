@@ -500,7 +500,7 @@ class ExpressionParser
 			initializers = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 		}
 		
-		initializers?.forEach(i => { 
+		initializers?.forEach(i => {
 			if(i.nodeType != NT.INITIALIZER) {
 				throw Jolly.addError(i.location, "Invalid intializer member declarator");
 			}
@@ -710,7 +710,13 @@ class ExpressionParser
 			{
 				if(a == null) {
 					values.Push(null);
-					values.Push((b as AST_Tuple) ?? new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() });
+					if(!(b is AST_Tuple)) {
+						var tup = new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() };
+						tup.values.Add(b);
+						values.Push(tup);
+						return;
+					} 
+					values.Push(b);
 					return;
 				}
 				
