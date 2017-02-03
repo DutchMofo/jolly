@@ -22,6 +22,7 @@ class ExpressionParser
 		public enum Kind : byte
 		{
 			// Top level context
+			// TODO: Put these back into a "Definemode" enum
 			STATEMENT,  // Can define function or variable
 			MEMBER,     // Can only define variables, no expression
 			ARGUMENT,   // Can only define variables, no expression
@@ -48,6 +49,9 @@ class ExpressionParser
 		public bool isFunctionCall, hasColon;
 		public AST_Node target;
 		public Kind kind;
+		
+		public override string ToString()
+			=> "kind: {0}, start: {1}, target: {2}, ".fill(kind, startIndex, target);
 	}
 	
 	public struct Op
@@ -67,6 +71,9 @@ class ExpressionParser
 		public bool leftToRight, isSpecial;
 		public int operatorIndex;
 		public NT operation;
+		
+		public override string ToString()
+			=> "op: {0}, p: {1}, {2}".fill(operation, precedence, leftToRight ? "->" : "<-");
 	}
 
 	enum TokenKind : byte
@@ -77,24 +84,23 @@ class ExpressionParser
 		SEPARATOR = 3,
 	}
 	
-	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope)
-	{
-		this.terminator = terminator;
-		this.parseData = parseData;
-		this.canDefine = true;
-		this.scope = scope;
-	}
-	
-	public ExpressionParser setContext(Context.Kind kind)
+	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope, Context.Kind kind, int end)
 	{
 		contextStack.Push(new Context(parseData.ast.Count, kind));
-		contextKind = kind;
-		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
+		this.terminator = terminator;
+		this.parseData = parseData;
+		this.contextKind = kind;
+		this.canDefine = true;
+		this.scope = scope;
+		this.end = end;
 	}
 	
+	// Was the previouly parsed token a value (literal, identifier, object),
+	// operator or a separator (comma)
 	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
 	          currentTokenKind = TokenKind.VALUE;     // Is the current token being parsed an operator or a value
 	
+	// The first defined variable
 	AST_Definition firstDefined;
 	SharedParseData parseData;
 	Context.Kind contextKind;
@@ -102,6 +108,7 @@ class ExpressionParser
 	bool canDefine;
 	TT terminator;
 	Token token;
+	int end;
 
 	Stack<Context> contextStack = new Stack<Context>();
 	Stack<AST_Node> values = new Stack<AST_Node>();
@@ -111,6 +118,8 @@ class ExpressionParser
 	static Value    INT(ulong  data) => new Value{ type = Lookup.I32,    kind = Value.Kind.STATIC_VALUE, data = data };
 	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,    kind = Value.Kind.STATIC_VALUE, data = data };
 	static Value STRING(string data) => new Value{ type = Lookup.STRING, kind = Value.Kind.STATIC_VALUE, data = data };
+	
+	static Value TUPLE() => new Value { type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE };
 	
 	public AST_Node getValue() => values.PeekOrDefault();
 	public void addValue(AST_Node _value)
@@ -125,7 +134,7 @@ class ExpressionParser
 		Debug.Assert(contextStack.Count > 0); // Context must be set
 		
 		for(token = parseData.tokens[parseData.cursor];
-			token.type != terminator/* & cursor < end*/;
+			token.type != terminator & parseData.cursor < end;
 			token = parseData.tokens[parseData.cursor += 1])
 		{
 			switch(token.type)
@@ -172,7 +181,7 @@ class ExpressionParser
 			contextEnd(contextStack.Pop());
 		}
 		
-		return this; // Make calls chainable: new ExpressionParser(...).setContext(..).parse();
+		return this; // Make calls chainable: new ExpressionParser(...).parse();
 	} // parseExpression()
 	
 	void parseIdentifier()
@@ -191,7 +200,7 @@ class ExpressionParser
 				target = values.Pop();
 				break;
 			case TokenKind.SEPARATOR:
-				if(firstDefined != null) {
+				if(contextKind != Context.Kind.ARGUMENT && firstDefined != null) {
 					target = firstDefined.typeFrom;
 					break;
 				}
@@ -237,8 +246,7 @@ class ExpressionParser
 			
 			parseData.cursor += 2;
 			functionTable.canAllocate = true;
-			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable)
-				.setContext(Context.Kind.ARGUMENT)
+			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable, Context.Kind.ARGUMENT, nextToken.partnerIndex)
 				.parse();
 			
 			functionNode.returns         = target;
@@ -365,17 +373,13 @@ class ExpressionParser
 			}
 		}
 		
-		if(operators.Count > 0)
+		Op prevOp = operators.PeekOrDefault();
+		// valCount of default(Op) == 0
+		while(prevOp.valCount > 0 && 
+			(prevOp.precedence < op.precedence || op.leftToRight && prevOp.precedence == op.precedence))
 		{
-			Op prevOp = operators.Peek();
-			while(prevOp.valCount > 0 && 
-				 (prevOp.precedence < op.precedence ||
-				  op.leftToRight && prevOp.precedence == op.precedence))
-			{
-				pushOperator(operators.Pop());
-				if(operators.Count == 0) break;
-				prevOp = operators.Peek();
-			}
+			pushOperator(operators.Pop());
+			prevOp = operators.PeekOrDefault();
 		}
 		
 		if(op.isSpecial)
@@ -422,6 +426,8 @@ class ExpressionParser
 					op.operation = NT.INITIALIZER;
 					op.leftToRight = false;
 					op.isSpecial = false;
+					
+					context.hasColon = false; // Lazy
 				} else {
 					throw Jolly.unexpected(token);
 				}
@@ -453,11 +459,19 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.OPERATOR;
 		
+		Op prevOp = operators.PeekOrDefault();
+		// valCount of default(Op) == 0
+		while(prevOp.valCount > 0 && prevOp.precedence < 14) {
+			pushOperator(operators.Pop());
+			prevOp = operators.PeekOrDefault();
+		}
+		
 		AST_Node targetType = null;
 		if(prevTokenKind == TokenKind.VALUE) {
 			targetType = values.Pop();
 		}
 		
+		values.Push(null);
 		operators.Push(new Op(255, 0, false, NT.BRACE_OPEN, false, token.location));
 		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.OBJECT){ target = targetType });
 	}
@@ -490,13 +504,22 @@ class ExpressionParser
 			if(i.nodeType != NT.INITIALIZER) {
 				throw Jolly.addError(i.location, "Invalid intializer member declarator");
 			}
+			((AST_Operation)i).a.nodeType = NT.OBJECT_MEMBER_NAME;
 		});
 		
 		// Use an AST_Definition for now
-		var _object = new AST_Definition(op.location, context.target) { 
+		var _object = new AST_Object(op.location, NT.OBJECT) { 
 			memberCount = parseData.ast.Count - context.startIndex,
+			inferFrom = context.target,
 			nodeType = NT.OBJECT,
 		};
+		
+		if(values.Peek() == null) {
+			values.Pop();
+		}
+		
+		parseData.ast.Insert(context.startIndex, _object);
+		values.Push(_object);
 	}
 	
 	void parseBracketOpen()
@@ -508,8 +531,9 @@ class ExpressionParser
 		}
 		
 		AST_Node target = values.PopOrDefault();
-		Debug.Assert(target != null);
-		
+		if(target == null) {
+			throw Jolly.unexpected(token);
+		}
 		operators.Push(new Op(255, 0, false, NT.BRACKET_OPEN, false, token.location));
 		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.SUBSCRIPT){ target = target });
 	}
@@ -684,22 +708,19 @@ class ExpressionParser
 			
 			if(op.operation == NT.COMMA)
 			{
-				AST_Tuple tuple = a as AST_Tuple;
-				if(tuple != null && !tuple.closed)
-				{
-					values.Push(tuple);
-					if(b != null) {
-						tuple.values.Add(b);
-					}
+				if(a == null) {
+					values.Push(null);
+					values.Push((b as AST_Tuple) ?? new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() });
 					return;
 				}
-				tuple = new AST_Tuple(op.location, NT.TUPLE)
-					{ result = new Value{ type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE } };
-				values.Push(tuple);
-				tuple.values.Add(a);
-				if(b != null) {
-					tuple.values.Add(b);
+				
+				AST_Tuple tuple = a as AST_Tuple;
+				if(tuple?.closed ?? true) {
+					tuple = new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() };
+					tuple.values.Add(a);
 				}
+				tuple.values.Add(b);
+				values.Push(tuple);
 				return;
 			}
 			else if(op.operation == NT.SLICE)

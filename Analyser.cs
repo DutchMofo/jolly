@@ -62,7 +62,7 @@ static class Analyser
 		switch(poppedEnclosure.type)
 		{
 			case NT.DEFINITION: {
-				// The definition ends after an auto variable is should be assigned to.
+				// type inference
 				var definition = (AST_Definition)poppedEnclosure.node;
 				
 				if(definition.result.type == Lookup.AUTO) {
@@ -83,6 +83,9 @@ static class Analyser
 				
 				DataType.makeUnique(ref function.result.type);
 				cursor = enclosure.end; // Skip to end of function enclosure
+			} break;
+			case NT.OBJECT: {
+				cursor = ((AST_Object)poppedEnclosure.node).resetIndex;
 			} break;
 			case NT.MEMBER_TUPLE: break;
 			case NT.FUNCTION: break;
@@ -163,6 +166,16 @@ static class Analyser
 			{ NT.DEFINITION, node => define(node) },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
+			{ NT.OBJECT, node => {
+				var _object = (AST_Object)node;
+				_object.onStored = storeObject;
+				_object.startIndex = cursor;
+				cursor += _object.memberCount;
+			} },
+			{ NT.INITIALIZER, node => {
+				var init = (AST_Operation)node;
+				assign(init.a, init.b);
+			} },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
@@ -196,6 +209,10 @@ static class Analyser
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
+			{ NT.OBJECT_MEMBER_NAME, node => {
+				Debug.Assert(enclosure.type == NT.OBJECT);
+				node.result = operatorGetMember(ref enclosure.node, node as AST_Symbol);
+			} },
 			{ NT.RETURN, node => {
 				var returns = (AST_Return)node;
 				Value[] values = (returns.values != null) ?
@@ -259,6 +276,35 @@ static class Analyser
 			} },
 		};
 	
+	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
+	{
+		var _object = (AST_Object)obj;
+		
+		if(_object.inferFrom != null)
+		{
+			var inferFrom = _object.inferFrom.result;
+			if(!valueIsStatic(inferFrom)) {
+				 throw Jolly.addError(_object.inferFrom.location, "Not a type");
+			}
+			_object.result.kind = Value.Kind.VALUE;
+			_object.result.type = new DataType_Reference(inferFrom.type);
+			DataType.makeUnique(ref _object.result.type);
+		}
+		else
+		{
+			if(location.result.type == Lookup.AUTO) {
+				throw Jolly.addError(_object.location, "Cannot derive type.");
+			}
+			_object.result = location.result;
+		}
+		
+		_object.resetIndex = cursor + 1;
+		cursor = _object.startIndex;
+		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, _object.startIndex + _object.memberCount));
+		
+		return true;
+	}
+	
 	static void modifyType(AST_Node node)
 	{
 		AST_ModifyType mod = (AST_ModifyType)node;
@@ -301,10 +347,10 @@ static class Analyser
 			case NT.GLOBAL: {
 				Value resultValue = new Value {
 					tempID = definition.allocation.result.tempID,
+					type   = new DataType_Reference(allocType),
 					kind   = Value.Kind.VALUE,
 				};
 				
-				resultValue.type = new DataType_Reference(allocType);
 				DataType.makeUnique(ref resultValue.type);
 				
 				definition.allocation.type   = allocType;
@@ -331,34 +377,27 @@ static class Analyser
 		}
 	}
 	
-	static bool implicitCast(AST_Node a, AST_Node b)
+	static bool implicitCast(AST_Node inValue, AST_Node toValue)
 	{
-		DataType aType = a.result.type,
-				 bType = b.result.type;
+		DataType inType = inValue.result.type,
+				 toType = toValue.result.type;
 		
-		if(aType == bType) {
+		if(inType == toType) {
 			return true;
 		}
 		
-		if((aType.flags & bType.flags & DataType.Flags.BASE_TYPE) == 0) {
+		if((inType.flags & toType.flags & DataType.Flags.BASE_TYPE) == 0) {
 			
 			//TODO: implicitly cast to inherited type (TODO: implement inheretance)
 			return false;
 		}
 		
-		if(aType is DataType_Reference | bType is DataType_Reference) {
+		if(inType is DataType_Reference | toType is DataType_Reference) {
 			return false;
 		}
 		
-		// Make a the biggest size
-		if(bType.size > aType.size)
-		{
-			var swap1 = a;
-			var swap2 = aType;
-			a = b;
-			aType = bType;
-			b = swap1;
-			bType = swap2;
+		if(inType.size > toType.size) {
+			return false;
 		}
 		
 		//TODO: Finish
@@ -382,15 +421,16 @@ static class Analyser
 		if(!aIsTuple & !bIsTuple)
 		{
 			load(b);
-		
-			// if((a.result.triggers & Value.Trigger.STORE) != 0) {
-			// 	a.result.onStore(b.result);
-			// }
 			
 			var target = a.result.type as DataType_Reference;
 			if(target == null) {
 				throw Jolly.addError(a.location, "Cannot assign to this");
 			}
+			
+			if(b.onStored?.Invoke(a, b, instructions) ?? false) {
+				return;
+			}
+			
 			if(target.referenced != b.result.type ) {
 				throw Jolly.addError(a.location, "Cannot assign this value type");
 			}
@@ -494,9 +534,7 @@ static class Analyser
 		Debug.Assert(node.result.type == null);
 		
 		if(enclosure.type == NT.MEMBER_TUPLE) {
-			var tup = (AST_Tuple)enclosure.node;
-			var hacky = tup.membersFrom; // Prevent ref from messing things up
-			node.result = operatorGetMember(ref hacky, node as AST_Symbol);
+			node.result = operatorGetMember(ref ((AST_Tuple)enclosure.node).membersFrom, node as AST_Symbol);
 			return;
 		}
 		AST_Symbol name = (AST_Symbol)node;

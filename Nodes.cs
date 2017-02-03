@@ -1,21 +1,13 @@
 using System.Collections.Generic;
-// using System;
+using System;
 
 namespace Jolly
 {
     using NT = AST_Node.Type;
-
+	using Hook = Func<AST_Node, AST_Node, List<IR>, bool>;
+	
 	struct Value
 	{
-		public enum Trigger : byte
-		{
-			STORE = 1<<0,
-			LOAD  = 1<<1,
-		}
-		
-		// public Action<Value> onStore;
-		// public Action<Value> onLoad;
-		
 		public enum Kind : byte
 		{
 			UNDEFINED = 0,
@@ -26,7 +18,6 @@ namespace Jolly
 			ADDRES,
 		}
 		
-		// public Trigger triggers;
 		public DataType type;
 		public object data;
 		public int tempID;
@@ -56,6 +47,7 @@ namespace Jolly
 			
 			NAME,
 			MEMBER_NAME,
+			OBJECT_MEMBER_NAME,
 			TUPLE,
 			MEMBER_TUPLE,
 			GLOBAL,
@@ -150,6 +142,8 @@ namespace Jolly
 		public Type nodeType;
 		public Value result;
 		
+		public Hook onStored, onLoad;
+		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
 	}
@@ -195,6 +189,12 @@ namespace Jolly
 		public byte toType;
 	}
 	
+	class AST_Object : AST_Node
+	{
+		public AST_Object(SourceLocation loc, NT type) : base(loc, type) { }
+		public int memberCount, startIndex, resetIndex;
+		public AST_Node inferFrom;
+	}
 	
 	class AST_Symbol : AST_Node
 	{

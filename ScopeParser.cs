@@ -3,6 +3,7 @@ namespace Jolly
 {
     using TT = Token.Type;
     using NT = AST_Node.Type;
+	using ContextKind = ExpressionParser.Context.Kind;
 	
     class ScopeParser
 	{
@@ -31,8 +32,7 @@ namespace Jolly
 				case TT.STRUCT:     parseStruct();  break;
 				// case TT.UNION:     parseStruct();  break;
 				default:
-					new ExpressionParser(parseData, TT.SEMICOLON, scope)
-						.setContext(ExpressionParser.Context.Kind.MEMBER)
+					new ExpressionParser(parseData, TT.SEMICOLON, scope, ExpressionParser.Context.Kind.MEMBER, end)
 						.parse();
 					break;
 				}
@@ -57,8 +57,8 @@ namespace Jolly
 				// case TT.WHILE:      parseWhile();   break;
 				// case TT.BRACE_OPEN: parseBraceOpen; break;
 				default:
-					new ExpressionParser(parseData, TT.SEMICOLON, scope)
-						.setContext(ExpressionParser.Context.Kind.ARGUMENT) // TODO: Should i allow function nesting?
+					// TODO: Should i allow function nesting?
+					new ExpressionParser(parseData, TT.SEMICOLON, scope, ContextKind.STATEMENT, end)
 						.parse();
 					break;
 				}
@@ -81,8 +81,7 @@ namespace Jolly
 				// case TT.UNION:     parseStruct();  break;
 				// case TT.NAMESPACE:     parseStruct();  break;
 				default:
-					new ExpressionParser(parseData, TT.SEMICOLON, scope)
-						.setContext(ExpressionParser.Context.Kind.STATEMENT)
+					new ExpressionParser(parseData, TT.SEMICOLON, scope, ContextKind.STATEMENT, end)
 						.parse();
 					break;
 				}
@@ -128,8 +127,7 @@ namespace Jolly
 		void parseReturn()
 		{
 			parseData.cursor += 1;
-			var parser = new ExpressionParser(parseData, TT.SEMICOLON, scope)
-				.setContext(ExpressionParser.Context.Kind.EXPRESSION)
+			var parser = new ExpressionParser(parseData, TT.SEMICOLON, scope, ContextKind.EXPRESSION, end)
 				.parse();
 			parseData.ast.Add(new AST_Return(token.location, parser.getValue()));
 		}

@@ -1,7 +1,15 @@
 
 int main()
 {
-	AnalyseTest a;//, b = { };
+	AnalyseTest a, b;
+	b = {
+		count: 0,
+		number: 1,
+		inner: Inner.InnerInner {
+			data: 10,
+		},
+	};
+	
 	a.count = a.number = 10;
 	
 	int? c;
