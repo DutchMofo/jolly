@@ -36,6 +36,12 @@ namespace Jolly
 		public override string ToString() => "     %{0} = cast {1}, {2}".fill(result.tempID, type, _value);
 	}
 	
+	class IR_Label : IR
+	{
+		public int id;
+		public override string ToString() => "    _{0}:".fill(id);
+	}
+	
 	class IR_Bitcast : IR
 	{
 		public Value from;
