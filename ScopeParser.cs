@@ -27,18 +27,23 @@ namespace Jolly
 				parseData.cursor < end;
 				token = parseData.tokens[parseData.cursor += 1])
 			{
-				switch(token.type)
-				{
-				case TT.STRUCT:     parseStruct();  break;
-				// case TT.UNION:     parseStruct();  break;
-				default:
-					new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.MEMBER, end)
-						.parse(false);
-					break;
-				}
+				parseNextStruct();
 			}
 			if(scopeHead != null) {
 				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			}
+		}
+		
+		void parseNextStruct()
+		{
+			switch(token.type)
+			{
+			case TT.STRUCT:     parseStruct();  break;
+			// case TT.UNION:     parseStruct();  break;
+			default:
+				new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.MEMBER, end)
+					.parse(false);
+				break;
 			}
 		}
 		
@@ -49,22 +54,27 @@ namespace Jolly
 				parseData.cursor < end;
 				token = parseData.tokens[parseData.cursor += 1])
 			{
-				switch(token.type)
-				{
-				case TT.IF:         parseIf();      break;
-				// case TT.FOR:        parseFor();     break;
-				case TT.RETURN:     parseReturn();  break;
-				// case TT.WHILE:      parseWhile();   break;
-				// case TT.BRACE_OPEN: parseBraceOpen; break;
-				default:
-					// TODO: Should i allow function nesting?
-					new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.STATEMENT, end)
-						.parse(false);
-					break;
-				}
+				parseNextBlock();
 			}
 			if(scopeHead != null) {
 				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			}
+		}
+		
+		void parseNextBlock()
+		{
+			switch(token.type)
+			{
+			case TT.IF:         parseIf();      break;
+			// case TT.FOR:        parseFor();     break;
+			case TT.RETURN:     parseReturn();  break;
+			// case TT.WHILE:      parseWhile();   break;
+			// case TT.BRACE_OPEN: parseBraceOpen; break;
+			default:
+				// TODO: Should i allow function nesting?
+				new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.STATEMENT, end)
+					.parse(false);
+				break;
 			}
 		}
 		
@@ -75,19 +85,24 @@ namespace Jolly
 				parseData.cursor < end;
 				token = parseData.tokens[parseData.cursor += 1])
 			{
-				switch(token.type)
-				{
-				case TT.STRUCT:     parseStruct();  break;
-				// case TT.UNION:     parseStruct();  break;
-				// case TT.NAMESPACE:     parseStruct();  break;
-				default:
-					new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.STATEMENT, end)
-						.parse(false);
-					break;
-				}
+				parseNextGlobal();
 			}
 			if(scopeHead != null) {
 				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			}
+		}
+		
+		void parseNextGlobal()
+		{
+			switch(token.type)
+			{
+			case TT.STRUCT:     parseStruct();  break;
+			// case TT.UNION:     parseStruct();  break;
+			// case TT.NAMESPACE:     parseStruct();  break;
+			default:
+				new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.STATEMENT, end)
+					.parse(false);
+				break;
 			}
 		}
 		
@@ -159,14 +174,13 @@ namespace Jolly
 			startNodeCount = parseData.ast.Count;
 			
 			Token brace = parseData.tokens[parseData.cursor += 1];
+			
+			var scopeParser = new ScopeParser(parseData, brace.partnerIndex, ifTable);
 			if(brace.type != TT.BRACE_OPEN) {
-				// Incomplete can only parse expressions
-				new ExpressionParser(parseData, TT.SEMICOLON, ifTable, DefineMode.STATEMENT, end)
-					.parse(false);
+				scopeParser.parseNextBlock();
 			} else {
 				parseData.cursor += 1; // Skip brace open
-				new ScopeParser(parseData, brace.partnerIndex, ifTable)
-					.parseBlockScope();
+				scopeParser.parseBlockScope();
 			}
 			ifNode.ifCount = parseData.ast.Count - startNodeCount;
 			startNodeCount = parseData.ast.Count;
@@ -178,14 +192,12 @@ namespace Jolly
 				ifNode.elseScope = elseTable;
 				
 				brace = parseData.tokens[parseData.cursor += 2]; // Also skip else
+				scopeParser = new ScopeParser(parseData, brace.partnerIndex, elseTable);
 				if(brace.type != TT.BRACE_OPEN) {
-					// Incomplete can only parse expressions					
-					new ExpressionParser(parseData, TT.SEMICOLON, elseTable, DefineMode.STATEMENT, end)
-						.parse(false);
+					scopeParser.parseNextBlock();
 				} else {
 					parseData.cursor += 1; // Skip brace open
-					new ScopeParser(parseData, brace.partnerIndex, elseTable)
-						.parseBlockScope();
+					scopeParser.parseBlockScope();
 				}
 				ifNode.elseCount = parseData.ast.Count - startNodeCount;
 			}

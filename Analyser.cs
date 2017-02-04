@@ -61,7 +61,7 @@ static class Analyser
 		cursor += 1;
 		
 		while(context.index < cursor) {
-			contextEnd(context);
+			contextEnd(contextStack.Pop());
 		}
 		while(enclosure.end < cursor) {
 			enclosureEnd(enclosureStack.Pop());
@@ -78,7 +78,10 @@ static class Analyser
 	public static List<IR> analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
 		instructions = new List<IR>();
+		contextStack = new ContextStack(16);
 		enclosureStack = new EnclosureStack(16);	
+		
+		contextStack.Push(new Context(int.MaxValue, Context.Kind.STATEMENT)); // Just put something on the stack
 		enclosureStack.Push(new Enclosure(NT.GLOBAL, null, globalScope, int.MaxValue));
 		
 		cursor = 0;
@@ -113,6 +116,22 @@ static class Analyser
 	{
 		switch(ended.type)
 		{
+			case NT.IF: {
+				var ifNode = (AST_If)ended.node;
+				
+				
+				if(ifNode.elseCount > 0) {
+					enclosureStack.Push(new Enclosure(NT.ELSE, ifNode, ifNode.elseScope, cursor + ifNode.elseCount));
+				}
+			} break;
+			case NT.ELSE: {
+				
+				// if()
+				
+			} break;
+			case NT.OBJECT: {
+				cursor = ((AST_Object)ended.node).resetIndex;
+			} break;
 			case NT.MEMBER_TUPLE: break;
 			case NT.FUNCTION: break;
 			case NT.STRUCT: break;
@@ -135,7 +154,7 @@ static class Analyser
 				
 			} break;
 			case Context.Kind.FUNCTION_DECLARATION: {
-				// The definition ends after the return values and arguments are parsed.
+				// The declaration ends after the return values and arguments are parsed.
 				var function = (AST_Function)enclosure.node;
 				var functionType = (DataType_Function)function.result.type;
 				var tuple = function.returns as AST_Tuple;
@@ -147,9 +166,6 @@ static class Analyser
 				
 				DataType.makeUnique(ref function.result.type);
 				cursor = enclosure.end; // Skip to end of function enclosure
-			} break;
-			case Context.Kind.OBJECT: {
-				cursor = ((AST_Object)ended.target).resetIndex;
 			} break;
 		}
 	}
@@ -231,6 +247,10 @@ static class Analyser
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
 				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
+			} },
+			{ NT.IF, node => {
+				var ifNode = (AST_If)node;
+				enclosureStack.Push(new Enclosure(NT.IF, ifNode, ifNode.ifScope, cursor + ifNode.ifCount + ifNode.conditionCount));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
@@ -355,7 +375,7 @@ static class Analyser
 				
 				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
 				{
-					var function     = (AST_Function)enclosureStack.ElementAt(1).node;
+					var function     = (AST_Function)enclosure.node;
 					var functionType = (DataType_Function)function.result.type;
 					functionType.arguments[function.finishedArguments] = allocType;
 					function.finishedArguments += 1;
@@ -368,8 +388,7 @@ static class Analyser
 			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
 		}
 		if(allocType == Lookup.AUTO) {
-			contextStack.Push(new)
-			enclosureStack.Push(new Enclosure(NT.DEFINITION, definition, enclosure.scope, definition.memberCount + cursor));
+			contextStack.Push(new Context(definition.memberCount + cursor, Context.Kind.DECLARATION));
 		}
 	}
 	
