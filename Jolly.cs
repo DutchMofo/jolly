@@ -13,22 +13,12 @@ namespace Jolly
 	
 	static class Extensions
 	{
-		public static void Add<T1, T2>(this IList<Tuple<T1, T2>> list, T1 item1, T2 item2)
-			=> list.Add(Tuple.Create(item1, item2));
-			
 		public static string fill(this string format, params object[] args)
 			=> string.Format(format, args);
 			
 		public static T PopOrDefault<T>(this Stack<T> stack)
 			=> (stack.Count == 0) ? default(T) : stack.Pop();
-			
-		public static ExpressionParser.Operator? PopOrNull(this Stack<ExpressionParser.Operator> stack)
-		{
-			if(stack.Count == 0)
-				return null;
-			return stack.Pop();
-		}
-			
+		
 		public static T PeekOrDefault<T>(this Stack<T> stack)
 			=> (stack.Count == 0) ? default(T) : stack.Peek();
 		

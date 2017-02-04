@@ -14,45 +14,49 @@ class SharedParseData
 	public List<AST_Node> ast;
 }
 
+struct Context
+{
+	public enum Kind : byte
+	{
+		STATEMENT,
+		
+		GROUP,      // (A group are the values between parenthesis)
+		OBJECT,     // An object are the initializers between braces: SomeStruct t = { a: 0, b: 1, };
+		TERNARY,
+		SUBSCRIPT,
+		// The definition context is the moment a variable is defined
+		// till the end of the statement: auto begin = 10; // <- end
+		// the type of an auto variable must be inferred bofere the end.
+		DECLARATION,
+		TEMPLATE_LIST,
+		
+		FUNCTION_DECLARATION,
+	}
+	
+	public Context(int index, Kind kind)
+	{
+		this.isFunctionCall = false;
+		this.hasColon = false;
+		this.target = null;
+		this.index = index;
+		this.kind = kind;
+	}
+	
+	// In the expression parser it's the index at the begin,
+	// in the analyser it's the index at the end
+	public int index;
+	public bool isFunctionCall, hasColon;
+	public AST_Node target;
+	public Kind kind;
+	
+	public override string ToString()
+		=> "kind: {0}, start: {1}, target: {2}, ".fill(kind, index, target);
+}
+
 // Parses an parseData.ast using a modified Shunting-yard algorithm.
 // Throws a ParseException when it's not a valid parseData.ast.
 class ExpressionParser
 {
-	public struct Context
-	{
-		public enum Kind : byte
-		{
-			STATEMENT,
-			
-			GROUP,      // (A group are the values between parenthesis)
-			OBJECT,     // An object are the initializers between braces: SomeStruct t = { a: 0, b: 1, };
-			TERNARY,
-			SUBSCRIPT,
-			// The definition context is the moment a variable is defined
-			// till the end of the statement: auto begin = 10; // <- end
-			// the type of an auto variable must be inferred bofere the end.
-			DEFINITION,
-			TEMPLATE_LIST,
-		}
-		
-		public Context(int startIndex, Kind kind)
-		{
-			this.startIndex = startIndex;
-			this.isFunctionCall = false;
-			this.hasColon = false;
-			this.target = null;
-			this.kind = kind;
-		}
-		
-		public int startIndex;
-		public bool isFunctionCall, hasColon;
-		public AST_Node target;
-		public Kind kind;
-		
-		public override string ToString()
-			=> "kind: {0}, start: {1}, target: {2}, ".fill(kind, startIndex, target);
-	}
-	
 	public struct Operator
 	{
 		public Operator(byte precedence, byte valCount, bool leftToRight, NT operation, bool isSpecial = false, SourceLocation location = new SourceLocation())
@@ -231,7 +235,7 @@ class ExpressionParser
 		}
 		
 		Token nextToken = parseData.tokens[parseData.cursor + 1];
-		int startNodeCount = contextStack.Peek().startIndex;
+		int startNodeCount = contextStack.Peek().index;
 		
 		if(!canDefine) {
 			throw Jolly.addError(token.location, "Can't define the {0} \"{1}\" here.".fill(
@@ -239,7 +243,7 @@ class ExpressionParser
 				token.text));
 		}
 		
-		// Define
+		// Declare
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
 		{ // Function
 			if(defineMode !=DefineMode.STATEMENT) {
@@ -291,7 +295,7 @@ class ExpressionParser
 			firstDefined = variableNode;
 			parseData.ast.Add(variableNode);
 			values.Push(variableNode);
-			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = variableNode });
+			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DECLARATION) { target = variableNode });
 		}
 	} // parseIdentifier()
 	
@@ -527,7 +531,7 @@ class ExpressionParser
 		}
 		
 		AST_Node[] initializers = null;
-		if(context.startIndex != parseData.ast.Count) {
+		if(context.index != parseData.ast.Count) {
 			AST_Node node = values.Pop();	
 			initializers = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 		}
@@ -546,7 +550,7 @@ class ExpressionParser
 		
 		// Use an AST_Definition for now
 		var _object = new AST_Object(op.location, NT.OBJECT) { 
-			memberCount = parseData.ast.Count - context.startIndex,
+			memberCount = parseData.ast.Count - context.index,
 			inferFrom = context.target,
 			nodeType = NT.OBJECT,
 			isArray = isArray,
@@ -556,7 +560,7 @@ class ExpressionParser
 			values.Pop();
 		}
 		
-		parseData.ast.Insert(context.startIndex, _object);
+		parseData.ast.Insert(context.index, _object);
 		values.Push(_object);
 	}
 	
@@ -680,7 +684,7 @@ class ExpressionParser
 			else
 			{
 				AST_Node[] arguments = null;
-				if(context.startIndex != parseData.ast.Count) {
+				if(context.index != parseData.ast.Count) {
 					AST_Node node = values.Pop();
 					arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 				}
@@ -694,12 +698,12 @@ class ExpressionParser
 			var tup = ((AST_Tuple)values.Pop());
 			// Close list so you can't add to it: (a, b), c
 			tup.closed = true;
-			tup.memberCount = parseData.ast.Count - context.startIndex;
+			tup.memberCount = parseData.ast.Count - context.index;
 			if(operators.PeekOrDefault().operation == NT.GET_MEMBER) {
 				operators.Pop(); // Remove GET_MEMBER
 				tup.membersFrom = values.Pop();
 				tup.nodeType = NT.MEMBER_TUPLE;
-				parseData.ast.Insert(context.startIndex, tup);
+				parseData.ast.Insert(context.index, tup);
 			} else {
 				parseData.ast.Add(tup);
 			}
@@ -707,26 +711,10 @@ class ExpressionParser
 		}
 	} // parseParenthesisClose()
 	
-	void parseTypeToReference()
-	{
-		currentTokenKind = TokenKind.VALUE;
-		
-		if(prevTokenKind == TokenKind.OPERATOR) {
-			throw Jolly.unexpected(token);
-		}
-		AST_Node prev = values.Pop();
-		if(prev == null) {
-			throw Jolly.addError(token.location, "Invalid expression term");
-		}
-		var mod = new AST_ModifyType(token.location, prev, AST_ModifyType.TO_POINTER);
-		parseData.ast.Add(mod);
-		values.Push(mod);
-	}
-	
 	void contextEnd(Context context)
 	{
-		if(context.kind == Context.Kind.DEFINITION) {
-			((AST_Declaration)context.target).memberCount = parseData.ast.Count - context.startIndex;
+		if(context.kind == Context.Kind.DECLARATION) {
+			((AST_Declaration)context.target).memberCount = parseData.ast.Count - context.index;
 			return;
 		}
 		
@@ -841,10 +829,10 @@ class ExpressionParser
 					context = contextStack.Pop();
 				}
 				
-				int memberCount = parseData.ast.Count - context.startIndex,
-					count = op.operatorIndex - context.startIndex;
+				int memberCount = parseData.ast.Count - context.index,
+					count = op.operatorIndex - context.index;
 				var logic = new AST_Logic(op.location, NT.TERNARY, memberCount, count, context.target, a, b);
-				parseData.ast.Insert(context.startIndex, logic);
+				parseData.ast.Insert(context.index, logic);
 				values.Push(logic);
 				return;
 			}

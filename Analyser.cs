@@ -13,18 +13,32 @@ static class Analyser
 	{
 		public EnclosureStack() { }
 		public EnclosureStack(int size) : base(size) { }
-		new public void Push(Enclosure e) => base.Push(Analyser.enclosure = e);
+		new public void Push(Enclosure e) => base.Push(enclosure = e);
 		new public Enclosure Pop()
 		{
 			var popped = base.Pop();
-			Analyser.enclosure = base.Peek();
+			enclosure = base.Peek();
 			return popped;
 		}
 	}
 	
+	class ContextStack : Stack<Context>
+	{
+		public ContextStack(int size) : base(size) { }
+		new public void Push(Context c) => base.Push(context = c);
+		new public Context Pop()
+		{
+			var popped = base.Pop();
+			context = base.Peek();
+			return popped;
+		}
+	}
+	
+	static ContextStack contextStack;
+	static Context context;
 	static EnclosureStack enclosureStack;
-	static List<IR> instructions;
 	static Enclosure enclosure;
+	static List<IR> instructions;
 	static int cursor;
 	
 	struct Enclosure
@@ -45,6 +59,10 @@ static class Analyser
 	static void incrementCursor()
 	{
 		cursor += 1;
+		
+		while(context.index < cursor) {
+			contextEnd(context);
+		}
 		while(enclosure.end < cursor) {
 			enclosureEnd(enclosureStack.Pop());
 		}
@@ -56,44 +74,6 @@ static class Analyser
 		
 	public static bool valueIsStatic(Value val)
 		=> val.kind == Value.Kind.STATIC_TYPE | val.kind == Value.Kind.STATIC_FUNCTION;
-	
-	static void enclosureEnd(Enclosure poppedEnclosure)
-	{
-		switch(poppedEnclosure.type)
-		{
-			case NT.DEFINITION: {
-				// type inference
-				var declaration = (AST_Declaration)poppedEnclosure.node;
-				
-				if(declaration.result.type == Lookup.AUTO) {
-					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
-				}
-				
-			} break;
-			case NT.FUNCTION_DEFINITION: {
-				// The definition ends after the return values and arguments are parsed.
-				var function = (AST_Function)enclosure.node;
-				var functionType = (DataType_Function)function.result.type;
-				var tuple = function.returns as AST_Tuple;
-				if(tuple != null) {
-					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.type);
-				} else {
-					functionType.returns[0] = function.returns.result.type;
-				}
-				
-				DataType.makeUnique(ref function.result.type);
-				cursor = enclosure.end; // Skip to end of function enclosure
-			} break;
-			case NT.OBJECT: {
-				cursor = ((AST_Object)poppedEnclosure.node).resetIndex;
-			} break;
-			case NT.MEMBER_TUPLE: break;
-			case NT.FUNCTION: break;
-			case NT.STRUCT: break;
-			case NT.TUPLE: break;
-			default: throw Jolly.addError(poppedEnclosure.node.location, "Internal compiler error: illigal node used as enclosure");
-		}
-	}
 	
 	public static List<IR> analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
@@ -129,6 +109,51 @@ static class Analyser
 		return instructions;
 	}
 	
+	static void enclosureEnd(Enclosure ended)
+	{
+		switch(ended.type)
+		{
+			case NT.MEMBER_TUPLE: break;
+			case NT.FUNCTION: break;
+			case NT.STRUCT: break;
+			case NT.TUPLE: break;
+			default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
+		}
+	}
+	
+	static void contextEnd(Context ended)
+	{
+		switch(ended.kind)
+		{
+			case Context.Kind.DECLARATION: {
+				// type inference
+				var declaration = (AST_Declaration)ended.target;
+				
+				if(declaration.result.type == Lookup.AUTO) {
+					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
+				}
+				
+			} break;
+			case Context.Kind.FUNCTION_DECLARATION: {
+				// The definition ends after the return values and arguments are parsed.
+				var function = (AST_Function)enclosure.node;
+				var functionType = (DataType_Function)function.result.type;
+				var tuple = function.returns as AST_Tuple;
+				if(tuple != null) {
+					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.type);
+				} else {
+					functionType.returns[0] = function.returns.result.type;
+				}
+				
+				DataType.makeUnique(ref function.result.type);
+				cursor = enclosure.end; // Skip to end of function enclosure
+			} break;
+			case Context.Kind.OBJECT: {
+				cursor = ((AST_Object)ended.target).resetIndex;
+			} break;
+		}
+	}
+	
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
@@ -141,8 +166,8 @@ static class Analyser
 				foreach(var allocation in table.allocations) {
 					allocation.result.tempID = tempID++;
 				}
-				enclosureStack.Push(new Enclosure(NT.FUNCTION,            function, table, function.memberCount     + cursor));
-				enclosureStack.Push(new Enclosure(NT.FUNCTION_DEFINITION, null,     table, function.definitionCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
+				contextStack.Push(new Context(function.definitionCount + cursor, Context.Kind.FUNCTION_DECLARATION));
 			} },
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
@@ -157,8 +182,8 @@ static class Analyser
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.TUPLE, node => {
-				var tuple = (AST_Tuple)node;
-				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
+				// var tuple = (AST_Tuple)node;
+				// enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
 			} },
 			{ NT.MODIFY_TYPE, modifyType },
 		},
@@ -313,7 +338,6 @@ static class Analyser
 		
 		switch(enclosure.type)
 		{
-			case NT.FUNCTION_DEFINITION:
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
 				Value resultValue = new Value {
@@ -329,7 +353,7 @@ static class Analyser
 				definition.symbol.type       = resultValue;
 				definition.result            = resultValue;
 				
-				if(enclosure.type == NT.FUNCTION_DEFINITION)
+				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
 				{
 					var function     = (AST_Function)enclosureStack.ElementAt(1).node;
 					var functionType = (DataType_Function)function.result.type;
@@ -344,6 +368,7 @@ static class Analyser
 			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
 		}
 		if(allocType == Lookup.AUTO) {
+			contextStack.Push(new)
 			enclosureStack.Push(new Enclosure(NT.DEFINITION, definition, enclosure.scope, definition.memberCount + cursor));
 		}
 	}
