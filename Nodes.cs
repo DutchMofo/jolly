@@ -179,8 +179,8 @@ namespace Jolly
 	{
 		public AST_If(SourceLocation loc) : base(loc, NT.IF) { }
 		
-		public int ifCount, elseCount;
-		public SymbolTable scope;
+		public int conditionCount, ifCount, elseCount;
+		public SymbolTable ifScope, elseScope;
 	}
 	
 	class AST_ModifyType : AST_Node
@@ -215,12 +215,12 @@ namespace Jolly
 		public string text;
 	}
 	
-	class AST_Definition : AST_Scope
+	class AST_Declaration : AST_Scope
 	{
-		public AST_Definition(SourceLocation loc, AST_Node typeFrom)
+		public AST_Declaration(SourceLocation loc, AST_Node typeFrom)
 			: base(loc, NT.DEFINITION) { this.typeFrom = typeFrom; }
 		
-		public AST_Definition(SourceLocation loc, AST_Node typeFrom, SymbolTable scope, string name)
+		public AST_Declaration(SourceLocation loc, AST_Node typeFrom, SymbolTable scope, string name)
 			: base(loc, NT.DEFINITION, scope, name) { this.typeFrom = typeFrom; }
 		
 		public IR_Allocate allocation;

@@ -63,10 +63,10 @@ static class Analyser
 		{
 			case NT.DEFINITION: {
 				// type inference
-				var definition = (AST_Definition)poppedEnclosure.node;
+				var declaration = (AST_Declaration)poppedEnclosure.node;
 				
-				if(definition.result.type == Lookup.AUTO) {
-					throw Jolly.addError(definition.location, "Implicitly-typed variables must be initialized.");
+				if(declaration.result.type == Lookup.AUTO) {
+					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
 				}
 				
 			} break;
@@ -132,7 +132,7 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => define(node) },
+			{ NT.DEFINITION, node => declare(node) },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
@@ -163,7 +163,7 @@ static class Analyser
 			{ NT.MODIFY_TYPE, modifyType },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => define(node) },
+			{ NT.DEFINITION, node => declare(node) },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.OBJECT, node => {
@@ -276,35 +276,6 @@ static class Analyser
 			} },
 		};
 	
-	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
-	{
-		var _object = (AST_Object)obj;
-		
-		if(_object.inferFrom != null)
-		{
-			var inferFrom = _object.inferFrom.result;
-			if(!valueIsStatic(inferFrom)) {
-				 throw Jolly.addError(_object.inferFrom.location, "Not a type");
-			}
-			_object.result.kind = Value.Kind.VALUE;
-			_object.result.type = new DataType_Reference(inferFrom.type);
-			DataType.makeUnique(ref _object.result.type);
-		}
-		else
-		{
-			if(location.result.type == Lookup.AUTO) {
-				throw Jolly.addError(_object.location, "Cannot derive type.");
-			}
-			_object.result = location.result;
-		}
-		
-		_object.resetIndex = cursor + 1;
-		cursor = _object.startIndex;
-		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, _object.startIndex + _object.memberCount));
-		
-		return true;
-	}
-	
 	static void modifyType(AST_Node node)
 	{
 		AST_ModifyType mod = (AST_ModifyType)node;
@@ -329,7 +300,7 @@ static class Analyser
 	static void skipSymbol(AST_Node node)
 		=> cursor += (node as AST_Scope).memberCount;
 	
-	static void define(AST_Node node)
+	static void declare(AST_Node node)
 	{
 		if(node.result.type != null) {
 			skipSymbol(node);
@@ -337,7 +308,7 @@ static class Analyser
 		}
 		
 		var enclosureNode  = (AST_Scope)enclosure.node;
-		var definition     = (AST_Definition)node;
+		var definition     = (AST_Declaration)node;
 		DataType allocType = definition.typeFrom.result.type;
 		
 		switch(enclosure.type)
@@ -548,6 +519,39 @@ static class Analyser
 		
 		name.symbol = definition;
 		name.result = definition.type;
+	}
+	
+	/*###########
+	    Hooks
+	###########*/
+	
+	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
+	{
+		var _object = (AST_Object)obj;
+		
+		if(_object.inferFrom != null)
+		{
+			var inferFrom = _object.inferFrom.result;
+			if(!valueIsStatic(inferFrom)) {
+				 throw Jolly.addError(_object.inferFrom.location, "Not a type");
+			}
+			_object.result.kind = Value.Kind.VALUE;
+			_object.result.type = new DataType_Reference(inferFrom.type);
+			DataType.makeUnique(ref _object.result.type);
+		}
+		else
+		{
+			if(location.result.type == Lookup.AUTO) {
+				throw Jolly.addError(_object.location, "Cannot derive type.");
+			}
+			_object.result = location.result;
+		}
+		
+		_object.resetIndex = cursor + 1;
+		cursor = _object.startIndex;
+		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, _object.startIndex + _object.memberCount));
+		
+		return true;
 	}
 }
 }

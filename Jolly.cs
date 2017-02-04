@@ -52,7 +52,7 @@ namespace Jolly
 			this.column = column;
 			this.line = line;
 		}
-		public override string ToString() => "{0}: {1}:{2}".fill(sourceFile, line, column);
+		public override string ToString() => "{1}:{2}".fill(sourceFile, line, column);
 	}
 	
 /*	// Hacky way of checking for double items in a list
@@ -95,6 +95,9 @@ namespace Jolly
 		
 		public static void addWarning(SourceLocation location, string message)
 			=> Console.WriteLine("{0}:{1}: warning: {2}".fill(location.line, location.column, message));
+		
+		public static void addNote(SourceLocation location, string message)
+			=> Console.WriteLine("{0}:{1}: note: {2}".fill(location.line, location.column, message));
 			
 		public static ParseException unexpected(Token token)
 			=> addError(token.location, "Unexpected {0}".fill(Token.TypeToString(token.type, token)));

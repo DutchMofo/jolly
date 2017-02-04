@@ -22,12 +22,7 @@ class ExpressionParser
 	{
 		public enum Kind : byte
 		{
-			// Top level context
-			// TODO: Put these back into a "Definemode" enum
-			STATEMENT,  // Can define function or variable
-			MEMBER,     // Can only define variables, no expression
-			ARGUMENT,   // Can only define variables, no expression
-			EXPRESSION, // Only a expression, can't define anything
+			STATEMENT,
 			
 			GROUP,      // (A group are the values between parenthesis)
 			OBJECT,     // An object are the initializers between braces: SomeStruct t = { a: 0, b: 1, };
@@ -88,12 +83,20 @@ class ExpressionParser
 		SEPARATOR = 3,
 	}
 	
-	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope, Context.Kind kind, int end)
+	public enum DefineMode : byte
 	{
-		contextStack.Push(new Context(parseData.ast.Count, kind));
+		STATEMENT,  // Can define function or variable
+		MEMBER,     // Can only define variables, no expression
+		ARGUMENT,   // Can only define variables, no expression
+		EXPRESSION, // Only a expression, can't define anything
+	}
+	
+	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope, DefineMode defineMode, int end)
+	{
+		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.STATEMENT));
 		this.terminator = terminator;
 		this.parseData = parseData;
-		this.contextKind = kind;
+		this.defineMode = defineMode;
 		this.canDefine = true;
 		this.scope = scope;
 		this.end = end;
@@ -105,9 +108,9 @@ class ExpressionParser
 	          currentTokenKind = TokenKind.VALUE;     // Is the current token being parsed an operator or a value
 	
 	// The first defined variable
-	AST_Definition firstDefined;
+	AST_Declaration firstDefined;
 	SharedParseData parseData;
-	Context.Kind contextKind;
+	DefineMode defineMode;
 	SymbolTable scope;
 	bool canDefine;
 	TT terminator;
@@ -183,6 +186,7 @@ class ExpressionParser
 		goto breakLoop;
 		breakLoop:
 		
+		// An early exit is when you exit on a semicolon and not the terminator
 		if(!allowEarlyExit && token.type != terminator) {
 			throw Jolly.unexpected(token);
 		}
@@ -214,7 +218,7 @@ class ExpressionParser
 				target = values.Pop();
 				break;
 			case TokenKind.SEPARATOR:
-				if(contextKind != Context.Kind.ARGUMENT && firstDefined != null) {
+				if(defineMode != DefineMode.ARGUMENT && firstDefined != null) {
 					target = firstDefined.typeFrom;
 					break;
 				}
@@ -238,7 +242,7 @@ class ExpressionParser
 		// Define
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
 		{ // Function
-			if(contextKind != Context.Kind.STATEMENT) {
+			if(defineMode !=DefineMode.STATEMENT) {
 				throw Jolly.addError(token.location, "Can't define the function \"{0}\" here".fill(name));
 			}
 			
@@ -260,7 +264,7 @@ class ExpressionParser
 			
 			parseData.cursor += 2;
 			functionTable.canAllocate = true;
-			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable, Context.Kind.ARGUMENT, nextToken.partnerIndex)
+			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
 				.parse(false);
 			
 			functionNode.returns         = target;
@@ -282,7 +286,7 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			var variableNode = defineVariable(name, target);
+			var variableNode = declareVariable(name, target);
 			
 			firstDefined = variableNode;
 			parseData.ast.Add(variableNode);
@@ -291,11 +295,11 @@ class ExpressionParser
 		}
 	} // parseIdentifier()
 	
-	AST_Definition defineVariable(string name, AST_Node target)
+	AST_Declaration declareVariable(string name, AST_Node target)
 	{
-		AST_Definition variableNode;
+		AST_Declaration variableNode;
 			
-		if(contextKind == Context.Kind.MEMBER)
+		if(defineMode == DefineMode.MEMBER)
 		{
 			var structType = (DataType_Struct)scope.type.type;
 			if(structType.memberMap.ContainsKey(name)) {
@@ -303,14 +307,14 @@ class ExpressionParser
 			}
 			structType.memberMap.Add(name, structType.memberMap.Count);
 			
-			variableNode = new AST_Definition(token.location, target, scope, name);
+			variableNode = new AST_Declaration(token.location, target, scope, name);
 			variableNode.result.kind = Value.Kind.VALUE;
 		}
-		else if(contextKind == Context.Kind.STATEMENT ||
-				contextKind == Context.Kind.ARGUMENT)
+		else if(defineMode == DefineMode.STATEMENT ||
+				defineMode == DefineMode.ARGUMENT)
 		{
-			Symbol variableSymbol   = new Symbol(scope);
-			       variableNode     = new AST_Definition(token.location, target);
+			Symbol variableSymbol = new Symbol(scope);
+			       variableNode   = new AST_Declaration(token.location, target);
 			
 			variableNode.symbol     = variableSymbol;
 			variableNode.text       = name;
@@ -417,6 +421,7 @@ class ExpressionParser
 					modifyType(AST_ModifyType.TO_POINTER);
 					return true;
 				}
+				op.isSpecial = false;
 			}
 			else if(op.operation == NT.TERNARY)
 			{
@@ -665,7 +670,7 @@ class ExpressionParser
 					if(name == null) {
 						throw Jolly.addError(tup.values[i].location, "Expected a name");
 					}	
-					var definition = defineVariable(name.text, target);
+					var definition = declareVariable(name.text, target);
 					parseData.ast.Add(tup.values[i] = definition);
 				}
 				
@@ -721,7 +726,7 @@ class ExpressionParser
 	void contextEnd(Context context)
 	{
 		if(context.kind == Context.Kind.DEFINITION) {
-			((AST_Definition)context.target).memberCount = parseData.ast.Count - context.startIndex;
+			((AST_Declaration)context.target).memberCount = parseData.ast.Count - context.startIndex;
 			return;
 		}
 		
@@ -843,6 +848,7 @@ class ExpressionParser
 				values.Push(logic);
 				return;
 			}
+			Jolly.addNote(op.location, "Compiler: unnecessary operator marked special {0}".fill(op.operation));
 		} // if(op.isSpecial)
 		
 		AST_Operation opNode = new AST_Operation(op.location, op.operation, a, b);
