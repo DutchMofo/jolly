@@ -1,18 +1,18 @@
 
 int main()
 {
-	AnalyseTest a, b;
-	b = AnalyseTest {
+	AnalyseTest a;
+	Fancy b;
+	b = Fancy {
+		id: 0xDEADBEEF,
+		awwYis: .5,
 		count: 0,
 		number: 1,
-		inner: Inner.InnerInner {
-			data: 10,
-		},
 	};
 	
 	a.count = a.number = 10;
 		
-	if(a.count <= a.number) {
+	if(1) {
 		swapCountNumber(&a);
 	} else {
 		return 1;
@@ -22,21 +22,22 @@ int main()
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)
 {
-	b.(count, number, inner.data) = b.(number, count, inner.data);
+	b.(count, number) = b.(number, count);
 	return b;
 }
 
-struct AnalyseTest
+struct StructID
+{
+	int id;
+}
+
+struct AnalyseTest : StructID
 {
 	int count;
 	int number;
-	Inner.InnerInner inner;
 }
 
-struct Inner
+struct Fancy : AnalyseTest
 {
-	struct InnerInner
-	{
-		int data;
-	}
+	float awwYis;
 }

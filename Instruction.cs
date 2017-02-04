@@ -36,11 +36,11 @@ namespace Jolly
 		public override string ToString() => "     %{0} = cast {1}, {2}".fill(result.tempID, type, _value);
 	}
 	
-	// class IR_Bitcast : IR
-	// {
-	// 	public Value from;
-	// 	public override string ToString() => "%{0} = bitcast {1} to {2}".fill(result.tempID, from, result);
-	// }
+	class IR_Bitcast : IR
+	{
+		public Value from;
+		public override string ToString() => "     %{0} = bitcast {1} to {2}".fill(result.tempID, from, result.type);
+	}
 	
 	class IR_Store : IR
 	{
@@ -81,13 +81,13 @@ namespace Jolly
 			(function.kind == Value.Kind.STATIC_FUNCTION) ? function.type.name : function.ToString(),
 			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
 	}
-		
+	
 	class IR_Struct : IR
 	{
 		public DataType_Struct structType;
 		public override string ToString() => "%{0} = struct {{ {1} }}".fill(
 			structType.name,
-			(structType.members.Length > 0) ? structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b) : "");
+			(structType.members.Length > 0) ? (structType.inherits != null ? structType.inherits + ", " : "") + structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b) : structType?.inherits.ToString());
 	}
 	
 	class IR_Function : IR

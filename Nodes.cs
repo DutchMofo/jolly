@@ -246,6 +246,12 @@ namespace Jolly
 		public int memberCount;
 	}
 	
+	class AST_Struct : AST_Scope
+	{
+		public AST_Struct(SourceLocation loc) : base(loc, NT.STRUCT) { }
+		public AST_Node inherits;
+	}
+	
 	class AST_Function : AST_Scope
 	{
 		public AST_Function(SourceLocation loc) : base(loc, NT.FUNCTION) { }

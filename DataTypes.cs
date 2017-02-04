@@ -41,7 +41,7 @@ namespace Jolly
 			this.typeID = lastTypeID++;
 		}
 		
-		public virtual Value? getMember(string name, out int index) { index = 0; return null; }
+		public virtual Value? getMember(AST_Node node, string name, List<IR> instruction) { return null; }
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
@@ -96,11 +96,32 @@ namespace Jolly
 		public DataType_Struct() { flags = Flags.INSTANTIABLE; }
 		public Dictionary<string, int> memberMap = new Dictionary<string, int>();
 		public DataType[] members;
+		public DataType_Struct inherits;
 		
-		public override Value? getMember(string name, out int index)
+		public override Value? getMember(AST_Node node, string name, List<IR> instructions)
 		{
-			if(memberMap.TryGetValue(name, out index)) {
-				return new Value { type = members[index], kind = Value.Kind.VALUE };
+			int index;
+			DataType_Struct iterator = this;
+			while(iterator != null)
+			{
+				if(iterator.memberMap.TryGetValue(name, out index))
+				{
+					Value _struct = node.result;
+					if(iterator != this) {
+						_struct = Analyser.newResult(new Value{ type = new DataType_Reference(iterator), kind = Value.Kind.STATIC_TYPE });
+						makeUnique(ref _struct.type);
+						
+						instructions.Add(new IR_Bitcast{ from = node.result, result = _struct });
+					}
+					
+					var result = new Value { type = iterator.members[index], kind = Value.Kind.VALUE };
+					result.type = new DataType_Reference(result.type);
+					makeUnique(ref result.type);
+					
+					instructions.Add(new IR_GetMember{ _struct = _struct, index = index + (iterator.inherits == null ? 0 : 1), result = result = Analyser.newResult(result) });
+					return result;
+				}
+				iterator = iterator.inherits;
 			}
 			return null;
 		}

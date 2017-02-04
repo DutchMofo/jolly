@@ -2,7 +2,6 @@
 namespace Jolly
 {
     using TT = Token.Type;
-    using NT = AST_Node.Type;
 	using DefineMode = ExpressionParser.DefineMode;
 	
     class ScopeParser
@@ -113,18 +112,28 @@ namespace Jolly
 				throw Jolly.unexpected(token);
 			}
 			
-			Token brace = parseData.tokens[parseData.cursor += 1];
-			if(brace.type != TT.BRACE_OPEN) {
+			Token next = parseData.tokens[parseData.cursor += 1];
+			AST_Node inherits = null;
+			
+			if(next.type == TT.COLON) {
+				parseData.cursor += 1;
+				inherits = new ExpressionParser(parseData, TT.BRACE_OPEN, scope, DefineMode.EXPRESSION, end)
+					.parse(false).getValue();
+				next = parseData.tokens[parseData.cursor];
+			}
+			
+			if(next.type != TT.BRACE_OPEN) {
 				throw Jolly.unexpected(token);
 			}
 			
+			AST_Struct      structNode  = new AST_Struct(token.location);
 			DataType_Struct structType  = new DataType_Struct();
-			AST_Scope       structNode  = new AST_Scope(token.location, NT.STRUCT);
 			SymbolTable     structTable = new SymbolTable(scope);
 			
-			structNode.symbol = structTable;
-			structNode.text   = structType.name  = name.text;
-			structNode.result = structTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = structType };
+			structNode.inherits = inherits;
+			structNode.symbol   = structTable;
+			structNode.text     = structType.name  = name.text;
+			structNode.result   = structTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = structType };
 			
 			if(!scope.Add(name.text, structTable)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
@@ -132,7 +141,7 @@ namespace Jolly
 			
 			parseData.ast.Add(structNode);
 			parseData.cursor += 1;
-			new ScopeParser(parseData, brace.partnerIndex, structTable)
+			new ScopeParser(parseData, next.partnerIndex, structTable)
 				{ scopeHead = structNode } // Hacky
 				.parseStructScope();
 			

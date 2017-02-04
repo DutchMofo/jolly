@@ -134,7 +134,17 @@ static class Analyser
 			} break;
 			case NT.MEMBER_TUPLE: break;
 			case NT.FUNCTION: break;
-			case NT.STRUCT: break;
+			case NT.STRUCT: {
+				var structNode = (AST_Struct)ended.node;
+				if(structNode.inherits != null)
+				{
+					var structType = (DataType_Struct)structNode.result.type;
+					if(!valueIsStatic(structNode.inherits.result) || !(structNode.inherits.result.type is DataType_Struct)) {
+						throw Jolly.addError(structNode.inherits.location, "Can only inherit from other structs");
+					}
+					structType.inherits = (DataType_Struct)structNode.inherits.result.type;
+				}
+			} break;
 			case NT.TUPLE: break;
 			default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
 		}
@@ -446,7 +456,7 @@ static class Analyser
 				return;
 			}
 			
-			if(target.referenced != b.result.type ) {
+			if(target.referenced != b.result.type) {
 				throw Jolly.addError(a.location, "Cannot assign this value type");
 			}
 			
@@ -477,25 +487,19 @@ static class Analyser
 		Value result = new Value();
 		if(!valueIsStatic(a.result))
 		{
-			int index;
 			var varType = ((DataType_Reference)a.result.type).referenced;
-			var definition = varType.getMember(b.text, out index);
+			var definition = varType.getMember(a, b.text, instructions);
 			
 			var refType = varType as DataType_Reference;
 			if(definition == null && refType != null) {
 				load(a);
-				definition = refType.referenced.getMember(b.text, out index);
+				definition = refType.referenced.getMember(a, b.text, instructions);
 			}
 			
 			if(definition == null) {
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
 			}
-			
-			result.kind = definition.Value.kind;
-			result.type = new DataType_Reference(definition.Value.type);
-			DataType.makeUnique(ref result.type);
-			
-			instructions.Add(new IR_GetMember{ _struct = a.result, index = index, result = result = newResult(result) });
+			result = definition.Value;
 		}
 		else if(a.result.kind == Value.Kind.STATIC_TYPE)
 		{
@@ -546,7 +550,10 @@ static class Analyser
 	
 	static void getTypeFromName(AST_Node node)
 	{
-		Debug.Assert(node.result.type == null);
+		if(node.result.type != null) {
+			Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
+			return;
+		}
 		
 		if(enclosure.type == NT.MEMBER_TUPLE) {
 			node.result = operatorGetMember(ref ((AST_Tuple)enclosure.node).membersFrom, node as AST_Symbol);
@@ -572,6 +579,7 @@ static class Analyser
 	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
 	{
 		var _object = (AST_Object)obj;
+		_object.result = location.result;
 		
 		if(_object.inferFrom != null)
 		{
@@ -583,12 +591,8 @@ static class Analyser
 			_object.result.type = new DataType_Reference(inferFrom.type);
 			DataType.makeUnique(ref _object.result.type);
 		}
-		else
-		{
-			if(location.result.type == Lookup.AUTO) {
-				throw Jolly.addError(_object.location, "Cannot derive type.");
-			}
-			_object.result = location.result;
+		else if(location.result.type == Lookup.AUTO) {
+			throw Jolly.addError(_object.location, "Cannot derive type.");
 		}
 		
 		_object.resetIndex = cursor + 1;

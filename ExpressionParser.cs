@@ -109,7 +109,7 @@ class ExpressionParser
 	// Was the previouly parsed token a value (literal, identifier, object),
 	// operator or a separator (comma)
 	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
-	          currentTokenKind = TokenKind.VALUE;     // Is the current token being parsed an operator or a value
+	          currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
 	
 	// The first defined variable
 	AST_Declaration firstDefined;
