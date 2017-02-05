@@ -424,43 +424,6 @@ static class Analyser
 			contextStack.Push(new Context(definition.memberCount + cursor, Context.Kind.DECLARATION));
 		}
 	}
-	
-	static bool implicitCast(AST_Node inValue, AST_Node toValue)
-	{
-		DataType inType = inValue.result.type,
-				 toType = toValue.result.type;
-		
-		if(inType == toType) {
-			return true;
-		}
-		
-		if((inType.flags & toType.flags & DataType.Flags.BASE_TYPE) == 0) {
-			
-			//TODO: implicitly cast to inherited type (TODO: implement inheretance)
-			return false;
-		}
-		
-		if(inType is DataType_Reference | toType is DataType_Reference) {
-			return false;
-		}
-		
-		if(inType.size > toType.size) {
-			return false;
-		}
-		
-		//TODO: Finish
-		
-		return false;
-	}
-	
-	static bool implicitCast(AST_Node a, DataType toType)
-	{
-		DataType aType = a.result.type;
-		if(aType == toType) return true;
-		
-		
-		return false;
-	}
 
 	static void assign(AST_Node a, AST_Node b)
 	{

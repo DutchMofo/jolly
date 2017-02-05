@@ -74,7 +74,7 @@ namespace Jolly
 	{
 		public Value function;
 		public Value[] arguments;
-		public override string ToString() => "     call @{0}({1})".fill(
+		public override string ToString() => "    call @{0}({1})".fill(
 			(function.kind == Value.Kind.STATIC_FUNCTION) ? function.type.name : function.ToString(),
 			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
 	}
@@ -95,5 +95,25 @@ namespace Jolly
 			functionType.returns.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b),
 			functionType.name,
 			(functionType.arguments.Length != 0) ? functionType.arguments.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b) : "");
+	}
+	
+	class IR_Add : IR
+	{
+		public Value a, b;
+		public override string ToString() => "    %{0} = add {1}, {2}".fill(result, a, b);
+	}
+	
+	class IR_Fptosi : IR
+	{
+		public Value _int;
+		public DataType _float;
+		public override string ToString() => "    %{0} = fptosi float %3 to i32".fill(result, _int, _float);
+	}
+	
+	class IR_Sitofp : IR
+	{
+		public Value _float;
+		public DataType _int;
+		public override string ToString() => "    %{0} = fptosi float %3 to i32".fill(result, _float, _int);
 	}
 }
