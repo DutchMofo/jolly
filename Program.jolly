@@ -1,22 +1,12 @@
 
 int main()
 {
-	AnalyseTest a;
-	Fancy b;
-	b = Fancy {
-		id: 0xDEADBEEF,
-		awwYis: .5,
-		count: 0,
-		number: 1,
+	AnalyseTest a = {
+		count: 10,
+		number: 12,
 	};
 	
-	a.count = a.number = 10;
-		
-	if(1) {
-		swapCountNumber(&a);
-	} else {
-		return 1;
-	}
+	swapCountNumber(&a);
 	return 0;
 }
 

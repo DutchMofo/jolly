@@ -19,28 +19,37 @@ static class Lookup
 			keywords.Add(names[i].ToLower(), values[i]);
 		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
 			directives.Add(names[i].ToLower(), values[i]);
+		
+		DataType.makeUnique(ref VOID_PTR);
+		
+		foreach(var bt in baseTypes) {
+			var t = bt;
+			DataType.makeUnique(ref t);
+		}
 	}
 	
 	const DataType.Flags BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE, INSTANTIABLE = DataType.Flags.INSTANTIABLE;
 	
 	public static readonly DataType
-		I1     = new DataType(1,  1, BASE_TYPE) { name = "i1"   },
-		I8     = new DataType(1,  1, BASE_TYPE) { name = "i8"   },
-		U8     = new DataType(1,  1, BASE_TYPE) { name = "u8"   },
-		I16    = new DataType(2,  2, BASE_TYPE) { name = "i16"  },
-		U16    = new DataType(2,  2, BASE_TYPE) { name = "u16"  },
-		I32    = new DataType(4,  4, BASE_TYPE) { name = "i32"  },
-		U32    = new DataType(4,  4, BASE_TYPE) { name = "u32"  },
-		I64    = new DataType(8,  8, BASE_TYPE) { name = "i64"  },
-		U64    = new DataType(8,  8, BASE_TYPE) { name = "u64"  },
-		F32    = new DataType(4,  4, BASE_TYPE) { name = "f32"  },
-		F64    = new DataType(4,  4, BASE_TYPE) { name = "f64"  },
-		VOID   = new DataType(0,  0, BASE_TYPE) { name = "void" },
-		STRING = new DataType(16, 8, INSTANTIABLE),
-		AUTO   = new DataType(0,  0, 0),
-		TUPLE  = new DataType(0,  0, 0);
+		I1       = new DataType_I1  { size = 1,  align = 1, flags = BASE_TYPE },
+		I8       = new DataType_I8  { size = 1,  align = 1, flags = BASE_TYPE },
+		U8       = new DataType_U8  { size = 1,  align = 1, flags = BASE_TYPE },
+		I16      = new DataType_I16 { size = 2,  align = 2, flags = BASE_TYPE },
+		U16      = new DataType_U16 { size = 2,  align = 2, flags = BASE_TYPE },
+		I32      = new DataType_I32 { size = 4,  align = 4, flags = BASE_TYPE },
+		U32      = new DataType_U32 { size = 4,  align = 4, flags = BASE_TYPE },
+		I64      = new DataType_I64 { size = 8,  align = 8, flags = BASE_TYPE },
+		U64      = new DataType_U64 { size = 8,  align = 8, flags = BASE_TYPE },
+		F32      = new DataType_F32 { size = 4,  align = 4, flags = BASE_TYPE },
+		F64      = new DataType_F64 { size = 4,  align = 4, flags = BASE_TYPE },
+		VOID     = new DataType     { size = 0,  align = 0, flags = BASE_TYPE },
+		STRING   = new DataType     { size = 16, align = 8, flags = INSTANTIABLE },
+		AUTO     = new DataType     { size = 0,  align = 0, flags = 0 },
+		TUPLE    = new DataType     { size = 0,  align = 0, flags = 0 };
+	public static DataType
+		VOID_PTR = new DataType_Reference(new DataType{ size = 0,  align = 0, flags = BASE_TYPE });
 	
-	// TODO: Change this garbase, currently the order is bound to Token.Type order
+	// TODO: Change this garbage, currently the order is bound to Token.Type order
 	static readonly DataType[] baseTypes = new DataType[] {
 		I1,  I1,
 		I8,  I8,

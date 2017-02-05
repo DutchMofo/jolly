@@ -60,10 +60,10 @@ i32 main()
 	// Pointers are not allowed to be null
 	i32* pointer = &three;
 	
-	// If you want to store null in you can use a nullable pointer
+	// If you want to store null you can use a nullable pointer
 	i32? pointingAtNothing = null;
 	
-	// Initializing struct with object (??? Not sure what is's called).
+	// Initializing struct with object.
 	Example example = {
 		type: FooType.THREE,
 		name: "Example name",

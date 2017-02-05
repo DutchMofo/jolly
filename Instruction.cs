@@ -4,28 +4,6 @@ namespace Jolly
 {
 	class IR
 	{
-		// public enum Type
-		// {
-		// 	UNDEFINED,
-		// 	DEFINE_STRUCT,
-		// 	DEFINE_FUNCTION,
-			
-		// 	GET_MEMBER,
-			
-		// 	REFERENCE,
-		// 	DEREFERENCE,
-			
-		// 	ALLOCATE,
-		// 	LOAD,
-		// 	STORE,
-		// 	CAST,
-		// 	CALL,
-		// 	ADD,
-		// 	SUBTRACT,
-		// 	MULTIPLY,
-		// 	DEVIDE,
-		// 	RETURN,
-		// }
 		public Value result;
 	}
 	
@@ -33,50 +11,63 @@ namespace Jolly
 	class IR_Cast : IR
 	{
 		public Value type, _value;
-		public override string ToString() => "     %{0} = cast {1}, {2}".fill(result.tempID, type, _value);
+		public override string ToString() => "    %{0} = cast {1}, {2}".fill(result.tempID, type, _value);
+	}
+	
+	class IR_Br : IR
+	{
+		public Value condition;
+		public int trueLabelId, falseLabelId;
+		public override string ToString() => "    br {0}, _{1}, _{2}".fill(condition, trueLabelId, falseLabelId);
+	}
+	
+	class IR_Goto : IR
+	{
+		public int labelId;
+		public override string ToString() => "    goto _{0}".fill(labelId);
 	}
 	
 	class IR_Label : IR
 	{
 		public int id;
-		public override string ToString() => "    _{0}:".fill(id);
+		public override string ToString() => "_{0}:".fill(id);
 	}
 	
 	class IR_Bitcast : IR
 	{
 		public Value from;
-		public override string ToString() => "     %{0} = bitcast {1} to {2}".fill(result.tempID, from, result.type);
+		public override string ToString() => "    %{0} = bitcast {1} to {2}".fill(result.tempID, from, result.type);
 	}
 	
 	class IR_Store : IR
 	{
 		public Value location, _value;
-		public override string ToString() => "     store {0}, {1}".fill(_value, location);
+		public override string ToString() => "    store {0}, {1}".fill(_value, location);
 	}
 	
 	class IR_GetMember : IR
 	{
 		public Value _struct;
 		public int index;
-		public override string ToString() => "     %{0} = get_member {1}, i32 {2}".fill(result.tempID, _struct, index);
+		public override string ToString() => "    %{0} = get_member {1}, i32 {2}".fill(result.tempID, _struct, index);
 	}
 	
 	class IR_Load : IR
 	{
 		public Value location;
-		public override string ToString() => "     %{0} = load {1}".fill(result.tempID, location);
+		public override string ToString() => "    %{0} = load {1}".fill(result.tempID, location);
 	}
 	
 	class IR_Allocate : IR
 	{
 		public DataType type;
-		public override string ToString() => "     %{0} = allocate {1}".fill(result.tempID, type);
+		public override string ToString() => "    %{0} = allocate {1}".fill(result.tempID, type);
 	}
 	
 	class IR_Return : IR
 	{
 		public Value[] values;
-		public override string ToString() => "     ret {0}".fill((values?.Length == 0) ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+		public override string ToString() => "    ret {0}".fill((values?.Length == 0) ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
 	}
 	
 	class IR_Call : IR
@@ -90,10 +81,10 @@ namespace Jolly
 	
 	class IR_Struct : IR
 	{
-		public DataType_Struct structType;
-		public override string ToString() => "%{0} = struct {{ {1} }}".fill(
-			structType.name,
-			(structType.members.Length > 0) ? (structType.inherits != null ? structType.inherits + ", " : "") + structType.members.Select(m => m.ToString()).Aggregate((a, b) => a + ", " + b) : structType?.inherits.ToString());
+		public DataType_Struct _struct;
+		public DataType[] members;
+		public override string ToString() => "{0} = struct {{ {1} }}".fill(_struct,
+			(members.Length > 0) ? members.Select(m=>m.ToString()).Aggregate((a,b)=>a+", "+b) : "");
 	}
 	
 	class IR_Function : IR

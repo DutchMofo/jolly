@@ -30,6 +30,9 @@ struct Context
 		DECLARATION,
 		TEMPLATE_LIST,
 		
+		IF_CONDITION,
+		IF_TRUE,
+		IF_FALSE,
 		FUNCTION_DECLARATION,
 	}
 	
@@ -130,6 +133,7 @@ class ExpressionParser
 	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,    kind = Value.Kind.STATIC_VALUE, data = data };
 	static Value STRING(string data) => new Value{ type = Lookup.STRING, kind = Value.Kind.STATIC_VALUE, data = data };
 	
+	static Value VOID_PTR() => new Value { type = Lookup.VOID_PTR, kind = Value.Kind.STATIC_VALUE, data = 0 };
 	static Value TUPLE() => new Value { type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE };
 	
 	public bool isDefinition() => firstDefined != null;
@@ -160,11 +164,12 @@ class ExpressionParser
 				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
 				case TT.BRACE_OPEN:        parseBraceOpen();        break;
 				case TT.BRACE_CLOSE:       parseBraceClose();		break;
-				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result =    INT(token._integer) }; goto case 0;
-				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result = STRING(token._string)  }; goto case 0;
-				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result =  FLOAT(token._float)   }; goto case 0;
-				case TT.TRUE:              _value = new AST_Node(token.location, NT.LITERAL) { result =   BOOL(true)           }; goto case 0;
-				case TT.FALSE:             _value = new AST_Node(token.location, NT.LITERAL) { result =   BOOL(false)          }; goto case 0;
+				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result =      INT(token._integer) }; goto case 0;
+				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result =   STRING(token._string)  }; goto case 0;
+				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result =    FLOAT(token._float)   }; goto case 0;
+				case TT.TRUE:              _value = new AST_Node(token.location, NT.LITERAL) { result =     BOOL(true)           }; goto case 0;
+				case TT.FALSE:             _value = new AST_Node(token.location, NT.LITERAL) { result =     BOOL(false)          }; goto case 0;
+				case TT.NULL:              _value = new AST_Node(token.location, NT.LITERAL) { result = VOID_PTR()               }; goto case 0;
 				case TT.SEMICOLON:         if(allowEarlyExit) goto breakLoop; else throw Jolly.unexpected(token);
 				default:
 					if(token.type >= TT.I1 & token.type <= TT.AUTO) {
@@ -222,7 +227,10 @@ class ExpressionParser
 				target = values.Pop();
 				break;
 			case TokenKind.SEPARATOR:
-				if(defineMode != DefineMode.ARGUMENT && firstDefined != null) {
+				if(defineMode != DefineMode.ARGUMENT &&
+				   firstDefined != null &&
+				   contextStack.Peek().kind == Context.Kind.STATEMENT)
+				{
 					target = firstDefined.typeFrom;
 					break;
 				}

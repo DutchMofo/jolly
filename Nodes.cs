@@ -62,7 +62,6 @@ namespace Jolly
 			FUNCTION_CALL,
 			GOTO,
 			IF,
-			ELSE,
 			LABEL,
 			LITERAL,
 			LOOP_CONTROL,
@@ -179,7 +178,9 @@ namespace Jolly
 	{
 		public AST_If(SourceLocation loc) : base(loc, NT.IF) { }
 		
-		public int conditionCount, ifCount, elseCount;
+		public AST_Node condition;
+		public int conditionCount, ifCount, elseCount,
+			trueLabelId, falseLabelId, endLabelId;
 		public SymbolTable ifScope, elseScope;
 	}
 	

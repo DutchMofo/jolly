@@ -58,19 +58,18 @@ static class Analyser
 	
 	static void incrementCursor()
 	{
-		cursor += 1;
-		
-		while(context.index < cursor) {
+		while(context.index <= cursor) {
 			contextEnd(contextStack.Pop());
 		}
-		while(enclosure.end < cursor) {
+		while(enclosure.end <= cursor) {
 			enclosureEnd(enclosureStack.Pop());
 		}
+		cursor += 1;
 	}
 	
 	static int tempID = 0;
 	public static Value newResult(Value _value)
-		=> new Value{ type = _value.type, kind = _value.kind, tempID = tempID++ };
+		=> new Value{ type = _value.type, kind = _value.kind, tempID = (tempID += 1) };
 		
 	public static bool valueIsStatic(Value val)
 		=> val.kind == Value.Kind.STATIC_TYPE | val.kind == Value.Kind.STATIC_FUNCTION;
@@ -116,19 +115,7 @@ static class Analyser
 	{
 		switch(ended.type)
 		{
-			case NT.IF: {
-				var ifNode = (AST_If)ended.node;
-				
-				
-				if(ifNode.elseCount > 0) {
-					enclosureStack.Push(new Enclosure(NT.ELSE, ifNode, ifNode.elseScope, cursor + ifNode.elseCount));
-				}
-			} break;
-			case NT.ELSE: {
-				
-				// if()
-				
-			} break;
+			case NT.IF: break;
 			case NT.OBJECT: {
 				cursor = ((AST_Object)ended.node).resetIndex;
 			} break;
@@ -136,9 +123,25 @@ static class Analyser
 			case NT.FUNCTION: break;
 			case NT.STRUCT: {
 				var structNode = (AST_Struct)ended.node;
-				if(structNode.inherits != null)
-				{
-					var structType = (DataType_Struct)structNode.result.type;
+				var structType = (DataType_Struct)structNode.result.type;
+				
+				DataType[] members;
+				if(structNode.inherits != null) {
+					members = new DataType[structType.members.Length + 1];
+					members[0] = structNode.inherits.result.type;
+					structType.members.CopyTo(members, 1);
+				} else {
+					members = new DataType[structType.members.Length];
+					structType.members.CopyTo(members, 0);
+				}
+				instructions.Add(new IR_Struct{ _struct = structType, members = members });
+				
+				for(int i = 0; i < structType.members.Length; i += 1) {
+					structType.members[i] = new DataType_Reference(structType.members[i]);
+					DataType.makeUnique(ref structType.members[i]);
+				}
+				
+				if(structNode.inherits != null) {
 					if(!valueIsStatic(structNode.inherits.result) || !(structNode.inherits.result.type is DataType_Struct)) {
 						throw Jolly.addError(structNode.inherits.location, "Can only inherit from other structs");
 					}
@@ -154,6 +157,31 @@ static class Analyser
 	{
 		switch(ended.kind)
 		{
+			case Context.Kind.IF_CONDITION: {
+				var ifNode = (AST_If)ended.target;
+				ifNode.trueLabelId = (tempID += 1);
+				ifNode.falseLabelId = (tempID += 1);
+				instructions.Add(new IR_Br{ condition = ifNode.condition.result, trueLabelId = ifNode.trueLabelId, falseLabelId = ifNode.falseLabelId });
+				instructions.Add(new IR_Label{ id = ifNode.trueLabelId });
+				contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
+			} break;
+			case Context.Kind.IF_TRUE: {
+				var ifNode = (AST_If)ended.target;
+				if(ifNode.elseCount > 0) {
+					ifNode.endLabelId = (tempID += 1);
+					instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
+					instructions.Add(new IR_Label{ id = ifNode.falseLabelId });
+					contextStack.Push(new Context(cursor + ifNode.elseCount, Context.Kind.IF_FALSE) { target = ifNode });
+				} else {
+					instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
+					instructions.Add(new IR_Label{ id = ifNode.falseLabelId });
+				}
+			} break;
+			case Context.Kind.IF_FALSE: {
+				var ifNode = (AST_If)ended.target;
+				instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
+				instructions.Add(new IR_Label{ id = ifNode.endLabelId });
+			} break;
 			case Context.Kind.DECLARATION: {
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
@@ -161,7 +189,6 @@ static class Analyser
 				if(declaration.result.type == Lookup.AUTO) {
 					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
 				}
-				
 			} break;
 			case Context.Kind.FUNCTION_DECLARATION: {
 				// The declaration ends after the return values and arguments are parsed.
@@ -183,14 +210,14 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => declare(node) },
+			{ NT.DEFINITION, declare },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
-				tempID = 1;
+				tempID = 0;
 				// Allocate id's
 				foreach(var allocation in table.allocations) {
-					allocation.result.tempID = tempID++;
+					allocation.result.tempID = (tempID += 1);
 				}
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				contextStack.Push(new Context(function.definitionCount + cursor, Context.Kind.FUNCTION_DECLARATION));
@@ -198,7 +225,6 @@ static class Analyser
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
 				var table = (SymbolTable)structNode.symbol;
-				instructions.Add(new IR_Struct{ structType = (DataType_Struct)structNode.result.type });
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
 			{ NT.GET_MEMBER, node => {
@@ -207,14 +233,11 @@ static class Analyser
 			} },
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
-			{ NT.TUPLE, node => {
-				// var tuple = (AST_Tuple)node;
-				// enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
-			} },
+			{ NT.TUPLE, node => { } },
 			{ NT.MODIFY_TYPE, modifyType },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, node => declare(node) },
+			{ NT.DEFINITION, declare },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.OBJECT, node => {
@@ -239,7 +262,7 @@ static class Analyser
 				foreach(var allocation in table.allocations) {
 					instructions.Add(allocation);
 				}
-				tempID = 1 + table.allocations.Count;
+				tempID = table.allocations.Count;
 				
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				cursor += function.definitionCount;
@@ -260,7 +283,8 @@ static class Analyser
 			} },
 			{ NT.IF, node => {
 				var ifNode = (AST_If)node;
-				enclosureStack.Push(new Enclosure(NT.IF, ifNode, ifNode.ifScope, cursor + ifNode.ifCount + ifNode.conditionCount));
+				contextStack.Push(new Context(cursor + ifNode.conditionCount, Context.Kind.IF_CONDITION) { target = ifNode });
+				enclosureStack.Push(new Enclosure(NT.IF, ifNode, ifNode.ifScope, cursor + ifNode.conditionCount + ifNode.ifCount + ifNode.elseCount));
 			} },
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.NAME, getTypeFromName },
@@ -365,7 +389,7 @@ static class Analyser
 		var enclosureNode  = (AST_Scope)enclosure.node;
 		var definition     = (AST_Declaration)node;
 		DataType allocType = definition.typeFrom.result.type;
-		
+				
 		switch(enclosure.type)
 		{
 			case NT.FUNCTION:
@@ -375,8 +399,7 @@ static class Analyser
 					type   = new DataType_Reference(allocType),
 					kind   = Value.Kind.VALUE,
 				};
-				
-				DataType.makeUnique(ref resultValue.type);
+				DataType.makeUnique(ref allocType);
 				
 				definition.allocation.type   = allocType;
 				definition.allocation.result = resultValue;
@@ -578,6 +601,8 @@ static class Analyser
 	
 	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
 	{
+		// TODO: Zero out struct.
+		
 		var _object = (AST_Object)obj;
 		_object.result = location.result;
 		

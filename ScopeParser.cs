@@ -168,8 +168,7 @@ namespace Jolly
 				.parse(true);
 			
 			if(parseData.cursor < parenthEnd)
-			{
-				// Early exit
+			{ // Early exit	
 				if(!parser.isDefinition()) {
 					throw Jolly.addError(token.location, "Expected first part to be a definition.");
 				}
@@ -179,6 +178,7 @@ namespace Jolly
 			} else if(parser.isDefinition()) {
 				throw Jolly.addError(token.location, "Definition not allowed as exression.");
 			}
+			ifNode.condition = parser.getValue();
 			ifNode.conditionCount = parseData.ast.Count - startNodeCount;
 			startNodeCount = parseData.ast.Count;
 			

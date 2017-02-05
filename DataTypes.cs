@@ -21,27 +21,20 @@ namespace Jolly
 			DataType found;
 			Debug.Assert(dataType != null);
 			if(!allReferenceTypes.TryGetValue(dataType, out found)) {
+				dataType.typeID = ++lastTypeID;
 				allReferenceTypes.Add( dataType, dataType );
 			} else {
 				dataType = found;
 			}
 		}
 		
-		public string name; // TODO: Remove someday
 		public int size, typeID;
+		public string name;
 		public Flags flags;
 		public byte align;
-		
-		public DataType() { this.typeID = lastTypeID++; }
-		public DataType(int size, byte align, Flags flags)
-		{
-			this.size = size;
-			this.flags = flags;
-			this.align = align;
-			this.typeID = lastTypeID++;
-		}
-		
+				
 		public virtual Value? getMember(AST_Node node, string name, List<IR> instruction) { return null; }
+		public virtual Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
 		
 		public override bool Equals(object obj) => obj == this;
 		public override int GetHashCode() => typeID;
@@ -73,24 +66,6 @@ namespace Jolly
 		public override string ToString() => referenced + "*";
 	}
 	
-	// class DataTypeArray : DataType
-	// {
-	// 	public DataType collectionType;
-	// 	public int length;
-				
-	// 	public override bool Equals(object obj)
-	// 	{
-	// 		var arr = obj as DataTypeArray;
-	// 		if(arr != null)
-	// 			return arr.length == length && arr.collectionType == collectionType;
-	// 		return false;
-	// 	}
-	// 	public override int GetHashCode()
-	// 		=> collectionType.GetHashCode() & length;
-			
-	// 	public override string ToString() => collectionType + "[]";
-	// }
-	
 	class DataType_Struct : DataType
 	{
 		public DataType_Struct() { flags = Flags.INSTANTIABLE; }
@@ -108,20 +83,32 @@ namespace Jolly
 				{
 					Value _struct = node.result;
 					if(iterator != this) {
-						_struct = Analyser.newResult(new Value{ type = new DataType_Reference(iterator), kind = Value.Kind.STATIC_TYPE });
+						_struct = Analyser.newResult(new Value{ type = new DataType_Reference(iterator), kind = Value.Kind.STATIC_TYPE });						
 						makeUnique(ref _struct.type);
-						
 						instructions.Add(new IR_Bitcast{ from = node.result, result = _struct });
 					}
-					
-					var result = new Value { type = iterator.members[index], kind = Value.Kind.VALUE };
-					result.type = new DataType_Reference(result.type);
-					makeUnique(ref result.type);
-					
-					instructions.Add(new IR_GetMember{ _struct = _struct, index = index + (iterator.inherits == null ? 0 : 1), result = result = Analyser.newResult(result) });
+					var result = Analyser.newResult(new Value { type = iterator.members[index], kind = Value.Kind.VALUE });
+					instructions.Add(new IR_GetMember{ _struct = _struct, index = index + (iterator.inherits == null ? 0 : 1), result = result });
 					return result;
 				}
 				iterator = iterator.inherits;
+			}
+			return null;
+		}
+		
+		public override Value? implicitCast(Value i, DataType to, List<IR> instructions)
+		{
+			if(!(to is DataType_Reference)) {
+				return null;
+			}
+			DataType_Struct iterator = this;
+			while(iterator != null)
+			{
+				if(iterator == to) {
+					Value result = Analyser.newResult(new Value{ type = iterator, kind = Value.Kind.STATIC_TYPE });
+					instructions.Add(new IR_Bitcast{ from = i, result = result });
+					return result;
+				}
 			}
 			return null;
 		}
@@ -162,5 +149,104 @@ namespace Jolly
 		}
 		
 		public override string ToString() => '%'+name;
+	}
+	
+	// class DataTypeArray : DataType
+	// {
+	// 	public DataType collectionType;
+	// 	public int length;
+				
+	// 	public override bool Equals(object obj)
+	// 	{
+	// 		var arr = obj as DataTypeArray;
+	// 		if(arr != null)
+	// 			return arr.length == length && arr.collectionType == collectionType;
+	// 		return false;
+	// 	}
+	// 	public override int GetHashCode()
+	// 		=> collectionType.GetHashCode() & length;
+			
+	// 	public override string ToString() => collectionType + "[]";
+	// }
+	
+	class DataType_I1 : DataType
+	{
+		public override Value? implicitCast(Value i, DataType to, List<IR> instructions)
+		{
+			if( to is DataType_U8 ||
+				to is DataType_I8 ||
+				to is DataType_U16 ||
+				to is DataType_I16 ||
+				to is DataType_U32 ||
+				to is DataType_I32 ||
+				to is DataType_I64 ||
+				to is DataType_U64)
+			{
+				
+			}
+			return null;
+		}
+		
+		public override string ToString() => "i1";
+	}
+	
+	class DataType_I8 : DataType
+	{
+		
+		public override string ToString() => "i8";
+	}
+	
+	class DataType_U8 : DataType
+	{
+		
+		public override string ToString() => "u8";
+	}
+	
+	class DataType_I16 : DataType
+	{
+		
+		public override string ToString() => "i16";
+	}
+	
+	class DataType_U16 : DataType
+	{
+		
+		public override string ToString() => "u16";
+	}
+	
+	class DataType_U32 : DataType
+	{
+		
+		public override string ToString() => "i32";
+	}
+	
+	class DataType_I32 : DataType
+	{
+		
+		public override string ToString() => "u32";
+	}
+	
+	class DataType_U64 : DataType
+	{
+		
+		public override string ToString() => "i64";
+	}
+	
+	class DataType_I64 : DataType
+	{
+		
+		public override string ToString() => "u64";
+	}
+	
+	class DataType_F32 : DataType
+	{
+		
+		public override string ToString() => "f32";
+	}
+	
+	class DataType_F64 : DataType
+	{
+		
+		public override string ToString() => "f64";
 	}
 }
