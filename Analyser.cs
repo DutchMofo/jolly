@@ -6,6 +6,7 @@ namespace Jolly
 {
 using System.Linq;
 using NT = AST_Node.Type;
+using Cast = Func<Value,Value,Value>;
 
 static class Analyser
 {
@@ -273,10 +274,7 @@ static class Analyser
 				
 				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
 			} },
-			{ NT.TUPLE, node => {
-				// var tuple = (AST_Tuple)node;
-				// enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
-			} },
+			{ NT.TUPLE, node => { } },
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
 				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
@@ -348,10 +346,15 @@ static class Analyser
 				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
-				op.result.kind = op.b.result.kind;
-				op.result.type = op.a.result.type;
-				Value toValue = new Value{ kind = Value.Kind.STATIC_TYPE, type = op.a.result.type };
-				instructions.Add(new IR_Cast{ _value = op.b.result, type = toValue, result = toValue });
+				if(op.a.result.type == op.b.result.type) {
+					return;
+				}
+				
+				Cast cast;
+				if(!casts.TryGetValue(toPair(op.b.result, op.a.result), out cast)) {
+					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
+				}
+				op.result = cast(op.b.result, op.a.result);
 			} },
 		};
 	
@@ -589,5 +592,38 @@ static class Analyser
 		
 		return true;
 	}
+	
+	struct CastPair
+	{
+		public DataType _from, _to;
+		public override int GetHashCode()
+			=> _from.GetHashCode() ^ _to.GetHashCode();
+		public override bool Equals(object obj)
+		{
+			var pair = (CastPair)obj;
+			return _to == pair._to && _from == pair._from;
+		}
+	}
+	
+	static CastPair toPair(DataType _from, DataType _to) => new CastPair{ _from = _from, _to = _to };
+	static CastPair toPair(Value _from, Value _to) => new CastPair{ _from = _from.type, _to = _to.type };
+	static Value addIR(IR_Cast ir) { ir._to = ir.result.type; instructions.Add(ir); return ir.result = newResult(ir.result); }
+	
+	// Ugly, dont look
+	static Dictionary<CastPair, Cast>
+		casts = new Dictionary<CastPair, Cast>() {
+			// I1
+			{ toPair(Lookup.I1, Lookup.U8),  (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.I8),  (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.U16), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.I16), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.U32), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.I32), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.U64), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.I64), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.F32), (_from, _to) => addIR(new IR_Sitofp{ _from = _from, result = _to }) },
+			{ toPair(Lookup.I1, Lookup.F64), (_from, _to) => addIR(new IR_Sitofp{ _from = _from, result = _to }) },
+		};
+	
 }
 }

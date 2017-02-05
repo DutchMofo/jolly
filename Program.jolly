@@ -7,7 +7,7 @@ int main()
 	};
 	
 	swapCountNumber(&a);
-	return 0;
+	return (i32: true);
 }
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)

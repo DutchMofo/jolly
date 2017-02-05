@@ -85,7 +85,7 @@ namespace Jolly
 					if(iterator != this) {
 						_struct = Analyser.newResult(new Value{ type = new DataType_Reference(iterator), kind = Value.Kind.STATIC_TYPE });						
 						makeUnique(ref _struct.type);
-						instructions.Add(new IR_Bitcast{ from = node.result, result = _struct });
+						instructions.Add(new IR_Bitcast{ _from = node.result, _to = _struct.type, result = _struct });
 					}
 					var result = Analyser.newResult(new Value { type = iterator.members[index], kind = Value.Kind.VALUE });
 					instructions.Add(new IR_GetMember{ _struct = _struct, index = index + (iterator.inherits == null ? 0 : 1), result = result });
@@ -106,7 +106,7 @@ namespace Jolly
 			{
 				if(iterator == to) {
 					Value result = Analyser.newResult(new Value{ type = iterator, kind = Value.Kind.STATIC_TYPE });
-					instructions.Add(new IR_Bitcast{ from = i, result = result });
+					instructions.Add(new IR_Bitcast{ _from = i, _to = result.type, result = result });
 					return result;
 				}
 			}
@@ -168,85 +168,4 @@ namespace Jolly
 			
 	// 	public override string ToString() => collectionType + "[]";
 	// }
-	
-	class DataType_I1 : DataType
-	{
-		public override Value? implicitCast(Value i, DataType to, List<IR> instructions)
-		{
-			if( to is DataType_U8 ||
-				to is DataType_I8 ||
-				to is DataType_U16 ||
-				to is DataType_I16 ||
-				to is DataType_U32 ||
-				to is DataType_I32 ||
-				to is DataType_I64 ||
-				to is DataType_U64)
-			{
-				
-			}
-			return null;
-		}
-		
-		public override string ToString() => "i1";
-	}
-	
-	class DataType_I8 : DataType
-	{
-		
-		public override string ToString() => "i8";
-	}
-	
-	class DataType_U8 : DataType
-	{
-		
-		public override string ToString() => "u8";
-	}
-	
-	class DataType_I16 : DataType
-	{
-		
-		public override string ToString() => "i16";
-	}
-	
-	class DataType_U16 : DataType
-	{
-		
-		public override string ToString() => "u16";
-	}
-	
-	class DataType_U32 : DataType
-	{
-		
-		public override string ToString() => "i32";
-	}
-	
-	class DataType_I32 : DataType
-	{
-		
-		public override string ToString() => "u32";
-	}
-	
-	class DataType_U64 : DataType
-	{
-		
-		public override string ToString() => "i64";
-	}
-	
-	class DataType_I64 : DataType
-	{
-		
-		public override string ToString() => "u64";
-	}
-	
-	class DataType_F32 : DataType
-	{
-		
-		public override string ToString() => "f32";
-	}
-	
-	class DataType_F64 : DataType
-	{
-		
-		public override string ToString() => "f64";
-	}
 }
