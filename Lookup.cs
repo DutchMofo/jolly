@@ -7,6 +7,7 @@ namespace Jolly
 using TT = Token.Type;
 using NT = AST_Node.Type;
 using Operator = ExpressionParser.Operator;
+using Cast = Func<Value,Value,Value>;
 
 static class Lookup 
 {
@@ -152,7 +153,214 @@ static class Lookup
 	public static Dictionary<string, Token.Type>
 		directives = new Dictionary<string, Token.Type>(),
 		keywords = new Dictionary<string, Token.Type>();
-
+		
+		struct CastPair
+	{
+		public DataType _from, _to;
+		public override int GetHashCode()
+			=> _from.GetHashCode() ^ _to.GetHashCode();
+		public override bool Equals(object obj)
+		{
+			var pair = (CastPair)obj;
+			return _to == pair._to && _from == pair._from;
+		}
+	}
+	
+	static Value zero(Value _in) => new Value{ type = _in.type, kind = Value.Kind.STATIC_VALUE, data = 0 };
+	static CastPair toPair(DataType _from, DataType _to) => new CastPair{ _from = _from, _to = _to };
+	static CastPair toPair(Value _from, Value _to) => new CastPair{ _from = _from.type, _to = _to.type };
+	static Value addIR(IR_Instr ir) { ir._to = ir.result.type; Analyser.instructions.Add(ir); return ir.result = Analyser.newResult(ir.result); }
+	static Value addIR(IR_Comp ir) { Analyser.instructions.Add(ir); return ir.result = Analyser.newResult(ir.result); }
+	
+	// Ugly, dont look
+	public static Dictionary<CastPair, Cast>
+		casts = new Dictionary<CastPair, Cast>() {
+			// I1
+			{ toPair(I1, U8),  (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, I8),  (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, U16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, I16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, U32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, I32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, U64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, I64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(I1, F32), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
+			{ toPair(I1, F64), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
+			// U8
+			{ toPair(U8, I1),  (_from, _to) => addIR(new IR_Icmp    { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(U8, I8),  (_from, _to) => _to },
+			{ toPair(U8, U16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, I16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, U32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, I32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, U64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, I64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
+			{ toPair(U8, F32), (_from, _to) => addIR(new IR_Uitofp  { _from = _from, result = _to }) },
+			{ toPair(U8, F64), (_from, _to) => addIR(new IR_Uitofp  { _from = _from, result = _to }) },
+			// I8
+			{ toPair(I8, I1),  (_from, _to) => addIR(new IR_Icmp    { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(I8, U8),  (_from, _to) => _to },
+			{ toPair(I8, U16), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, I16), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, U32), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, I32), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, U64), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, I64), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
+			{ toPair(I8, F32), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
+			{ toPair(I8, F64), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
+			// U16
+			{ toPair(U16, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(U16, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U16, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U16, I16), (_from, _to) => _to },
+			{ toPair(U16, U32), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U16, I32), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U16, U64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U16, I64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U16, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			{ toPair(U16, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			// I16
+			{ toPair(I16, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(I16, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I16, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I16, U16), (_from, _to) => _to },
+			{ toPair(I16, U32), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I16, I32), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I16, U64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I16, I64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I16, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			{ toPair(I16, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			// U32
+			{ toPair(U32, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(U32, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U32, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U32, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U32, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U32, I32), (_from, _to) => _to },
+			{ toPair(U32, U64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U32, I64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
+			{ toPair(U32, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			{ toPair(U32, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			// I32
+			{ toPair(I32, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(I32, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I32, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I32, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I32, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I32, U32), (_from, _to) => _to },
+			{ toPair(I32, U64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I32, I64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
+			{ toPair(I32, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			{ toPair(I32, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			// U64
+			{ toPair(U64, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(U64, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, U32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, I32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(U64, I64), (_from, _to) => _to },
+			{ toPair(U64, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			{ toPair(U64, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
+			// I64
+			{ toPair(I64, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
+			{ toPair(I64, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, U32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, I32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
+			{ toPair(I64, U64), (_from, _to) => _to },
+			{ toPair(I64, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			{ toPair(I64, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
+			// F32
+			{ toPair(F32, I1),  (_from, _to) => addIR(new IR_Fcmp   { _from = _from, result = _to, compare = IR_Fcmp.Compare.une, _to = zero(_to) }) },
+			{ toPair(F32, U8),  (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F32, I8),  (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F32, U16), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F32, I16), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F32, U32), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F32, I32), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F32, U64), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F32, F64), (_from, _to) => addIR(new IR_Fpext  { _from = _from, result = _to }) },
+			// F64
+			{ toPair(F64, I1),  (_from, _to) => addIR(new IR_Fcmp   { _from = _from, result = _to, compare = IR_Fcmp.Compare.une, _to = zero(_to) }) },
+			{ toPair(F64, U8),  (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F64, I8),  (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F64, U16), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F64, I16), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F64, U32), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F64, I32), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
+			{ toPair(F64, U64), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
+			{ toPair(F64, F32), (_from, _to) => addIR(new IR_Fptrunc{ _from = _from, result = _to }) },
+		}, 
+		implicitCasts = new Dictionary<CastPair, Cast>() {
+			// I1
+			{ toPair(I1, U8),  casts[toPair(I1, U8)]    },
+			{ toPair(I1, I8),  casts[toPair(I1, I8)]    },
+			{ toPair(I1, U16), casts[toPair(I1, U16)]   },
+			{ toPair(I1, I16), casts[toPair(I1, I16)]   },
+			{ toPair(I1, U32), casts[toPair(I1, U32)]   },
+			{ toPair(I1, I32), casts[toPair(I1, I32)]   },
+			{ toPair(I1, U64), casts[toPair(I1, U64)]   },
+			{ toPair(I1, I64), casts[toPair(I1, I64)]   },
+			{ toPair(I1, F32), casts[toPair(I1, F32)]   },
+			{ toPair(I1, F64), casts[toPair(I1, F64)]   },
+			// U8                             
+			{ toPair(U8, I1),  casts[toPair(U8, I1)]    },
+			{ toPair(U8, U16), casts[toPair(U8, U16)]   },
+			{ toPair(U8, I16), casts[toPair(U8, I16)]   },
+			{ toPair(U8, U32), casts[toPair(U8, U32)]   },
+			{ toPair(U8, I32), casts[toPair(U8, I32)]   },
+			{ toPair(U8, U64), casts[toPair(U8, U64)]   },
+			{ toPair(U8, I64), casts[toPair(U8, I64)]   },
+			{ toPair(U8, F32), casts[toPair(U8, F32)]   },
+			{ toPair(U8, F64), casts[toPair(U8, F64)]   },
+			// I8
+			{ toPair(I8, I1),  casts[toPair(I8, I1)]    },
+			{ toPair(I8, U16), casts[toPair(I8, U16)]   },
+			{ toPair(I8, I16), casts[toPair(I8, I16)]   },
+			{ toPair(I8, U32), casts[toPair(I8, U32)]   },
+			{ toPair(I8, I32), casts[toPair(I8, I32)]   },
+			{ toPair(I8, U64), casts[toPair(I8, U64)]   },
+			{ toPair(I8, I64), casts[toPair(I8, I64)]   },
+			{ toPair(I8, F32), casts[toPair(I8, F32)]   },
+			{ toPair(I8, F64), casts[toPair(I8, F64)]   },
+			// U16                             
+			{ toPair(U16, I1),  casts[toPair(U16, I1)]  },
+			{ toPair(U16, U32), casts[toPair(U16, U32)] },
+			{ toPair(U16, I32), casts[toPair(U16, I32)] },
+			{ toPair(U16, U64), casts[toPair(U16, U64)] },
+			{ toPair(U16, I64), casts[toPair(U16, I64)] },
+			{ toPair(U16, F32), casts[toPair(U16, F32)] },
+			{ toPair(U16, F64), casts[toPair(U16, F64)] },
+			// I16
+			{ toPair(I16, I1),  casts[toPair(I16, I1)]  },
+			{ toPair(I16, U32), casts[toPair(I16, U32)] },
+			{ toPair(I16, I32), casts[toPair(I16, I32)] },
+			{ toPair(I16, U64), casts[toPair(I16, U64)] },
+			{ toPair(I16, I64), casts[toPair(I16, I64)] },
+			{ toPair(I16, F32), casts[toPair(I16, F32)] },
+			{ toPair(I16, F64), casts[toPair(I16, F64)] },
+			// U32
+			{ toPair(U32, I1),  casts[toPair(U32, I1)]  },
+			{ toPair(U32, U64), casts[toPair(U32, U64)] },
+			{ toPair(U32, I64), casts[toPair(U32, I64)] },
+			{ toPair(U32, F32), casts[toPair(U32, F32)] },
+			{ toPair(U32, F64), casts[toPair(U32, F64)] },
+			//I32
+			{ toPair(I32, I1),  casts[toPair(I32, I1)]  },
+			{ toPair(I32, U64), casts[toPair(I32, U64)] },
+			{ toPair(I32, I64), casts[toPair(I32, I64)] },
+			{ toPair(I32, F32), casts[toPair(I32, F32)] },
+			{ toPair(I32, F64), casts[toPair(I32, F64)] },
+			// F32
+			{ toPair(F32, I1),  casts[toPair(F32, I1)]  },
+			{ toPair(F32, F64), casts[toPair(F32, F64)] },
+			// F64
+			{ toPair(F64, I1), casts[toPair(F64, I1)]   },
+		};
 }
 
 }

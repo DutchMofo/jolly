@@ -35,11 +35,11 @@ static class Analyser
 		}
 	}
 	
-	static ContextStack contextStack;
-	static Context context;
+	public static List<IR> instructions;
 	static EnclosureStack enclosureStack;
+	static ContextStack contextStack;
 	static Enclosure enclosure;
-	static List<IR> instructions;
+	static Context context;
 	static int cursor;
 	
 	struct Enclosure
@@ -351,7 +351,7 @@ static class Analyser
 				}
 				
 				Cast cast;
-				if(!casts.TryGetValue(toPair(op.b.result, op.a.result), out cast)) {
+				if(!Lookup.casts.TryGetValue(toPair(op.b.result, op.a.result), out cast)) {
 					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
 				}
 				op.result = cast(op.b.result, op.a.result);
@@ -592,38 +592,5 @@ static class Analyser
 		
 		return true;
 	}
-	
-	struct CastPair
-	{
-		public DataType _from, _to;
-		public override int GetHashCode()
-			=> _from.GetHashCode() ^ _to.GetHashCode();
-		public override bool Equals(object obj)
-		{
-			var pair = (CastPair)obj;
-			return _to == pair._to && _from == pair._from;
-		}
-	}
-	
-	static CastPair toPair(DataType _from, DataType _to) => new CastPair{ _from = _from, _to = _to };
-	static CastPair toPair(Value _from, Value _to) => new CastPair{ _from = _from.type, _to = _to.type };
-	static Value addIR(IR_Cast ir) { ir._to = ir.result.type; instructions.Add(ir); return ir.result = newResult(ir.result); }
-	
-	// Ugly, dont look
-	static Dictionary<CastPair, Cast>
-		casts = new Dictionary<CastPair, Cast>() {
-			// I1
-			{ toPair(Lookup.I1, Lookup.U8),  (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.I8),  (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.U16), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.I16), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.U32), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.I32), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.U64), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.I64), (_from, _to) => addIR(new IR_Zext{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.F32), (_from, _to) => addIR(new IR_Sitofp{ _from = _from, result = _to }) },
-			{ toPair(Lookup.I1, Lookup.F64), (_from, _to) => addIR(new IR_Sitofp{ _from = _from, result = _to }) },
-		};
-	
 }
 }

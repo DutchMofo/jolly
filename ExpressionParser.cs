@@ -254,7 +254,7 @@ class ExpressionParser
 		// Declare
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
 		{ // Function
-			if(defineMode !=DefineMode.STATEMENT) {
+			if(defineMode != DefineMode.STATEMENT) {
 				throw Jolly.addError(token.location, "Can't define the function \"{0}\" here".fill(name));
 			}
 			
