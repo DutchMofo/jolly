@@ -6,6 +6,8 @@ using System.IO;
 
 namespace Jolly
 {
+	using Cast = Func<Value,Value,Value>;
+	
 	class ParseException : System.Exception
 	{
 		public ParseException() { }
@@ -13,6 +15,9 @@ namespace Jolly
 	
 	static class Extensions
 	{
+		public static bool TryGetValue(this Dictionary<Lookup.CastPair, Cast> dict, Value a, Value b, out Cast cast)
+			=> dict.TryGetValue(new Lookup.CastPair{ _to = b.type, _from = a.type }, out cast);
+		
 		public static string fill(this string format, params object[] args)
 			=> string.Format(format, args);
 			
@@ -45,30 +50,6 @@ namespace Jolly
 		public override string ToString() => "{1}:{2}".fill(sourceFile, line, column);
 	}
 	
-/*	// Hacky way of checking for double items in a list
-	class List<T> : System.Collections.Generic.List<T>
-	{
-		HashSet<T> unique = new HashSet<T>();
-		new public void Add(T item)
-		{
-			if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
-			base.Add(item);
-		}
-		
-		new public void AddRange(IEnumerable<T> items)
-		{
-			foreach(var item in items)
-				if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
-			base.AddRange(items);
-		}
-		
-		new public void Insert(int index, T item)
-		{
-			if(unique.Contains(item)) Debugger.Break(); else unique.Add(item);
-			base.Insert(index, item);
-		}
-	}*/
-	
 	class Jolly
 	{
 		static int errorCount = 0;
@@ -99,6 +80,8 @@ namespace Jolly
 		{
 			string source = File.ReadAllText("Program.jolly");
 			var tokens = new Tokenizer().tokenize(source, "Program.jolly");
+			
+			// Lookup.casts.forEach(i => Console.WriteLine(i.GetHashCode()));
 			
 			var parseData = new SharedParseData{ tokens = tokens, ast = new List<AST_Node>() };
 			

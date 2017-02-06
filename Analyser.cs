@@ -351,7 +351,7 @@ static class Analyser
 				}
 				
 				Cast cast;
-				if(!Lookup.casts.TryGetValue(toPair(op.b.result, op.a.result), out cast)) {
+				if(!Lookup.casts.TryGetValue(op.b.result, op.a.result, out cast)) {
 					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
 				}
 				op.result = cast(op.b.result, op.a.result);

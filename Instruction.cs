@@ -54,7 +54,7 @@ namespace Jolly
 	class IR_Return : IR
 	{
 		public Value[] values;
-		public override string ToString() => "    ret {0}".fill((values?.Length == 0) ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+		public override string ToString() => "    ret {0}".fill((values?.Length > 0) ? ((values.Length == 1) ? values[0].ToString() : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b)) : "");
 	}
 	
 	class IR_Call : IR
@@ -128,6 +128,7 @@ namespace Jolly
 			slt, sle,
 		}
 		public Compare compare;
+		public override string ToString() => "    %{0} = icmp {1} {2} to {3}".fill(result.tempID, compare, _from, _to);
 	}
 	
 	// The ‘fcmp‘ instruction compares op1 and op2 according to the condition code given as cond.
@@ -167,6 +168,7 @@ namespace Jolly
 			ord, uno,
 		}
 		public Compare compare;
+		public override string ToString() => "    %{0} = fcmp {1} {2} to {3}".fill(result.tempID, compare, _from, _to);
 	}
 	
 	// The ‘trunc‘ instruction truncates the high order bits in value and converts the remaining bits to ty2.
@@ -259,6 +261,6 @@ namespace Jolly
 	// To convert pointers to other types, use the inttoptr or ptrtoint instructions first.
 	class IR_Bitcast : IR_Instr
 	{
-		public override string ToString() => "    %{0} = bitcast {1} to {2}".fill(result, _from, result.type);
+		public override string ToString() => "    %{0} = bitcast {1} to {2}".fill(result.tempID, _from, result.type);
 	}
 }

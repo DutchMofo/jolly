@@ -150,7 +150,7 @@ namespace Jolly
 		
 		void parseIf()
 		{
-			TT terminator = terminator = TT.PARENTHESIS_CLOSE;
+			TT terminator = TT.PARENTHESIS_CLOSE;
 			Token parenth = parseData.tokens[parseData.cursor + 1];
 			if(parenth.type != TT.PARENTHESIS_OPEN) {
 				throw Jolly.unexpected(parenth);

@@ -20,35 +20,28 @@ static class Lookup
 			keywords.Add(names[i].ToLower(), values[i]);
 		for (int i = (int)TT.FLAGS; i <= (int)TT.SORT_DESC; i += 1)
 			directives.Add(names[i].ToLower(), values[i]);
-		
-		DataType.makeUnique(ref VOID_PTR);
-		
-		foreach(var bt in baseTypes) {
-			var t = bt;
-			DataType.makeUnique(ref t);
-		}
 	}
 	
 	const DataType.Flags BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE, INSTANTIABLE = DataType.Flags.INSTANTIABLE;
 	
 	public static readonly DataType
-		I1       = new DataType{ name = "i1",     size = 1,  align = 1, flags = BASE_TYPE },
-		I8       = new DataType{ name = "i8",     size = 1,  align = 1, flags = BASE_TYPE },
-		U8       = new DataType{ name = "u8",     size = 1,  align = 1, flags = BASE_TYPE },
-		I16      = new DataType{ name = "i16",    size = 2,  align = 2, flags = BASE_TYPE },
-		U16      = new DataType{ name = "u16",    size = 2,  align = 2, flags = BASE_TYPE },
-		I32      = new DataType{ name = "i32",    size = 4,  align = 4, flags = BASE_TYPE },
-		U32      = new DataType{ name = "u32",    size = 4,  align = 4, flags = BASE_TYPE },
-		I64      = new DataType{ name = "i64",    size = 8,  align = 8, flags = BASE_TYPE },
-		U64      = new DataType{ name = "u64",    size = 8,  align = 8, flags = BASE_TYPE },
-		F32      = new DataType{ name = "f32",    size = 4,  align = 4, flags = BASE_TYPE },
-		F64      = new DataType{ name = "f64",    size = 4,  align = 4, flags = BASE_TYPE },
-		VOID     = new DataType{ name = "void",   size = 0,  align = 0, flags = BASE_TYPE },
-		STRING   = new DataType{ name = "string", size = 16, align = 8, flags = INSTANTIABLE },
-		AUTO     = new DataType{ name = "auto",   size = 0,  align = 0, flags = 0 },
-		TUPLE    = new DataType{ name = "tuple",  size = 0,  align = 0, flags = 0 };
+		I1       = new DataType{ name = "i1",     size = 1,  align = 1, typeID = 1,  flags = BASE_TYPE },
+		I8       = new DataType{ name = "i8",     size = 1,  align = 1, typeID = 2,  flags = BASE_TYPE },
+		U8       = new DataType{ name = "u8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
+		I16      = new DataType{ name = "i16",    size = 2,  align = 2, typeID = 4,  flags = BASE_TYPE },
+		U16      = new DataType{ name = "u16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
+		I32      = new DataType{ name = "i32",    size = 4,  align = 4, typeID = 6,  flags = BASE_TYPE },
+		U32      = new DataType{ name = "u32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
+		I64      = new DataType{ name = "i64",    size = 8,  align = 8, typeID = 8,  flags = BASE_TYPE },
+		U64      = new DataType{ name = "u64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
+		F32      = new DataType{ name = "f32",    size = 4,  align = 4, typeID = 10, flags = BASE_TYPE },
+		F64      = new DataType{ name = "f64",    size = 4,  align = 4, typeID = 11, flags = BASE_TYPE },
+		VOID     = new DataType{ name = "void",   size = 0,  align = 0, typeID = 12, flags = BASE_TYPE },
+		STRING   = new DataType{ name = "string", size = 16, align = 8, typeID = 13, flags = INSTANTIABLE },
+		AUTO     = new DataType{ name = "auto",   size = 0,  align = 0, typeID = 14, flags = 0 },
+		TUPLE    = new DataType{ name = "tuple",  size = 0,  align = 0, typeID = 15, flags = 0 };
 	public static DataType
-		VOID_PTR = new DataType_Reference(new DataType{ size = 0,  align = 0, flags = BASE_TYPE });
+		VOID_PTR = new DataType_Reference(new DataType{ size = 0, align = 0, typeID = 16,  flags = BASE_TYPE });
 	
 	// TODO: Change this garbage, currently the order is bound to Token.Type order
 	static readonly DataType[] baseTypes = new DataType[] {
@@ -154,7 +147,7 @@ static class Lookup
 		directives = new Dictionary<string, Token.Type>(),
 		keywords = new Dictionary<string, Token.Type>();
 		
-		struct CastPair
+	public struct CastPair
 	{
 		public DataType _from, _to;
 		public override int GetHashCode()
@@ -166,200 +159,136 @@ static class Lookup
 		}
 	}
 	
+	// Ugly, dont look
 	static Value zero(Value _in) => new Value{ type = _in.type, kind = Value.Kind.STATIC_VALUE, data = 0 };
-	static CastPair toPair(DataType _from, DataType _to) => new CastPair{ _from = _from, _to = _to };
+	static CastPair tp(DataType _from, DataType _to) => new CastPair{ _from = _from, _to = _to };
 	static CastPair toPair(Value _from, Value _to) => new CastPair{ _from = _from.type, _to = _to.type };
 	static Value addIR(IR_Instr ir) { ir._to = ir.result.type; Analyser.instructions.Add(ir); return ir.result = Analyser.newResult(ir.result); }
 	static Value addIR(IR_Comp ir) { Analyser.instructions.Add(ir); return ir.result = Analyser.newResult(ir.result); }
 	
-	// Ugly, dont look
+	static Value zext(Value _from, Value _to) => addIR(new IR_Zext { _from = _from, result = _to });
+	static Value sext(Value _from, Value _to) => addIR(new IR_Sext { _from = _from, result = _to });
+	static Value icmp(Value _from, Value _to) => addIR(new IR_Icmp { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne });
+	static Value fcmp(Value _from, Value _to) => addIR(new IR_Fcmp { _from = _from, _to = zero(_to), result = _to, compare = IR_Fcmp.Compare.une });
+	static Value trunc(Value _from, Value _to) => addIR(new IR_Trunc { _from = _from, result = _to });
+	
+	static Value uitofp(Value _from, Value _to) => addIR(new IR_Uitofp { _from = _from, result = _to });
+	static Value sitofp(Value _from, Value _to) => addIR(new IR_Sitofp { _from = _from, result = _to });
+	static Value fptoui(Value _from, Value _to) => addIR(new IR_Fptoui { _from = _from, result = _to });
+	static Value fptosi(Value _from, Value _to) => addIR(new IR_Fptosi { _from = _from, result = _to });
+	
+	static Value fpext(Value _from, Value _to) => addIR(new IR_Fpext { _from = _from, result = _to });
+	static Value fptrunc(Value _from, Value _to) => addIR(new IR_Fptrunc { _from = _from, result = _to });
+	
+	static Value nop(Value _from, Value _to) => _to;
+	
 	public static Dictionary<CastPair, Cast>
 		casts = new Dictionary<CastPair, Cast>() {
 			// I1
-			{ toPair(I1, U8),  (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, I8),  (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, U16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, I16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, U32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, I32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, U64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, I64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(I1, F32), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
-			{ toPair(I1, F64), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
-			// U8
-			{ toPair(U8, I1),  (_from, _to) => addIR(new IR_Icmp    { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(U8, I8),  (_from, _to) => _to },
-			{ toPair(U8, U16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, I16), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, U32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, I32), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, U64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, I64), (_from, _to) => addIR(new IR_Zext    { _from = _from, result = _to }) },
-			{ toPair(U8, F32), (_from, _to) => addIR(new IR_Uitofp  { _from = _from, result = _to }) },
-			{ toPair(U8, F64), (_from, _to) => addIR(new IR_Uitofp  { _from = _from, result = _to }) },
-			// I8
-			{ toPair(I8, I1),  (_from, _to) => addIR(new IR_Icmp    { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(I8, U8),  (_from, _to) => _to },
-			{ toPair(I8, U16), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, I16), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, U32), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, I32), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, U64), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, I64), (_from, _to) => addIR(new IR_Sext    { _from = _from, result = _to }) },
-			{ toPair(I8, F32), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
-			{ toPair(I8, F64), (_from, _to) => addIR(new IR_Sitofp  { _from = _from, result = _to }) },
-			// U16
-			{ toPair(U16, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(U16, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U16, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U16, I16), (_from, _to) => _to },
-			{ toPair(U16, U32), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U16, I32), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U16, U64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U16, I64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U16, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			{ toPair(U16, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			// I16
-			{ toPair(I16, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(I16, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I16, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I16, U16), (_from, _to) => _to },
-			{ toPair(I16, U32), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I16, I32), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I16, U64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I16, I64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I16, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			{ toPair(I16, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			// U32
-			{ toPair(U32, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(U32, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U32, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U32, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U32, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U32, I32), (_from, _to) => _to },
-			{ toPair(U32, U64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U32, I64), (_from, _to) => addIR(new IR_Zext   { _from = _from, result = _to }) },
-			{ toPair(U32, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			{ toPair(U32, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			// I32
-			{ toPair(I32, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(I32, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I32, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I32, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I32, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I32, U32), (_from, _to) => _to },
-			{ toPair(I32, U64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I32, I64), (_from, _to) => addIR(new IR_Sext   { _from = _from, result = _to }) },
-			{ toPair(I32, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			{ toPair(I32, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			// U64
-			{ toPair(U64, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(U64, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, U32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, I32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(U64, I64), (_from, _to) => _to },
-			{ toPair(U64, F32), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			{ toPair(U64, F64), (_from, _to) => addIR(new IR_Uitofp { _from = _from, result = _to }) },
-			// I64
-			{ toPair(I64, I1),  (_from, _to) => addIR(new IR_Icmp   { _from = _from, _to = zero(_to), result = _to, compare = IR_Icmp.Compare.ne }) },
-			{ toPair(I64, U8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, I8),  (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, U16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, I16), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, U32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, I32), (_from, _to) => addIR(new IR_Trunc  { _from = _from, result = _to }) },
-			{ toPair(I64, U64), (_from, _to) => _to },
-			{ toPair(I64, F32), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			{ toPair(I64, F64), (_from, _to) => addIR(new IR_Sitofp { _from = _from, result = _to }) },
-			// F32
-			{ toPair(F32, I1),  (_from, _to) => addIR(new IR_Fcmp   { _from = _from, result = _to, compare = IR_Fcmp.Compare.une, _to = zero(_to) }) },
-			{ toPair(F32, U8),  (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F32, I8),  (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F32, U16), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F32, I16), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F32, U32), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F32, I32), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F32, U64), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F32, F64), (_from, _to) => addIR(new IR_Fpext  { _from = _from, result = _to }) },
-			// F64
-			{ toPair(F64, I1),  (_from, _to) => addIR(new IR_Fcmp   { _from = _from, result = _to, compare = IR_Fcmp.Compare.une, _to = zero(_to) }) },
-			{ toPair(F64, U8),  (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F64, I8),  (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F64, U16), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F64, I16), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F64, U32), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F64, I32), (_from, _to) => addIR(new IR_Fptosi { _from = _from, result = _to }) },
-			{ toPair(F64, U64), (_from, _to) => addIR(new IR_Fptoui { _from = _from, result = _to }) },
-			{ toPair(F64, F32), (_from, _to) => addIR(new IR_Fptrunc{ _from = _from, result = _to }) },
+			{ tp(I1, U8),  zext    },
+			{ tp(I1, I8),  zext    },
+			{ tp(I1, U16), zext    },
+			{ tp(I1, I16), zext    },
+			{ tp(I1, U32), zext    },
+			{ tp(I1, I32), zext    },
+			{ tp(I1, U64), zext    },
+			{ tp(I1, I64), zext    },
+			{ tp(I1, F32), sitofp  },
+			{ tp(I1, F64), sitofp  },
+			// U8                       I8
+			{ tp(U8, I1),  icmp    }, { tp(I8, I1),  icmp   },
+			{ tp(U8, I8),  nop     }, { tp(I8, U8),  nop    },
+			{ tp(U8, U16), zext    }, { tp(I8, U16), sext   },
+			{ tp(U8, I16), zext    }, { tp(I8, I16), sext   },
+			{ tp(U8, U32), zext    }, { tp(I8, U32), sext   },
+			{ tp(U8, I32), zext    }, { tp(I8, I32), sext   },
+			{ tp(U8, U64), zext    }, { tp(I8, U64), sext   },
+			{ tp(U8, I64), zext    }, { tp(I8, I64), sext   },
+			{ tp(U8, F32), uitofp  }, { tp(I8, F32), sitofp },
+			{ tp(U8, F64), uitofp  }, { tp(I8, F64), sitofp },
+			// U16                      I16
+			{ tp(U16, I1),  icmp   }, { tp(I16, I1),  icmp   },
+			{ tp(U16, U8),  trunc  }, { tp(I16, U8),  trunc  },
+			{ tp(U16, I8),  trunc  }, { tp(I16, I8),  trunc  },
+			{ tp(U16, I16), nop    }, { tp(I16, U16), nop    },
+			{ tp(U16, U32), zext   }, { tp(I16, U32), sext   },
+			{ tp(U16, I32), zext   }, { tp(I16, I32), sext   },
+			{ tp(U16, U64), zext   }, { tp(I16, U64), sext   },
+			{ tp(U16, I64), zext   }, { tp(I16, I64), sext   },
+			{ tp(U16, F32), uitofp }, { tp(I16, F32), sitofp },
+			{ tp(U16, F64), uitofp }, { tp(I16, F64), sitofp },
+			// U32                      I32
+			{ tp(U32, I1),  icmp   }, { tp(I32, I1),  icmp   },
+			{ tp(U32, U8),  trunc  }, { tp(I32, U8),  trunc  },
+			{ tp(U32, I8),  trunc  }, { tp(I32, I8),  trunc  },
+			{ tp(U32, U16), trunc  }, { tp(I32, U16), trunc  },
+			{ tp(U32, I16), trunc  }, { tp(I32, I16), trunc  },
+			{ tp(U32, I32), nop    }, { tp(I32, U32), nop    },
+			{ tp(U32, U64), zext   }, { tp(I32, U64), sext   },
+			{ tp(U32, I64), zext   }, { tp(I32, I64), sext   },
+			{ tp(U32, F32), uitofp }, { tp(I32, F32), sitofp },
+			{ tp(U32, F64), uitofp }, { tp(I32, F64), sitofp },
+			// U64                      I64
+			{ tp(U64, I1),  icmp   }, { tp(I64, I1),  icmp   },
+			{ tp(U64, U8),  trunc  }, { tp(I64, U8),  trunc  },
+			{ tp(U64, I8),  trunc  }, { tp(I64, I8),  trunc  },
+			{ tp(U64, U16), trunc  }, { tp(I64, U16), trunc  },
+			{ tp(U64, I16), trunc  }, { tp(I64, I16), trunc  },
+			{ tp(U64, U32), trunc  }, { tp(I64, U32), trunc  },
+			{ tp(U64, I32), trunc  }, { tp(I64, I32), trunc  },
+			{ tp(U64, I64), nop    }, { tp(I64, U64), nop    },
+			{ tp(U64, F32), uitofp }, { tp(I64, F32), sitofp },
+			{ tp(U64, F64), uitofp }, { tp(I64, F64), sitofp },
+			// F32                      F64
+			{ tp(F32, I1),  icmp   }, { tp(F64, I1),  icmp   },
+			{ tp(F32, U8),  fptoui }, { tp(F64, U8),  fptoui },
+			{ tp(F32, I8),  fptosi }, { tp(F64, I8),  fptosi },
+			{ tp(F32, U16), fptoui }, { tp(F64, U16), fptoui },
+			{ tp(F32, I16), fptosi }, { tp(F64, I16), fptosi },
+			{ tp(F32, U32), fptoui }, { tp(F64, U32), fptoui },
+			{ tp(F32, I32), fptosi }, { tp(F64, I32), fptosi },
+			{ tp(F32, U64), fptoui }, { tp(F64, U64), fptoui },
+			{ tp(F32, F64), fpext  }, { tp(F64, F32), fptrunc},
 		}, 
 		implicitCasts = new Dictionary<CastPair, Cast>() {
 			// I1
-			{ toPair(I1, U8),  casts[toPair(I1, U8)]    },
-			{ toPair(I1, I8),  casts[toPair(I1, I8)]    },
-			{ toPair(I1, U16), casts[toPair(I1, U16)]   },
-			{ toPair(I1, I16), casts[toPair(I1, I16)]   },
-			{ toPair(I1, U32), casts[toPair(I1, U32)]   },
-			{ toPair(I1, I32), casts[toPair(I1, I32)]   },
-			{ toPair(I1, U64), casts[toPair(I1, U64)]   },
-			{ toPair(I1, I64), casts[toPair(I1, I64)]   },
-			{ toPair(I1, F32), casts[toPair(I1, F32)]   },
-			{ toPair(I1, F64), casts[toPair(I1, F64)]   },
-			// U8                             
-			{ toPair(U8, I1),  casts[toPair(U8, I1)]    },
-			{ toPair(U8, U16), casts[toPair(U8, U16)]   },
-			{ toPair(U8, I16), casts[toPair(U8, I16)]   },
-			{ toPair(U8, U32), casts[toPair(U8, U32)]   },
-			{ toPair(U8, I32), casts[toPair(U8, I32)]   },
-			{ toPair(U8, U64), casts[toPair(U8, U64)]   },
-			{ toPair(U8, I64), casts[toPair(U8, I64)]   },
-			{ toPair(U8, F32), casts[toPair(U8, F32)]   },
-			{ toPair(U8, F64), casts[toPair(U8, F64)]   },
-			// I8
-			{ toPair(I8, I1),  casts[toPair(I8, I1)]    },
-			{ toPair(I8, U16), casts[toPair(I8, U16)]   },
-			{ toPair(I8, I16), casts[toPair(I8, I16)]   },
-			{ toPair(I8, U32), casts[toPair(I8, U32)]   },
-			{ toPair(I8, I32), casts[toPair(I8, I32)]   },
-			{ toPair(I8, U64), casts[toPair(I8, U64)]   },
-			{ toPair(I8, I64), casts[toPair(I8, I64)]   },
-			{ toPair(I8, F32), casts[toPair(I8, F32)]   },
-			{ toPair(I8, F64), casts[toPair(I8, F64)]   },
-			// U16                             
-			{ toPair(U16, I1),  casts[toPair(U16, I1)]  },
-			{ toPair(U16, U32), casts[toPair(U16, U32)] },
-			{ toPair(U16, I32), casts[toPair(U16, I32)] },
-			{ toPair(U16, U64), casts[toPair(U16, U64)] },
-			{ toPair(U16, I64), casts[toPair(U16, I64)] },
-			{ toPair(U16, F32), casts[toPair(U16, F32)] },
-			{ toPair(U16, F64), casts[toPair(U16, F64)] },
-			// I16
-			{ toPair(I16, I1),  casts[toPair(I16, I1)]  },
-			{ toPair(I16, U32), casts[toPair(I16, U32)] },
-			{ toPair(I16, I32), casts[toPair(I16, I32)] },
-			{ toPair(I16, U64), casts[toPair(I16, U64)] },
-			{ toPair(I16, I64), casts[toPair(I16, I64)] },
-			{ toPair(I16, F32), casts[toPair(I16, F32)] },
-			{ toPair(I16, F64), casts[toPair(I16, F64)] },
-			// U32
-			{ toPair(U32, I1),  casts[toPair(U32, I1)]  },
-			{ toPair(U32, U64), casts[toPair(U32, U64)] },
-			{ toPair(U32, I64), casts[toPair(U32, I64)] },
-			{ toPair(U32, F32), casts[toPair(U32, F32)] },
-			{ toPair(U32, F64), casts[toPair(U32, F64)] },
-			//I32
-			{ toPair(I32, I1),  casts[toPair(I32, I1)]  },
-			{ toPair(I32, U64), casts[toPair(I32, U64)] },
-			{ toPair(I32, I64), casts[toPair(I32, I64)] },
-			{ toPair(I32, F32), casts[toPair(I32, F32)] },
-			{ toPair(I32, F64), casts[toPair(I32, F64)] },
-			// F32
-			{ toPair(F32, I1),  casts[toPair(F32, I1)]  },
-			{ toPair(F32, F64), casts[toPair(F32, F64)] },
-			// F64
-			{ toPair(F64, I1), casts[toPair(F64, I1)]   },
+			{ tp(I1, U8),  zext    },
+			{ tp(I1, I8),  zext    },
+			{ tp(I1, U16), zext    },
+			{ tp(I1, I16), zext    },
+			{ tp(I1, U32), zext    },
+			{ tp(I1, I32), zext    },
+			{ tp(I1, U64), zext    },
+			{ tp(I1, I64), zext    },
+			{ tp(I1, F32), sitofp  },
+			{ tp(I1, F64), sitofp  },
+			// U8                       I8
+			{ tp(U8, I1),  icmp    }, { tp(I8, I1),  icmp    },
+			{ tp(U8, U16), zext    }, { tp(I8, U16), sext    },
+			{ tp(U8, I16), zext    }, { tp(I8, I16), sext    },
+			{ tp(U8, U32), zext    }, { tp(I8, U32), sext    },
+			{ tp(U8, I32), zext    }, { tp(I8, I32), sext    },
+			{ tp(U8, U64), zext    }, { tp(I8, U64), sext    },
+			{ tp(U8, I64), zext    }, { tp(I8, I64), sext    },
+			{ tp(U8, F32), uitofp  }, { tp(I8, F32), sitofp  },
+			{ tp(U8, F64), uitofp  }, { tp(I8, F64), sitofp  },
+			// U16                      I16
+			{ tp(U16, I1),  icmp   }, { tp(I16, I1),  icmp   },
+			{ tp(U16, U32), zext   }, { tp(I16, U32), sext   },
+			{ tp(U16, I32), zext   }, { tp(I16, I32), sext   },
+			{ tp(U16, U64), zext   }, { tp(I16, U64), sext   },
+			{ tp(U16, I64), zext   }, { tp(I16, I64), sext   },
+			{ tp(U16, F32), uitofp }, { tp(I16, F32), sitofp },
+			{ tp(U16, F64), uitofp }, { tp(I16, F64), sitofp },
+			// U32                      I32
+			{ tp(U32, I1),  icmp   }, { tp(I32, I1),  icmp   },
+			{ tp(U32, U64), zext   }, { tp(I32, U64), sext   },
+			{ tp(U32, I64), zext   }, { tp(I32, I64), sext   },
+			{ tp(U32, F32), uitofp }, { tp(I32, F32), sitofp },
+			{ tp(U32, F64), uitofp }, { tp(I32, F64), sitofp },
+			// F32                      F64
+			{ tp(F32, I1),  fcmp   }, { tp(F64, I1), fcmp    },
+			{ tp(F32, F64), fpext  },
 		};
 }
 

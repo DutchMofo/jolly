@@ -12,8 +12,8 @@ namespace Jolly
 			INSTANTIABLE = 1<<1,
 		}
 		
-		static int lastTypeID;
-		static Dictionary<DataType, DataType>
+		static int lastTypeID = 40;
+		public static Dictionary<DataType, DataType>
 			allReferenceTypes = new Dictionary<DataType, DataType>();
 			
 		public static void makeUnique(ref DataType dataType)
