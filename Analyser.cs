@@ -292,8 +292,8 @@ static class Analyser
 			} },
 			{ NT.RETURN, node => {
 				var returns = (AST_Return)node;
-				Value[] values = (returns.values != null) ?
-					(returns.values as AST_Tuple)?.values.Select(v=>v.result).ToArray() ?? new Value[] { returns.values.result } : new Value[0];
+				AST_Node[] valueNodes = (returns.values != null) ?
+					(returns.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returns } : new AST_Node[0];
 				
 				AST_Function function = null;
 				foreach(var closure in enclosureStack) {
@@ -302,10 +302,22 @@ static class Analyser
 				}
 				Debug.Assert(function != null);
 				
-				// if(function.returns)
-				
-				
-				// TODO: Validate return values
+				Value[] values = new Value[valueNodes.Length];
+				for(int i = 0; i < valueNodes.Length; i += 1)
+				{
+					load(valueNodes[i]);
+					Value aR = function.returns[i], bR = valueNodes[i].result;
+					if(aR.type != bR.type)
+					{
+						Cast cast;
+						if(!Lookup.implicitCasts(bR, aR, out cast)) {
+							throw Jolly.addError(returns.location, "Invalid return value");
+						}
+						values[i] = cast(bR, aR);
+					} else {
+						values[i] = valueNodes[i].result;
+					}
+				}
 				instructions.Add(new IR_Return{ values = values });
 			} },
 			{ NT.MINUS,		 basicOperator },

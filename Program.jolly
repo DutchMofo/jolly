@@ -2,12 +2,13 @@
 int main()
 {
 	AnalyseTest a = {
+		id: 1,
 		count: 10,
 		number: 12,
 	};
 	
 	swapCountNumber(&a);
-	return (i32: true);
+	return true;
 }
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)
@@ -25,9 +26,4 @@ struct AnalyseTest : StructID
 {
 	int count;
 	int number;
-}
-
-struct Fancy : AnalyseTest
-{
-	float awwYis;
 }
