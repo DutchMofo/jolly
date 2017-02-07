@@ -84,21 +84,111 @@ namespace Jolly
 			(functionType.arguments.Length != 0) ? functionType.arguments.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b) : "");
 	}
 	
-	class IR_Add : IR
+	abstract class IR_Cast : IR
 	{
-		public Value a, b;
-		public override string ToString() => "    %{0} = add {1}, {2}".fill(result, a, b);
+		public Value _from;
+		public DataType _to;
+		
+		public virtual string opStr() => "";
+		public override string ToString() => "    %{0} = {1} {2}, {3}".fill(result.tempID, opStr(), _from, _to);
 	}
 	
 	abstract class IR_Instr : IR
 	{
-		public Value _from;
-		public DataType _to;
+		public Value a, b;
+		
+		public virtual string opStr() => "";
+		public override string ToString() => "    %{0} = {1} {2}, {3}".fill(result.tempID, opStr(), a, b);
 	}
 	
-	abstract class IR_Comp : IR
+	class IR_Add : IR_Instr
 	{
-		public Value _from, _to;
+		public override string opStr() => "add";
+	}
+	
+	class IR_Fadd : IR_Instr
+	{
+		public override string opStr() => "fadd";
+	}
+	
+	class IR_Sub : IR_Instr
+	{
+		public override string opStr() => "sub";
+	}
+	
+	class IR_Fsub : IR_Instr
+	{
+		public override string opStr() => "fsub";
+	}
+	
+	class IR_Mul : IR_Instr
+	{
+		public override string opStr() => "mul";
+	}
+	
+	class IR_Fmul : IR_Instr
+	{
+		public override string opStr() => "mul";
+	}
+	
+	class IR_Udiv : IR_Instr
+	{
+		public override string opStr() => "udiv";
+	}
+	
+	class IR_Sdiv : IR_Instr
+	{
+		public override string opStr() => "sdiv";
+	}
+	
+	class IR_Fdiv : IR_Instr
+	{
+		public override string opStr() => "fdiv";
+	}
+	
+	class IR_Urem : IR_Instr
+	{
+		public override string opStr() => "urem";
+	}
+	
+	class IR_Srem : IR_Instr
+	{
+		public override string opStr() => "srem";
+	}
+	
+	class IR_Frem : IR_Instr
+	{
+		public override string opStr() => "frem";
+	}
+	
+	class IR_Shl : IR_Instr
+	{
+		public override string opStr() => "shl";
+	}
+	
+	class IR_Shlr : IR_Instr
+	{
+		public override string opStr() => "shlr";
+	}
+	
+	class IR_Ashr : IR_Instr
+	{
+		public override string opStr() => "ashr";
+	}
+	
+	class IR_And : IR_Instr
+	{
+		public override string opStr() => "and";
+	}
+	
+	class IR_Or : IR_Instr
+	{
+		public override string opStr() => "or";
+	}
+	
+	class IR_Xor : IR_Instr
+	{
+		public override string opStr() => "xor";
 	}
 	
 	// 	The ‘icmp‘ compares op1 and op2 according to the condition code given as cond. The comparison
@@ -117,7 +207,7 @@ namespace Jolly
 	// If the operands are integer vectors, then they are compared element by element.
 	// The result is an i1 vector with the same number of elements as the values being compared.
 	// Otherwise, the result is an i1.
-	class IR_Icmp : IR_Comp
+	class IR_Icmp : IR_Instr
 	{
 		public enum Compare
 		{
@@ -128,7 +218,7 @@ namespace Jolly
 			slt, sle,
 		}
 		public Compare compare;
-		public override string ToString() => "    %{0} = icmp {1} {2} to {3}".fill(result.tempID, compare, _from, _to);
+		public override string opStr() => "icmp";
 	}
 	
 	// The ‘fcmp‘ instruction compares op1 and op2 according to the condition code given as cond.
@@ -155,7 +245,7 @@ namespace Jolly
 	// Any set of fast-math flags are legal on an fcmp instruction, but the only flags that have any
 	// effect on its semantics are those that allow assumptions to be made about the values of input arguments;
 	// namely nnan, ninf, and nsz. See Fast-Math Flags for more information.
-	class IR_Fcmp : IR_Comp
+	class IR_Fcmp : IR_Instr
 	{
 		public enum Compare
 		{
@@ -168,99 +258,99 @@ namespace Jolly
 			ord, uno,
 		}
 		public Compare compare;
-		public override string ToString() => "    %{0} = fcmp {1} {2} to {3}".fill(result.tempID, compare, _from, _to);
+		public override string opStr() => "fcmp";
 	}
 	
 	// The ‘trunc‘ instruction truncates the high order bits in value and converts the remaining bits to ty2.
 	// Since the source size must be larger than the destination size, trunc cannot be a no-op cast.
 	// It will always truncate bits.
-	class IR_Trunc : IR_Instr
+	class IR_Trunc : IR_Cast
 	{
-		public override string ToString() => "    %{0} = trunc {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "trunc";
 	}
 	
 	// The ‘zext‘ instruction fills the high order bits of the value with zero bits until it reaches the size of the destination type, ty2.
 	// When zero extending from i1, the result will always be either 0 or 1.
-	class IR_Zext : IR_Instr
+	class IR_Zext : IR_Cast
 	{
-		public override string ToString() => "    %{0} = zext {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "zext";
 	}
 	
 	// The ‘sext‘ instruction takes a value to cast, and a type to cast it to.
 	// Both types must be of integer types, or vectors of the same number of integers.
 	// The bit size of the value must be smaller than the bit size of the destination type, ty2.
-	class IR_Sext : IR_Instr
+	class IR_Sext : IR_Cast
 	{
-		public override string ToString() => "    %{0} = sext {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "sext";
 	}
 	
 	// The ‘fptrunc‘ instruction casts a value from a larger floating point type to a smaller floating point type.
 	// If the value cannot fit (i.e. overflows) within the destination type, ty2, then the results are undefined.
 	// If the cast produces an inexact result, how rounding is performed (e.g. truncation, also known as round to zero) is undefined
-	class IR_Fptrunc : IR_Instr
+	class IR_Fptrunc : IR_Cast
 	{
-		public override string ToString() => "    %{0} = fptrunc {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "fptrunc";
 	}
 	
 	// The ‘fpext‘ instruction extends the value from a smaller floating point type to a larger floating point type.
 	// The fpext cannot be used to make a no-op cast because it always changes bits.
 	// Use bitcast to make a no-op cast for a floating point cast.
-	class IR_Fpext : IR_Instr
+	class IR_Fpext : IR_Cast
 	{
-		public override string ToString() => "    %{0} = fpext {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "fpext";
 	}
 	
 	// The ‘fptoui‘ instruction converts its floating point operand into the nearest (rounding towards zero) unsigned integer value.
 	// If the value cannot fit in ty2, the results are undefined.
-	class IR_Fptoui : IR_Instr
+	class IR_Fptoui : IR_Cast
 	{
-		public override string ToString() => "    %{0} = fptoui {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "fptoui";
 	}
 	
 	// The ‘fptosi‘ instruction converts its floating point operand into the nearest (rounding towards zero) signed integer value.
 	// If the value cannot fit in ty2, the results are undefined.
-	class IR_Fptosi : IR_Instr
+	class IR_Fptosi : IR_Cast
 	{
-		public override string ToString() => "    %{0} = fptosi {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "fptosi";
 	}
 	
 	// The ‘uitofp‘ instruction interprets its operand as an unsigned integer quantity and converts it to the corresponding floating point value.
 	// If the value cannot fit in the floating point value, the results are undefined.
-	class IR_Uitofp : IR_Instr
+	class IR_Uitofp : IR_Cast
 	{
-		public override string ToString() => "    %{0} = uitofp {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "uitofp";
 	}
 	
 	// The ‘sitofp‘ instruction interprets its operand as a signed integer quantity and converts it to the corresponding floating point value.
 	// If the value cannot fit in the floating point value, the results are undefined.
-	class IR_Sitofp : IR_Instr
+	class IR_Sitofp : IR_Cast
 	{
-		public override string ToString() => "    %{0} = sitofp {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "sitofp";
 	}
 	
 	// The ‘ptrtoint‘ instruction converts value to integer type ty2 by interpreting the pointer value as an integer and 
 	// either truncating or zero extending that value to the size of the integer type.
 	// If value is smaller than ty2 then a zero extension is done. If value is larger than ty2 then a truncation is done.
 	// If they are the same size, then nothing is done (no-op cast) other than a type change.
-	class IR_Ptrtoint : IR_Instr
+	class IR_Ptrtoint : IR_Cast
 	{
-		public override string ToString() => "    %{0} = ptrtoint {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "ptrtoint";
 	}
 	
 	// The ‘inttoptr‘ instruction converts value to type ty2 by applying either a zero extension or a truncation depending
 	// on the size of the integer value. If value is larger than the size of a pointer then a truncation is done.
 	// If value is smaller than the size of a pointer then a zero extension is done. If they are the same size, nothing is done (no-op cast).
-	class IR_Inttoptr : IR_Instr
+	class IR_Inttoptr : IR_Cast
 	{
-		public override string ToString() => "    %{0} = inttoptr {1} to {2}".fill(result.tempID, _from, _to);
+		public override string opStr() => "inttoptr";
 	}
 	
 	// The ‘bitcast‘ instruction converts value to type ty2. It is always a no-op cast because no bits change with this conversion.
 	// The conversion is done as if the value had been stored to memory and read back as type ty2. Pointer (or vector of pointers)
 	// types may only be converted to other pointer (or vector of pointers) types with the same address space through this instruction.
 	// To convert pointers to other types, use the inttoptr or ptrtoint instructions first.
-	class IR_Bitcast : IR_Instr
+	class IR_Bitcast : IR_Cast
 	{
-		public override string ToString() => "    %{0} = bitcast {1} to {2}".fill(result.tempID, _from, result.type);
+		public override string opStr() => "bitcast";
 	}
 }

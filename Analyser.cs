@@ -7,6 +7,7 @@ namespace Jolly
 using System.Linq;
 using NT = AST_Node.Type;
 using Cast = Func<Value,DataType,Value>;
+using Instr = Func<Value,Value,Value>;
 
 static class Analyser
 {
@@ -321,11 +322,14 @@ static class Analyser
 				}
 				instructions.Add(new IR_Return{ values = values });
 			} },
-			{ NT.MINUS,		 basicOperator },
-			{ NT.PLUS,		 basicOperator },
-			{ NT.MULTIPLY,	 basicOperator },
-			{ NT.DIVIDE,	 basicOperator },
-			{ NT.SLICE,		 basicOperator },
+			{ NT.MINUS,    node => basicOperator(node, Lookup.subs) },
+			{ NT.PLUS,     node => basicOperator(node, Lookup.adds) },
+			{ NT.MULTIPLY, node => basicOperator(node, Lookup.muls) },
+			{ NT.DIVIDE,   node => basicOperator(node, Lookup.divs) },
+			{ NT.BIT_OR,   node => basicOperator(node, Lookup.ors)  },
+			{ NT.BIT_AND,  node => basicOperator(node, Lookup.ands) },
+			{ NT.BIT_XOR,  node => basicOperator(node, Lookup.xors) },
+			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
 				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
@@ -453,7 +457,7 @@ static class Analyser
 			if(target == null) {
 				throw Jolly.addError(a.location, "Cannot assign to this");
 			}
-			
+						
 			if(b.onStored?.Invoke(a, b, instructions) ?? false) {
 				return;
 			}
@@ -524,19 +528,33 @@ static class Analyser
 		return result;
 	}
 	
-	static void basicOperator(AST_Node node)
+	static void basicOperator(AST_Node node, Dictionary<DataType, Instr> instrs)
 	{
 		var op = (AST_Operation)node;
 		load(op.a);
 		load(op.b);
-		if(op.a.result.type != op.b.result.type ) {
-			throw Jolly.addError(op.location, "Types not the same");
+		if(op.a.result.type != op.b.result.type)
+		{
+			Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == op.a.result.type && c._to == op.b.result.type).cast;
+			if(cast == null)
+			{
+				cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == op.b.result.type && c._to == op.a.result.type).cast;
+				if(cast == null) {
+					throw Jolly.addError(op.location, "Types not the same");
+				}
+				op.b.result = cast(op.b.result, op.a.result.type);
+			}
+			else {
+				op.a.result = cast(op.a.result, op.b.result.type);
+			}
 		}
 		
+		Instr instr;
+		if(!instrs.TryGetValue(op.a.result.type, out instr)) {
+			throw Jolly.addError(op.location, "Operator cannot be used on the type "+op.a.result.type);
+		}
 		
-		
-		
-		op.result.type = op.a.result.type;
+		op.result = instr(op.a.result, op.b.result);
 	}
 	
 	static void load(AST_Node node)
