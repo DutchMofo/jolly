@@ -6,7 +6,7 @@ namespace Jolly
 {
 using System.Linq;
 using NT = AST_Node.Type;
-using Cast = Func<Value,Value,Value>;
+using Cast = Func<Value,DataType,Value>;
 
 static class Analyser
 {
@@ -291,10 +291,7 @@ static class Analyser
 				node.result = operatorGetMember(ref enclosure.node, node as AST_Symbol);
 			} },
 			{ NT.RETURN, node => {
-				var returns = (AST_Return)node;
-				AST_Node[] valueNodes = (returns.values != null) ?
-					(returns.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returns } : new AST_Node[0];
-				
+				var returnNode = (AST_Return)node;
 				AST_Function function = null;
 				foreach(var closure in enclosureStack) {
 					function = closure.node as AST_Function;
@@ -302,16 +299,20 @@ static class Analyser
 				}
 				Debug.Assert(function != null);
 				
+				AST_Node[] valueNodes = (returnNode.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returnNode.values };
+				DataType[] returns = ((DataType_Function)function.result.type).returns;
 				Value[] values = new Value[valueNodes.Length];
+				
 				for(int i = 0; i < valueNodes.Length; i += 1)
 				{
 					load(valueNodes[i]);
-					Value aR = function.returns[i], bR = valueNodes[i].result;
-					if(aR.type != bR.type)
+					DataType aR = returns[i];
+					Value bR = valueNodes[i].result;
+					if(aR != bR.type)
 					{
-						Cast cast;
-						if(!Lookup.implicitCasts(bR, aR, out cast)) {
-							throw Jolly.addError(returns.location, "Invalid return value");
+						Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from.Equals(bR.type) && c._to.Equals(aR)).cast;
+						if(cast == null) {
+							throw Jolly.addError(valueNodes[i].location, "Invalid return value");
 						}
 						values[i] = cast(bR, aR);
 					} else {
@@ -362,11 +363,11 @@ static class Analyser
 					return;
 				}
 				
-				Cast cast;
-				if(!Lookup.casts.TryGetValue(op.b.result, op.a.result, out cast)) {
+				Cast cast = Lookup.casts.FirstOrDefault(c => c._from == op.a.result.type && c._to == op.b.result.type).cast;
+				if(cast == null) {
 					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
 				}
-				op.result = cast(op.b.result, op.a.result);
+				op.result = cast(op.b.result, op.a.result.type);
 			} },
 		};
 	
@@ -458,7 +459,12 @@ static class Analyser
 			}
 			
 			if(target.referenced != b.result.type) {
-				throw Jolly.addError(a.location, "Cannot assign this value type");
+				
+				Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == b.result.type && c._to == target.referenced).cast;
+				if(cast == null) {
+					throw Jolly.addError(a.location, "Cannot assign this value type");
+				}
+				b.result = cast(b.result, target.referenced);
 			}
 			
 			instructions.Add(new IR_Store{ location = a.result, _value = b.result, result = b.result });
@@ -526,8 +532,11 @@ static class Analyser
 		if(op.a.result.type != op.b.result.type ) {
 			throw Jolly.addError(op.location, "Types not the same");
 		}
+		
+		
+		
+		
 		op.result.type = op.a.result.type;
-		// instructions.Add(new IR_Operator(op));
 	}
 	
 	static void load(AST_Node node)
@@ -598,7 +607,7 @@ static class Analyser
 			throw Jolly.addError(_object.location, "Cannot derive type.");
 		}
 		
-		_object.resetIndex = cursor + 1;
+		_object.resetIndex = cursor;
 		cursor = _object.startIndex;
 		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, _object.startIndex + _object.memberCount));
 		

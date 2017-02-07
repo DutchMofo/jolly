@@ -7,8 +7,10 @@ int main()
 		number: 12,
 	};
 	
+	f64 test = 46;
+	
 	swapCountNumber(&a);
-	return true;
+	return test;
 }
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)

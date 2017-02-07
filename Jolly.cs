@@ -6,7 +6,7 @@ using System.IO;
 
 namespace Jolly
 {
-	using Cast = Func<Value,Value,Value>;
+	using Cast = Func<Value,DataType,Value>;
 	
 	class ParseException : System.Exception
 	{
@@ -17,6 +17,9 @@ namespace Jolly
 	{
 		public static bool TryGetValue(this Dictionary<Lookup.CastPair, Cast> dict, Value a, Value b, out Cast cast)
 			=> dict.TryGetValue(new Lookup.CastPair{ _to = b.type, _from = a.type }, out cast);
+			
+		public static bool TryGetValue(this Dictionary<Lookup.CastPair, Cast> dict, Value a, DataType b, out Cast cast)
+			=> dict.TryGetValue(new Lookup.CastPair{ _to = b, _from = a.type }, out cast);
 		
 		public static string fill(this string format, params object[] args)
 			=> string.Format(format, args);
