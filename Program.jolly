@@ -2,7 +2,7 @@
 int main()
 {
 	AnalyseTest a = {
-		id: 1,
+		id: 2 || 3,
 		count: 10,
 		number: 12,
 	};

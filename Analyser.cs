@@ -185,6 +185,45 @@ static class Analyser
 				instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
 				instructions.Add(new IR_Label{ id = ifNode.endLabelId });
 			} break;
+			case Context.Kind.LOGIC_AND: {
+				// Logic or and 'and' ended up swapped
+				var lor = (AST_Logic)ended.target;
+				
+				if(lor.a.result.type != Lookup.I1)
+				{
+					Cast cast;
+					if(!Lookup.implicitCasts.getCast(lor.a.result.type, Lookup.I1, out cast)) {
+						throw Jolly.addError(lor.a.location, "Cannot use '||' on this type");
+					}
+					lor.a.result = cast(lor.a.result, Lookup.I1);
+				}
+				instructions.Add(new IR_Goto{ labelId = lor.trueLabelId });
+				instructions.Add(new IR_Label{ id = lor.trueLabelId });
+				instructions.Add(new IR_Phi(new PhiBranch[] {
+					new PhiBranch(lor.trueLabelId, new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = true }), // TODO: WRONG
+					new PhiBranch(lor.falseLabelId, lor.a.result)
+				}));
+				lor.result = new Value{ tempID = (tempID += 1), kind = Value.Kind.VALUE, type = Lookup.I1 };
+			} break;
+			case Context.Kind.LOGIC_OR: {
+				var land = (AST_Logic)ended.target;
+				
+				if(land.a.result.type != Lookup.I1)
+				{
+					Cast cast;
+					if(!Lookup.implicitCasts.getCast(land.a.result.type, Lookup.I1, out cast)) {
+						throw Jolly.addError(land.a.location, "Cannot use '&&' on this type");
+					}
+					land.a.result = cast(land.a.result, Lookup.I1);
+				}
+				instructions.Add(new IR_Goto{ labelId = land.falseLabelId });
+				instructions.Add(new IR_Label{ id = land.falseLabelId });
+				instructions.Add(new IR_Phi(new PhiBranch[] {
+					new PhiBranch(land.falseLabelId, new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = false }), // TODO: WRONG
+					new PhiBranch(land.trueLabelId, land.a.result)
+				}));
+				land.result = new Value{ tempID = (tempID += 1), kind = Value.Kind.VALUE, type = Lookup.I1 };
+			} break;
 			case Context.Kind.DECLARATION: {
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
@@ -328,7 +367,7 @@ static class Analyser
 				Instr xor;
 				var op = (AST_Operation)node;
 				if(!Lookup.xors.TryGetValue(op.a.result.type, out xor)) {
-					throw Jolly.addError(op.location, "Cannot use operator '!' on"+node.result.type);
+					throw Jolly.addError(op.location, "Cannot use operator '~' on"+node.result.type);
 				}
 				op.result = xor(op.a.result, new Value{ type = op.a.result.type, kind = Value.Kind.STATIC_VALUE, data = -1 });
 			} },
@@ -336,6 +375,42 @@ static class Analyser
 			{ NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
 			{ NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
 			{ NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
+			{ NT.LOGIC_OR,    node => {
+				var lor = (AST_Logic)node;
+				
+				if(lor.condition.result.type != Lookup.I1)
+				{
+					Cast cast;
+					if(!Lookup.implicitCasts.getCast(lor.condition.result.type, Lookup.I1, out cast)) {
+						throw Jolly.addError(lor.condition.location, "Cannot use '||' on this type");
+					}
+					lor.condition.result = cast(lor.condition.result, Lookup.I1);
+				}
+				
+				lor.trueLabelId = (tempID += 1);
+				lor.falseLabelId = (tempID += 1);
+				instructions.Add(new IR_Br{ trueLabelId = lor.trueLabelId, falseLabelId = lor.falseLabelId, condition = lor.condition.result });
+				instructions.Add(new IR_Label{ id = lor.falseLabelId });
+				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_OR){ target = lor });
+			} },
+			{ NT.LOGIC_AND,   node => {
+				var land = (AST_Logic)node;
+				
+				if(land.condition.result.type != Lookup.I1)
+				{
+					Cast cast;
+					if(!Lookup.implicitCasts.getCast(land.condition.result.type, Lookup.I1, out cast)) {
+						throw Jolly.addError(land.condition.location, "Cannot use '&&' on this type");
+					}
+					land.condition.result = cast(land.condition.result, Lookup.I1);
+				}
+				
+				land.trueLabelId = (tempID += 1);
+				land.falseLabelId = (tempID += 1);
+				instructions.Add(new IR_Br{ trueLabelId = land.trueLabelId, falseLabelId = land.falseLabelId, condition = land.condition.result });
+				instructions.Add(new IR_Label{ id = land.trueLabelId });
+				contextStack.Push(new Context(cursor + land.memberCount, Context.Kind.LOGIC_AND){ target = land });
+			} },
 			{ NT.LOGIC_NOT,   node => {
 				Cast cast;
 				var op = (AST_Operation)node;

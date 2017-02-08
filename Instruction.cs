@@ -28,6 +28,7 @@ namespace Jolly
 	
 	struct PhiBranch
 	{
+		public PhiBranch(int from, Value val) { fromId = from; _value = val; }
 		public int fromId;
 		public Value _value;
 		public override string ToString() => "[{0}, {1}]".fill(_value, fromId);
@@ -35,6 +36,7 @@ namespace Jolly
 	
 	class IR_Phi : IR
 	{
+		public IR_Phi(PhiBranch[] branches) { this.branches = branches; }
 		public PhiBranch[] branches;
 		public override string ToString() => "    %{0} = phi {1} {2}".fill(result.tempID, result.type, branches.implode(", "));
 	}

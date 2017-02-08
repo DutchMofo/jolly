@@ -170,7 +170,7 @@ namespace Jolly
 			this.b = b;
 		}
 		
-		public int memberCount, count;
+		public int memberCount, count, trueLabelId, falseLabelId;
 		public AST_Node condition, a, b;
 	}
 	

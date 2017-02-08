@@ -33,6 +33,8 @@ struct Context
 		IF_CONDITION,
 		IF_TRUE,
 		IF_FALSE,
+		LOGIC_OR,
+		LOGIC_AND,
 		FUNCTION_DECLARATION,
 	}
 	
