@@ -185,8 +185,7 @@ static class Analyser
 				instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
 				instructions.Add(new IR_Label{ id = ifNode.endLabelId });
 			} break;
-			case Context.Kind.LOGIC_AND: {
-				// Logic or and 'and' ended up swapped
+			case Context.Kind.LOGIC_OR: {
 				var lor = (AST_Logic)ended.target;
 				
 				if(lor.a.result.type != Lookup.I1)
@@ -205,7 +204,7 @@ static class Analyser
 				}));
 				lor.result = new Value{ tempID = (tempID += 1), kind = Value.Kind.VALUE, type = Lookup.I1 };
 			} break;
-			case Context.Kind.LOGIC_OR: {
+			case Context.Kind.LOGIC_AND: {
 				var land = (AST_Logic)ended.target;
 				
 				if(land.a.result.type != Lookup.I1)
@@ -311,9 +310,26 @@ static class Analyser
 			} },
 			{ NT.FUNCTION_CALL, node => {
 				var functionCall = (AST_FunctionCall)node;
-				// TODO: validate function call
+				var functionType = functionCall.function.result.type as DataType_Function;
+				if(functionType == null) {
+					throw Jolly.addError(node.location, "Can not call this");
+				}
+				var arguments = functionType.arguments;
+				var values = new Value[functionCall.arguments.Length];
 				
-				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = functionCall.arguments.Select(a=>a.result).ToArray() });
+				for(int i = 0; i < values.Length; i += 1)
+				{
+					Cast cast = null;
+					var arg = functionCall.arguments[i];
+					var argT = arguments[i];
+					
+					load(arg);
+					if(!arg.result.type.Equals(argT) && !Lookup.implicitCasts.getCast(arg.result.type, argT, out cast)) {
+						throw Jolly.addError(arg.location, "Wrong argument");
+					}
+					values[i] = cast?.Invoke(functionCall.arguments[i].result, arguments[i]) ?? functionCall.arguments[i].result;
+				}
+				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = values });
 			} },
 			{ NT.TUPLE, node => { } },
 			{ NT.MEMBER_TUPLE, node => {
@@ -375,7 +391,8 @@ static class Analyser
 			{ NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
 			{ NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
 			{ NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
-			{ NT.LOGIC_OR,    node => {
+			{ NT.LOGIC_AND,    node => {
+				// 'or' and 'and' ended up swapped
 				var lor = (AST_Logic)node;
 				
 				if(lor.condition.result.type != Lookup.I1)
@@ -393,7 +410,7 @@ static class Analyser
 				instructions.Add(new IR_Label{ id = lor.falseLabelId });
 				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_OR){ target = lor });
 			} },
-			{ NT.LOGIC_AND,   node => {
+			{ NT.LOGIC_OR,   node => {
 				var land = (AST_Logic)node;
 				
 				if(land.condition.result.type != Lookup.I1)

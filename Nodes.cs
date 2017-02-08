@@ -141,7 +141,7 @@ namespace Jolly
 		public Type nodeType;
 		public Value result;
 		
-		public Hook onStored, onLoad;
+		public Hook onStored;
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
