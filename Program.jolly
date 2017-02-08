@@ -2,13 +2,13 @@
 int main()
 {
 	AnalyseTest a = {
-		id: 2 || 3,
+		id: ID.ANALYSE_TEST,
 		count: 10,
 		number: 12,
 	};
 	
 	swapCountNumber(&a);
-	return ~20;
+	return !~10;
 }
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)
@@ -17,9 +17,14 @@ AnalyseTest* swapCountNumber(AnalyseTest* b)
 	return b;
 }
 
+enum ID
+{
+	ANALYSE_TEST,
+}
+
 struct StructID
 {
-	int id;
+	ID id;
 }
 
 struct AnalyseTest : StructID

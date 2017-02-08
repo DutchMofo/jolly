@@ -63,6 +63,11 @@ namespace Jolly
 		
 		public override string ToString() => referenced + "*";
 	}
+		
+	class DataType_Enum : DataType
+	{
+		public DataType_Enum() { flags = Flags.INSTANTIABLE; }
+	}
 	
 	class DataType_Struct : DataType
 	{

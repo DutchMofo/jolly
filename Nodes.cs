@@ -141,7 +141,7 @@ namespace Jolly
 		public Type nodeType;
 		public Value result;
 		
-		public Hook onStored;
+		public Hook onUsed;
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
@@ -202,6 +202,7 @@ namespace Jolly
 	{
 		public AST_Object(SourceLocation loc, NT type) : base(loc, type) { }
 		public int memberCount, startIndex, resetIndex;
+		public IR_Allocate allocation;
 		public AST_Node inferFrom;
 		public bool isArray;
 	}

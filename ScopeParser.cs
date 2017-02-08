@@ -1,8 +1,17 @@
+using System;
 
 namespace Jolly
 {
     using TT = Token.Type;
 	using DefineMode = ExpressionParser.DefineMode;
+	
+	enum ScopeParseMethod
+	{
+		GLOBAL,
+		STRUCT,
+		BLOCK,
+		ENUM,
+	}
 	
     class ScopeParser
 	{
@@ -19,14 +28,14 @@ namespace Jolly
 			this.end = end;
 		}
 		
-		public void parseStructScope()
+		public void parse(ScopeParseMethod parseMethod)
 		{
 			int startNodeCount = parseData.ast.Count;
 			for (token = parseData.tokens[parseData.cursor];
 				parseData.cursor < end;
 				token = parseData.tokens[parseData.cursor += 1])
 			{
-				parseNextStruct();
+				new Action[] { parseNextGlobal, parseNextStruct, parseNextBlock, parseNextEnum }[(int)parseMethod]();
 			}
 			if(scopeHead != null) {
 				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
@@ -43,20 +52,6 @@ namespace Jolly
 				new ExpressionParser(parseData, TT.SEMICOLON, scope, DefineMode.MEMBER, end)
 					.parse(false);
 				break;
-			}
-		}
-		
-		public void parseBlockScope()
-		{
-			int startNodeCount = parseData.ast.Count;
-			for (token = parseData.tokens[parseData.cursor];
-				parseData.cursor < end;
-				token = parseData.tokens[parseData.cursor += 1])
-			{
-				parseNextBlock();
-			}
-			if(scopeHead != null) {
-				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
 			}
 		}
 		
@@ -77,20 +72,6 @@ namespace Jolly
 			}
 		}
 		
-		public void parseGlobalScope()
-		{
-			int startNodeCount = parseData.ast.Count;
-			for (token = parseData.tokens[parseData.cursor];
-				parseData.cursor < end;
-				token = parseData.tokens[parseData.cursor += 1])
-			{
-				parseNextGlobal();
-			}
-			if(scopeHead != null) {
-				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
-			}
-		}
-		
 		void parseNextGlobal()
 		{
 			switch(token.type)
@@ -103,6 +84,11 @@ namespace Jolly
 					.parse(false);
 				break;
 			}
+		}
+		
+		void parseNextEnum()
+		{
+			
 		}
 		
 		void parseStruct()
@@ -143,9 +129,22 @@ namespace Jolly
 			parseData.cursor += 1;
 			new ScopeParser(parseData, next.partnerIndex, structTable)
 				{ scopeHead = structNode } // Hacky
-				.parseStructScope();
+				.parse(ScopeParseMethod.STRUCT);
 			
 			structType.members = new DataType[structType.memberMap.Count];
+		}
+		
+		void parseEnum()
+		{
+			Token brace = parseData.tokens[parseData.cursor + 1];
+			if(brace.type != TT.BRACE_OPEN) {
+				throw Jolly.unexpected(token);
+			}
+			
+			AST_Struct    enumNode  = new AST_Struct(token.location); // Use struct node for now
+			DataType_Enum enumType  = new DataType_Enum();
+			SymbolTable   enumTable = new SymbolTable(scope);
+			
 		}
 		
 		void parseIf()
@@ -189,7 +188,7 @@ namespace Jolly
 				scopeParser.parseNextBlock();
 			} else {
 				parseData.cursor += 1; // Skip brace open
-				scopeParser.parseBlockScope();
+				scopeParser.parse(ScopeParseMethod.BLOCK);
 			}
 			ifNode.ifCount = parseData.ast.Count - startNodeCount;
 			startNodeCount = parseData.ast.Count;
@@ -206,7 +205,7 @@ namespace Jolly
 					scopeParser.parseNextBlock();
 				} else {
 					parseData.cursor += 1; // Skip brace open
-					scopeParser.parseBlockScope();
+					scopeParser.parse(ScopeParseMethod.BLOCK);
 				}
 				ifNode.elseCount = parseData.ast.Count - startNodeCount;
 			}

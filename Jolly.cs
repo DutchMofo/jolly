@@ -6,8 +6,6 @@ using System.IO;
 
 namespace Jolly
 {
-	using Cast = Func<Value,DataType,Value>;
-	
 	class ParseException : System.Exception
 	{
 		public ParseException() { }
@@ -86,7 +84,7 @@ namespace Jolly
 			var parseData = new SharedParseData{ tokens = tokens, ast = new List<AST_Node>() };
 			
 			var globalScope = new SymbolTable(null){ canAllocate = true };
-			new ScopeParser(parseData, tokens.Length - 1, globalScope).parseGlobalScope();
+			new ScopeParser(parseData, tokens.Length - 1, globalScope).parse(ScopeParseMethod.GLOBAL);
 			
 			var instructions = Analyser.analyse(parseData.ast, globalScope);
 			

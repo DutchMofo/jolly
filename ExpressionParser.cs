@@ -292,7 +292,7 @@ class ExpressionParser
 			}
 			
 			parseData.cursor += 2; // Skip parenthesis close and brace open
-			new ScopeParser(parseData, brace.partnerIndex, functionTable).parseBlockScope();
+			new ScopeParser(parseData, brace.partnerIndex, functionTable).parse(ScopeParseMethod.BLOCK);
 			functionNode.memberCount = parseData.ast.Count - startNodeCount;
 			
 			parseData.cursor = brace.partnerIndex - 1;
@@ -561,7 +561,6 @@ class ExpressionParser
 			});
 		}
 		
-		// Use an AST_Definition for now
 		var _object = new AST_Object(op.location, NT.OBJECT) { 
 			memberCount = parseData.ast.Count - context.index,
 			inferFrom = context.target,

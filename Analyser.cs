@@ -4,7 +4,6 @@ using System;
 
 namespace Jolly
 {
-using System.Linq;
 using NT = AST_Node.Type;
 
 using Cast = Func<Value,DataType,Value>;
@@ -283,7 +282,7 @@ static class Analyser
 			{ NT.STRUCT, skipSymbol },
 			{ NT.OBJECT, node => {
 				var _object = (AST_Object)node;
-				_object.onStored = storeObject;
+				_object.onUsed = storeObject;
 				_object.startIndex = cursor;
 				cursor += _object.memberCount;
 			} },
@@ -564,12 +563,10 @@ static class Analyser
 				throw Jolly.addError(a.location, "Cannot assign to this");
 			}
 						
-			if(b.onStored?.Invoke(a, b, instructions) ?? false) {
-				return;
-			}
+			if(b.onUsed?.Invoke(a, b, instructions) ?? false) return;
 			
-			if(target.referenced != b.result.type) {
-				
+			if(target.referenced != b.result.type)
+			{
 				Cast cast;
 				if(!Lookup.implicitCasts.getCast(b.result.type, target.referenced, out cast)) {
 					throw Jolly.addError(a.location, "Cannot assign this value type");
