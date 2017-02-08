@@ -406,9 +406,12 @@ class ExpressionParser
 						throw Jolly.unexpected(token);
 					}
 					break;
-				case TT.ASTERISK: op = new Operator(02, 1, false, NT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
-				case TT.AND:	  op = new Operator(02, 1, false, NT.REFERENCE  ); break;
-				case TT.PLUS: case TT.MINUS: values.Push(new AST_Node(token.location, NT.LITERAL) { result = INT(0) }); break;
+				case TT.ASTERISK:    op = new Operator(02, 1, false, NT.DEREFERENCE); break; // TODO: Move these new Op's values to lookup file?
+				case TT.AND:	     op = new Operator(02, 1, false, NT.REFERENCE  ); break;
+				case TT.TILDE:	     break;
+				case TT.EXCLAMATION: break;
+				case TT.PLUS:
+				case TT.MINUS: values.Push(new AST_Node(token.location, NT.LITERAL) { result = INT(0) }); break;
 				default: throw Jolly.unexpected(token);
 			}
 		}

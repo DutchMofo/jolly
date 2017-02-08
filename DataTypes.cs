@@ -33,13 +33,9 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
-		public string debug { get { return  "{0}({1})".fill(ToString(), GetHashCode()); } }
-				
 		public virtual Value? getMember(AST_Node node, string name, List<IR> instruction) { return null; }
 		public virtual Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
 		
-		public override bool Equals(object obj) => ((DataType)obj).typeID == typeID;
-		public override int GetHashCode() => typeID;
 		public override string ToString() => name;
 	}
 	

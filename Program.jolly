@@ -2,13 +2,13 @@
 int main()
 {
 	AnalyseTest a = {
-		id: 1 | 23 & 19,
+		id: 1,
 		count: 10,
 		number: 12,
 	};
 	
 	swapCountNumber(&a);
-	return 0;
+	return ~20;
 }
 
 AnalyseTest* swapCountNumber(AnalyseTest* b)

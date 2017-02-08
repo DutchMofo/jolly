@@ -6,6 +6,7 @@ namespace Jolly
 {
 using System.Linq;
 using NT = AST_Node.Type;
+
 using Cast = Func<Value,DataType,Value>;
 using Instr = Func<Value,Value,Value>;
 
@@ -307,28 +308,43 @@ static class Analyser
 				for(int i = 0; i < valueNodes.Length; i += 1)
 				{
 					load(valueNodes[i]);
+					Cast cast = null;
 					DataType aR = returns[i];
 					Value bR = valueNodes[i].result;
-					if(aR != bR.type)
-					{
-						Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from.Equals(bR.type) && c._to.Equals(aR)).cast;
-						if(cast == null) {
+					if(aR != bR.type && !Lookup.implicitCasts.getCast(bR.type, aR, out cast)) {
 							throw Jolly.addError(valueNodes[i].location, "Invalid return value");
-						}
-						values[i] = cast(bR, aR);
-					} else {
-						values[i] = valueNodes[i].result;
 					}
+					values[i] = cast?.Invoke(bR, aR) ?? bR;
 				}
 				instructions.Add(new IR_Return{ values = values });
 			} },
-			{ NT.MINUS,    node => basicOperator(node, Lookup.subs) },
-			{ NT.PLUS,     node => basicOperator(node, Lookup.adds) },
-			{ NT.MULTIPLY, node => basicOperator(node, Lookup.muls) },
-			{ NT.DIVIDE,   node => basicOperator(node, Lookup.divs) },
-			{ NT.BIT_OR,   node => basicOperator(node, Lookup.ors)  },
-			{ NT.BIT_AND,  node => basicOperator(node, Lookup.ands) },
-			{ NT.BIT_XOR,  node => basicOperator(node, Lookup.xors) },
+			{ NT.MINUS,       node => basicOperator(node, Lookup.subs)    },
+			{ NT.PLUS,        node => basicOperator(node, Lookup.adds)    },
+			{ NT.MULTIPLY,    node => basicOperator(node, Lookup.muls)    },
+			{ NT.DIVIDE,      node => basicOperator(node, Lookup.divs)    },
+			{ NT.BIT_OR,      node => basicOperator(node, Lookup.ors)     },
+			{ NT.BIT_AND,     node => basicOperator(node, Lookup.ands)    },
+			{ NT.BIT_NOT,     node => {
+				Instr xor;
+				var op = (AST_Operation)node;
+				if(!Lookup.xors.TryGetValue(op.a.result.type, out xor)) {
+					throw Jolly.addError(op.location, "Cannot use operator '!' on"+node.result.type);
+				}
+				op.result = xor(op.a.result, new Value{ type = op.a.result.type, kind = Value.Kind.STATIC_VALUE, data = -1 });
+			} },
+			{ NT.BIT_XOR,     node => basicOperator(node, Lookup.xors)    },
+			{ NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
+			{ NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
+			{ NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
+			{ NT.LOGIC_NOT,   node => {
+				Cast cast;
+				var op = (AST_Operation)node;
+				if(!Lookup.casts.getCast(op.a.result.type, Lookup.I1, out cast)) {
+					throw Jolly.addError(op.location, "Cannot use operator '!' on"+node.result.type);
+				}
+				Instr xor = Lookup.xors[Lookup.I1];
+				op.result = xor(cast(op.a.result, Lookup.I1), new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = true });
+			} },
 			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
@@ -363,12 +379,10 @@ static class Analyser
 				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
-				if(op.a.result.type == op.b.result.type) {
-					return;
-				}
+				if(op.a.result.type == op.b.result.type) return;
 				
-				Cast cast = Lookup.casts.FirstOrDefault(c => c._from == op.a.result.type && c._to == op.b.result.type).cast;
-				if(cast == null) {
+				Cast cast;
+				if(!Lookup.casts.getCast(op.b.result.type, op.a.result.type, out cast)) {
 					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
 				}
 				op.result = cast(op.b.result, op.a.result.type);
@@ -464,8 +478,8 @@ static class Analyser
 			
 			if(target.referenced != b.result.type) {
 				
-				Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == b.result.type && c._to == target.referenced).cast;
-				if(cast == null) {
+				Cast cast;
+				if(!Lookup.implicitCasts.getCast(b.result.type, target.referenced, out cast)) {
 					throw Jolly.addError(a.location, "Cannot assign this value type");
 				}
 				b.result = cast(b.result, target.referenced);
@@ -535,17 +549,13 @@ static class Analyser
 		load(op.b);
 		if(op.a.result.type != op.b.result.type)
 		{
-			Cast cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == op.a.result.type && c._to == op.b.result.type).cast;
-			if(cast == null)
-			{
-				cast = Lookup.implicitCasts.FirstOrDefault(c => c._from == op.b.result.type && c._to == op.a.result.type).cast;
-				if(cast == null) {
-					throw Jolly.addError(op.location, "Types not the same");
-				}
-				op.b.result = cast(op.b.result, op.a.result.type);
-			}
-			else {
+			Cast cast;
+			if(Lookup.implicitCasts.getCast(op.a.result.type, op.b.result.type, out cast)) {
 				op.a.result = cast(op.a.result, op.b.result.type);
+			} else if(Lookup.implicitCasts.getCast(op.b.result.type, op.a.result.type, out cast)) {
+				op.b.result = cast(op.b.result, op.a.result.type);
+			} else {
+				throw Jolly.addError(op.location, "Types not the same");
 			}
 		}
 		

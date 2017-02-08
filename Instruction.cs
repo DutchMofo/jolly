@@ -26,6 +26,19 @@ namespace Jolly
 		public override string ToString() => "_{0}:".fill(id);
 	}
 	
+	struct PhiBranch
+	{
+		public int fromId;
+		public Value _value;
+		public override string ToString() => "[{0}, {1}]".fill(_value, fromId);
+	}
+	
+	class IR_Phi : IR
+	{
+		public PhiBranch[] branches;
+		public override string ToString() => "    %{0} = phi {1} {2}".fill(result.tempID, result.type, branches.implode(", "));
+	}
+	
 	class IR_Store : IR
 	{
 		public Value location, _value;
@@ -54,7 +67,7 @@ namespace Jolly
 	class IR_Return : IR
 	{
 		public Value[] values;
-		public override string ToString() => "    ret {0}".fill((values?.Length > 0) ? ((values.Length == 1) ? values[0].ToString() : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b)) : "");
+		public override string ToString() => "    ret {0}".fill(values?.implode(", "));
 	}
 	
 	class IR_Call : IR
@@ -63,7 +76,7 @@ namespace Jolly
 		public Value[] arguments;
 		public override string ToString() => "    call @{0}({1})".fill(
 			(function.kind == Value.Kind.STATIC_FUNCTION) ? function.type.name : function.ToString(),
-			(arguments?.Length == 0) ? "" : arguments.Select(v=>v.ToString()).Aggregate((a,b)=>a+", "+b));
+			arguments?.implode(", "));
 	}
 	
 	class IR_Struct : IR
@@ -81,7 +94,7 @@ namespace Jolly
 		public override string ToString() => "define {0} @{1}({2})".fill(
 			functionType.returns.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b),
 			functionType.name,
-			(functionType.arguments.Length != 0) ? functionType.arguments.Select(r=>r.ToString()).Aggregate((a,b)=>a+", "+b) : "");
+			functionType.arguments?.implode(", "));
 	}
 	
 	abstract class IR_Cast : IR
@@ -218,7 +231,7 @@ namespace Jolly
 			slt, sle,
 		}
 		public Compare compare;
-		public override string opStr() => "icmp";
+		public override string ToString() => "    %{0} = icmp {1} {2}, {3}".fill(result.tempID, compare, a, b);
 	}
 	
 	// The ‘fcmp‘ instruction compares op1 and op2 according to the condition code given as cond.
@@ -258,7 +271,7 @@ namespace Jolly
 			ord, uno,
 		}
 		public Compare compare;
-		public override string opStr() => "fcmp";
+		public override string ToString() => "    %{0} = fcmp {1} {2}, {3}".fill(result.tempID, compare, a, b);
 	}
 	
 	// The ‘trunc‘ instruction truncates the high order bits in value and converts the remaining bits to ty2.

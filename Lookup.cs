@@ -7,6 +7,7 @@ namespace Jolly
 using TT = Token.Type;
 using NT = AST_Node.Type;
 using Operator = ExpressionParser.Operator;
+
 using Cast = Func<Value,DataType,Value>;
 using Instr = Func<Value,Value,Value>;
 
@@ -150,32 +151,67 @@ static class Lookup
 		
 	public struct CastPair
 	{
-		public Cast cast;
 		public DataType _from, _to;
-		public override int GetHashCode() => (_from.GetHashCode() << 7) ^ _to.GetHashCode();
+		public override int GetHashCode()
+		{
+			return (_from.GetHashCode() << 7) ^ _to.GetHashCode();
+		}
 		public override bool Equals(object obj)
 		{
 			var pair = (CastPair)obj;
-			return _to == pair._to && _from == pair._from;
+			return _to.Equals(pair._to) && _from.Equals(pair._from);
 		}
-		
-		public override string ToString() => "{0}, {1}({2})".fill(_from.debug, _to.debug, GetHashCode());
+	}
+	
+	public class PairDict : Dictionary<CastPair, Cast>
+	{
+		public void Add(Tuple<CastPair, Cast> kvp) => Add(kvp.Item1, kvp.Item2);
+		public bool getCast(DataType _from, DataType _to, out Cast cast)
+			=> TryGetValue(new Lookup.CastPair{ _from = _from, _to = _to }, out cast);
 	}
 	
 	// Ugly, dont look
 	static Value zero(DataType _in) => new Value{ type = _in, kind = Value.Kind.STATIC_VALUE, data = 0 };
-	static CastPair tp(DataType _from, DataType _to, Cast cast) => new CastPair{ _from = _from, _to = _to, cast = cast };
+	static Tuple<CastPair, Cast> tp(DataType _from, DataType _to, Cast cast) => new Tuple<CastPair, Cast>(new CastPair{ _from = _from, _to = _to }, cast);
 	
-	static Value doInstr<T>(Value a, Value b) where T : IR_Instr, new() { var t = new T { a = a, b = b, result = Analyser.newResult(a) }; Analyser.instructions.Add(t); t.result.kind = Value.Kind.VALUE; return t.result; }
-	static Value doCast<T>(Value _from, DataType _to) where T : IR_Cast, new() { var t = new T { _to = _to, _from = _from, result = Analyser.newResult(_from) }; Analyser.instructions.Add(t); return t.result; }
-	static Value doIcmp(Value _from, DataType _to) { var t = new IR_Icmp { a = _from, b = zero(_to), result = Analyser.newResult(_from), compare = IR_Icmp.Compare.ne  }; Analyser.instructions.Add(t);  t.result.kind = Value.Kind.VALUE; return t.result; }
-	static Value doFcmp(Value _from, DataType _to) { var t = new IR_Fcmp { a = _from, b = zero(_to), result = Analyser.newResult(_from), compare = IR_Fcmp.Compare.une }; Analyser.instructions.Add(t);  t.result.kind = Value.Kind.VALUE; return t.result; }
+	static Value doInstr<T>(Value a, Value b) where T : IR_Instr, new()
+	{
+		var t = new T { a = a, b = b, result = Analyser.newResult(a) };
+		Analyser.instructions.Add(t);
+		t.result.kind = Value.Kind.VALUE;
+		return t.result;
+	}
+	
+	static Value doCast<T>(Value _from, DataType _to) where T : IR_Cast, new()
+	{
+		var t = new T { _to = _to, _from = _from };
+		Analyser.instructions.Add(t);
+		t.result.type = _to;
+		t.result.kind = Value.Kind.VALUE;
+		return t.result = Analyser.newResult(t.result);
+	}
+	
+	static Value doIcmp(Value _from, DataType _to)
+	{
+		var t = new IR_Icmp { a = _from, b = zero(_from.type), result = Analyser.newResult(new Value{ type = I1 }), compare = IR_Icmp.Compare.ne  };
+		Analyser.instructions.Add(t);
+		t.result.kind = Value.Kind.VALUE;
+		return t.result;
+	}
+	
+	static Value doFcmp(Value _from, DataType _to)
+	{
+		var t = new IR_Fcmp { a = _from, b = zero(_from.type), result = Analyser.newResult(new Value{ type = I1 }), compare = IR_Fcmp.Compare.une };
+		Analyser.instructions.Add(t);
+		t.result.kind = Value.Kind.VALUE;
+		return t.result;
+	}
 	
 	static Value nop(Value _from, DataType _to) => _from;
 	
 	// TODO: Change this array bs back to a dictionary
-	public static CastPair[]
-		casts = new CastPair[] {
+	public static PairDict
+		casts = new PairDict() {
 			// I1
 			tp(I1, U8,   doCast<IR_Zext>),
 			tp(I1, I8,   doCast<IR_Zext>),
@@ -242,7 +278,7 @@ static class Lookup
 			tp(F32, U64, doCast<IR_Fptoui>), tp(F64, U64, doCast<IR_Fptoui>),
 			tp(F32, F64, doCast<IR_Fpext>),  tp(F64, F32, doCast<IR_Trunc>),
 		}, 
-		implicitCasts = new CastPair[] {
+		implicitCasts = new PairDict() {
 			// I1
 			tp(I1, U8,  doCast<IR_Zext>),
 			tp(I1, I8,  doCast<IR_Zext>),
@@ -312,7 +348,7 @@ static class Lookup
 			{ U64, doInstr<IR_Udiv> }, { I64, doInstr<IR_Sdiv> },
 			{ F32, doInstr<IR_Fdiv> }, { F64, doInstr<IR_Fdiv> },
 		},
-		rems = new Dictionary<DataType, Instr>() {
+		mods = new Dictionary<DataType, Instr>() {
 			{ U8,  doInstr<IR_Urem> }, { I8,  doInstr<IR_Srem> },
 			{ U16, doInstr<IR_Urem> }, { I16, doInstr<IR_Srem> },
 			{ U32, doInstr<IR_Urem> }, { I32, doInstr<IR_Srem> },

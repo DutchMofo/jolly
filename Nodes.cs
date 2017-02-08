@@ -24,7 +24,7 @@ namespace Jolly
 		public Kind kind;
 		
 		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
-			"{0} {1}".fill(type, data.ToString().ToLower()) :
+			"{0} {1}".fill(type, data?.ToString().ToLower()) :
 			"{0} %{1}".fill(type, tempID);
 	}
 	
