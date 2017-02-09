@@ -67,6 +67,9 @@ namespace Jolly
 	class DataType_Enum : DataType
 	{
 		public DataType_Enum() { flags = Flags.INSTANTIABLE; }
+		
+		public DataType inherits = Lookup.I32;
+		public override string ToString() => inherits.ToString();
 	}
 	
 	class DataType_Struct : DataType

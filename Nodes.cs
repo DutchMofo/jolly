@@ -201,7 +201,7 @@ namespace Jolly
 	class AST_Object : AST_Node
 	{
 		public AST_Object(SourceLocation loc, NT type) : base(loc, type) { }
-		public int memberCount, startIndex, resetIndex;
+		public int memberCount, startIndex;
 		public IR_Allocate allocation;
 		public AST_Node inferFrom;
 		public bool isArray;

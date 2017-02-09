@@ -170,8 +170,6 @@ static class Lookup
 			=> TryGetValue(new Lookup.CastPair{ _from = _from, _to = _to }, out cast);
 	}
 	
-	// Ugly, dont look
-	static Value zero(DataType _in) => new Value{ type = _in, kind = Value.Kind.STATIC_VALUE, data = 0 };
 	static Tuple<CastPair, Cast> tp(DataType _from, DataType _to, Cast cast) => new Tuple<CastPair, Cast>(new CastPair{ _from = _from, _to = _to }, cast);
 	
 	static Value doInstr<T>(Value a, Value b) where T : IR_Instr, new()
@@ -190,6 +188,8 @@ static class Lookup
 		t.result.kind = Value.Kind.VALUE;
 		return t.result = Analyser.newResult(t.result);
 	}
+	
+	static Value zero(DataType _in) => new Value{ type = _in, kind = Value.Kind.STATIC_VALUE, data = 0 };
 	
 	static Value doIcmp(Value _from, DataType _to)
 	{

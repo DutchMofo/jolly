@@ -2,7 +2,7 @@
 int main()
 {
 	AnalyseTest a = {
-		id: ID.ANALYSE_TEST,
+		id: ID.OTHER,
 		count: 10,
 		number: 12,
 	};
@@ -20,6 +20,7 @@ AnalyseTest* swapCountNumber(AnalyseTest* b)
 enum ID
 {
 	ANALYSE_TEST,
+	OTHER,
 }
 
 struct StructID

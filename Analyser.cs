@@ -39,6 +39,7 @@ static class Analyser
 	public static List<IR> instructions;
 	static EnclosureStack enclosureStack;
 	static ContextStack contextStack;
+	static List<AST_Node> program;
 	static Enclosure enclosure;
 	static Context context;
 	static int cursor;
@@ -58,7 +59,7 @@ static class Analyser
 		public NT type;
 	}
 	
-	static void incrementCursor()
+	static void incrementCursor(ref int cursor)
 	{
 		while(context.index <= cursor) {
 			contextEnd(contextStack.Pop());
@@ -78,6 +79,7 @@ static class Analyser
 	
 	public static List<IR> analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
+		Analyser.program = program;
 		instructions = new List<IR>();
 		contextStack = new ContextStack(16);
 		enclosureStack = new EnclosureStack(16);	
@@ -85,32 +87,29 @@ static class Analyser
 		contextStack.Push(new Context(int.MaxValue, Context.Kind.STATEMENT)); // Just put something on the stack
 		enclosureStack.Push(new Enclosure(NT.GLOBAL, null, globalScope, int.MaxValue));
 		
-		cursor = 0;
-		for(AST_Node node = program[cursor];
-			cursor < program.Count;
-			incrementCursor())
+		for(cursor = 0; cursor < program.Count; incrementCursor(ref cursor))
 		{
-			node = program[cursor];
 			Action<AST_Node> action;
+			AST_Node node = program[cursor];
 			if(typeDefinitionAnalysers.TryGetValue(node.nodeType, out action)) {
 				action(node);
 			}
 		}
 		
-		cursor = 0;
-		for(AST_Node node = program[cursor];
-			cursor < program.Count;
-			incrementCursor())
-		{
-			node = program[cursor];
-			Action<AST_Node> action;
-			if(!analysers.TryGetValue(node.nodeType, out action)) {
-				throw Jolly.unexpected(node);
-			}
-			action(node);
+		for(cursor = 0; cursor < program.Count; incrementCursor(ref cursor)) {
+			analyseNode(program[cursor]);
 		}
 		
 		return instructions;
+	}
+	
+	static void analyseNode(AST_Node node)
+	{
+		Action<AST_Node> action;
+		if(!analysers.TryGetValue(node.nodeType, out action)) {
+			throw Jolly.unexpected(node);
+		}
+		action(node);
 	}
 	
 	static void enclosureEnd(Enclosure ended)
@@ -118,9 +117,6 @@ static class Analyser
 		switch(ended.type)
 		{
 			case NT.IF: break;
-			case NT.OBJECT: {
-				cursor = ((AST_Object)ended.node).resetIndex;
-			} break;
 			case NT.MEMBER_TUPLE: break;
 			case NT.FUNCTION: break;
 			case NT.STRUCT: {
@@ -151,6 +147,7 @@ static class Analyser
 				}
 			} break;
 			case NT.TUPLE: break;
+			case NT.OBJECT: break;
 			default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
 		}
 	}
@@ -275,15 +272,17 @@ static class Analyser
 			{ NT.MEMBER_NAME, node => { } },
 			{ NT.TUPLE, node => { } },
 			{ NT.MODIFY_TYPE, modifyType },
+			{ NT.ENUM,   skipSymbol },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.DEFINITION, declare },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
+			{ NT.ENUM,   skipSymbol },
 			{ NT.OBJECT, node => {
 				var _object = (AST_Object)node;
 				_object.onUsed = storeObject;
-				_object.startIndex = cursor;
+				_object.startIndex = cursor + 1;
 				cursor += _object.memberCount;
 			} },
 			{ NT.INITIALIZER, node => {
@@ -678,7 +677,7 @@ static class Analyser
 	static void getTypeFromName(AST_Node node)
 	{
 		if(node.result.type != null) {
-			Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
+			// Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
 			return;
 		}
 		
@@ -724,10 +723,11 @@ static class Analyser
 			throw Jolly.addError(_object.location, "Cannot derive type.");
 		}
 		
-		_object.resetIndex = cursor;
-		cursor = _object.startIndex;
-		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, _object.startIndex + _object.memberCount));
-		
+		int end = _object.startIndex + _object.memberCount;
+		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, end));
+		for(int i = _object.startIndex; i < end; incrementCursor(ref i)) {
+			analyseNode(program[i]);
+		}
 		return true;
 	}
 }

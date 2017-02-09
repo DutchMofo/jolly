@@ -3,6 +3,7 @@ using System;
 namespace Jolly
 {
     using TT = Token.Type;
+	using NT = AST_Node.Type;
 	using DefineMode = ExpressionParser.DefineMode;
 	
 	enum ScopeParseMethod
@@ -76,7 +77,8 @@ namespace Jolly
 		{
 			switch(token.type)
 			{
-			case TT.STRUCT:     parseStruct();  break;
+			case TT.STRUCT:     parseStruct(); break;
+			case TT.ENUM:       parseEnum();   break;
 			// case TT.UNION:     parseStruct();  break;
 			// case TT.NAMESPACE:     parseStruct();  break;
 			default:
@@ -136,15 +138,47 @@ namespace Jolly
 		
 		void parseEnum()
 		{
-			Token brace = parseData.tokens[parseData.cursor + 1];
-			if(brace.type != TT.BRACE_OPEN) {
-				throw Jolly.unexpected(token);
+			Token identifier = parseData.tokens[parseData.cursor + 1];
+			if(identifier.type != TT.IDENTIFIER) {
+				throw Jolly.unexpected(identifier);
 			}
+			Token brace = parseData.tokens[parseData.cursor + 2];
+			if(brace.type != TT.BRACE_OPEN) {
+				throw Jolly.unexpected(brace);
+			}
+			parseData.cursor += 3;
 			
 			AST_Struct    enumNode  = new AST_Struct(token.location); // Use struct node for now
 			DataType_Enum enumType  = new DataType_Enum();
 			SymbolTable   enumTable = new SymbolTable(scope);
 			
+			// enumNode.inherits = inherits;
+			enumNode.nodeType = NT.ENUM;
+			enumNode.symbol   = enumTable;
+			enumNode.text     = enumType.name  = identifier.text;
+			enumNode.result   = enumTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = enumType };
+			
+			if(!scope.Add(enumType.name, enumTable)) {
+				throw Jolly.addError(identifier.location, "Trying to redefinen {0}".fill(enumType.name));
+			}
+			parseData.ast.Add(enumNode);
+			
+			int startNodeCount = parseData.ast.Count;
+			var parser = new ExpressionParser(parseData, TT.BRACE_CLOSE, enumTable, DefineMode.EXPRESSION, brace.partnerIndex)
+				.parse(false);
+			AST_Node[] memberNodes = (parser.getValue() as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { parser.getValue() };
+			enumNode.memberCount = parseData.ast.Count - startNodeCount;
+			
+			int nextValue = 0;
+			foreach(var memberNode in memberNodes)
+			{
+				if(memberNode.nodeType != NT.NAME) {
+					throw Jolly.unexpected(memberNode);
+				}
+				
+				var symbol = new Symbol(enumTable) { type = new Value{ type = enumType, kind = Value.Kind.STATIC_VALUE, data = nextValue++ } };
+				enumTable.Add(((AST_Symbol)memberNode).text, symbol);
+			}
 		}
 		
 		void parseIf()
