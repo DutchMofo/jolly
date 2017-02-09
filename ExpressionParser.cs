@@ -29,7 +29,7 @@ struct Context
 		// the type of an auto variable must be inferred bofere the end.
 		DECLARATION,
 		TEMPLATE_LIST,
-		
+		TUPLE,
 		IF_CONDITION,
 		IF_TRUE,
 		IF_FALSE,

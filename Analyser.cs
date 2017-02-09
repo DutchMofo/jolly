@@ -117,7 +117,13 @@ static class Analyser
 		switch(ended.type)
 		{
 			case NT.IF: break;
-			case NT.MEMBER_TUPLE: break;
+			case NT.MEMBER_TUPLE: {
+				var tuple = (AST_Tuple)ended.node;
+				var tupleType = new DataType_Tuple(tuple.values.Count);
+				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.type);
+				ended.node.result.type = tupleType;
+				DataType.makeUnique(ref ended.node.result.type);
+			} break;
 			case NT.FUNCTION: break;
 			case NT.STRUCT: {
 				var structNode = (AST_Struct)ended.node;
@@ -156,6 +162,13 @@ static class Analyser
 	{
 		switch(ended.kind)
 		{
+			case Context.Kind.TUPLE: {
+				var tuple = (AST_Tuple)ended.target;
+				var tupleType = new DataType_Tuple(tuple.values.Count);
+				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.type);
+				ended.target.result.type = tupleType;
+				DataType.makeUnique(ref ended.target.result.type);
+			} break;
 			case Context.Kind.IF_CONDITION: {
 				var ifNode = (AST_If)ended.target;
 				ifNode.trueLabelId = (tempID += 1);
@@ -270,7 +283,7 @@ static class Analyser
 			} },
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
-			{ NT.TUPLE, node => { } },
+			{ NT.TUPLE, tupleContext },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.ENUM,   skipSymbol },
 		},
@@ -329,7 +342,7 @@ static class Analyser
 				}
 				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = values });
 			} },
-			{ NT.TUPLE, node => { } },
+			{ NT.TUPLE, tupleContext },
 			{ NT.MEMBER_TUPLE, node => {
 				var tuple = (AST_Tuple)node;
 				enclosureStack.Push(new Enclosure(tuple.nodeType, tuple, enclosure.scope, tuple.memberCount + cursor));
@@ -506,6 +519,9 @@ static class Analyser
 	
 	static void skipSymbol(AST_Node node)
 		=> cursor += (node as AST_Scope).memberCount;
+	
+	static void tupleContext(AST_Node node)
+		=> contextStack.Push(new Context(cursor + ((AST_Tuple)node).memberCount, Context.Kind.TUPLE) { target = node });
 	
 	static void declare(AST_Node node)
 	{

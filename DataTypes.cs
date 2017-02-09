@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace Jolly
 {
@@ -16,6 +17,7 @@ namespace Jolly
 		public static Dictionary<DataType, DataType>
 			allReferenceTypes = new Dictionary<DataType, DataType>();
 			
+		public static void makeUnique(DataType dataType) => makeUnique(ref dataType);
 		public static void makeUnique(ref DataType dataType)
 		{
 			DataType found;
@@ -38,6 +40,21 @@ namespace Jolly
 		public virtual Value? subscript(Value i, Value subscript, List<IR> instructions) => null;
 		
 		public override string ToString() => name;
+	}
+	
+	class DataType_Tuple : DataType
+	{
+		public DataType_Tuple(int memberCount) { members = new DataType[memberCount]; }
+		public DataType[] members;
+		public bool isVarTuple = true;
+		
+		public override int GetHashCode() => members.Length == 0 ? 0 : members.Select(m=>m.GetHashCode()).Aggregate((a,b)=>a << 7 & b);
+		public override bool Equals(object obj)
+		{
+			var other = obj as DataType_Tuple;
+			if(other == null) return false;
+			return  other.members.Length == members.Length && other.members.all((m,i)=>m==members[i]);
+		}
 	}
 	
 	class DataType_Reference : DataType
@@ -141,7 +158,8 @@ namespace Jolly
 		{
 			var arr = obj as DataType_Function;
 			if(arr != null) {
-				return !(returns.any((r, i) => arr.returns[i] != r) || arguments.any((a, i) => arr.arguments[i] != a));
+				return returns.Length == arr.returns.Length && arguments.Length == arr.arguments.Length &&
+					returns.all((r, i) => arr.returns[i] == r) && arguments.all((a, i) => arr.arguments[i] == a);
 			}
 			return false;
 		}
