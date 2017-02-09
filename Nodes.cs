@@ -148,7 +148,6 @@ namespace Jolly
 	}
 	
 	class AST_Return : AST_Node
-		
 	{
 		public AST_Return(SourceLocation loc, AST_Node returns)
 			: base(loc, NT.RETURN)

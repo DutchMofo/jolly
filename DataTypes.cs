@@ -33,8 +33,9 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
-		public virtual Value? getMember(AST_Node node, string name, List<IR> instruction) { return null; }
+		public virtual Value? getMember(Value i, string name, List<IR> instruction) => null;
 		public virtual Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
+		public virtual Value? subscript(Value i, Value subscript, List<IR> instructions) => null;
 		
 		public override string ToString() => name;
 	}
@@ -42,7 +43,7 @@ namespace Jolly
 	class DataType_Reference : DataType
 	{
 		public DataType referenced;
-		public byte depth; // How many pointers are there "int**" == 2, "int*" == 1
+		public byte depth; // How many pointers are there "int**" == 2, "int*" == 1, TODO: Do I even use this?
 		
 		public DataType_Reference(DataType referenced)
 		{
@@ -79,7 +80,7 @@ namespace Jolly
 		public DataType[] members;
 		public DataType_Struct inherits;
 		
-		public override Value? getMember(AST_Node node, string name, List<IR> instructions)
+		public override Value? getMember(Value i, string name, List<IR> instructions)
 		{
 			int index;
 			DataType_Struct iterator = this;
@@ -87,15 +88,13 @@ namespace Jolly
 			{
 				if(iterator.memberMap.TryGetValue(name, out index))
 				{
-					Value _struct = node.result;
+					Value _struct = i;
 					if(iterator != this) {
-						_struct = Analyser.newResult(new Value{ type = new DataType_Reference(iterator), kind = Value.Kind.STATIC_TYPE });						
-						makeUnique(ref _struct.type);
-						instructions.Add(new IR_Bitcast{ _from = node.result, _to = _struct.type, result = _struct });
+						DataType reference = new DataType_Reference(iterator);
+						makeUnique(ref reference);
+						_struct = Lookup.doCast<IR_Bitcast>(i, reference);
 					}
-					var result = Analyser.newResult(new Value { type = iterator.members[index], kind = Value.Kind.VALUE });
-					instructions.Add(new IR_GetMember{ _struct = _struct, index = index + (iterator.inherits == null ? 0 : 1), result = result });
-					return result;
+					return Lookup.getMember(_struct, index + (iterator.inherits == null ? 0 : 1), iterator.members[index]);
 				}
 				iterator = iterator.inherits;
 			}
@@ -111,9 +110,9 @@ namespace Jolly
 			while(iterator != null)
 			{
 				if(iterator == to) {
-					Value result = Analyser.newResult(new Value{ type = iterator, kind = Value.Kind.STATIC_TYPE });
-					instructions.Add(new IR_Bitcast{ _from = i, _to = result.type, result = result });
-					return result;
+					DataType reference = new DataType_Reference(iterator);
+					makeUnique(ref reference);
+					return Lookup.doCast<IR_Bitcast>(i, reference);
 				}
 			}
 			return null;
@@ -157,21 +156,35 @@ namespace Jolly
 		public override string ToString() => '%'+name;
 	}
 	
-	// class DataTypeArray : DataType
-	// {
-	// 	public DataType collectionType;
-	// 	public int length;
+	class DataType_Array : DataType
+	{
+		public DataType_Array(DataType collectionType) { this.collectionType = collectionType; }
+		
+		public DataType collectionType;
+		public int count = 10;
 				
-	// 	public override bool Equals(object obj)
-	// 	{
-	// 		var arr = obj as DataTypeArray;
-	// 		if(arr != null)
-	// 			return arr.length == length && arr.collectionType == collectionType;
-	// 		return false;
-	// 	}
-	// 	public override int GetHashCode()
-	// 		=> collectionType.GetHashCode() & length;
-			
-	// 	public override string ToString() => collectionType + "[]";
-	// }
+		public override bool Equals(object obj)
+		{
+			var arr = obj as DataType_Array;
+			if(arr != null) return arr.count == count && arr.collectionType == collectionType;
+			return false;
+		}
+		public override int GetHashCode()
+			=> collectionType.GetHashCode() << 7 & count;
+		
+		public override Value? getMember(Value i, string name, List<IR> instructions)
+		{
+			if(name == "count") return Lookup.doCast<IR_Bitcast>(i, Lookup.I64);
+			if(name == "data") {
+				DataType reference = new DataType_Reference(collectionType);
+				makeUnique(ref reference);
+				return Lookup.getMember(i, 1, reference);
+			}
+			return null;
+		}
+		public override Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
+		public override Value? subscript(Value i, Value subscript, List<IR> instructions) => null;
+		
+		public override string ToString() => "struct {{ i64, [{0} x {1}] }}".fill(count, collectionType);
+	}
 }

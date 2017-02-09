@@ -365,7 +365,7 @@ static class Analyser
 					DataType aR = returns[i];
 					Value bR = valueNodes[i].result;
 					if(aR != bR.type && !Lookup.implicitCasts.getCast(bR.type, aR, out cast)) {
-							throw Jolly.addError(valueNodes[i].location, "Invalid return value");
+						throw Jolly.addError(valueNodes[i].location, "Invalid return value");
 					}
 					values[i] = cast?.Invoke(bR, aR) ?? bR;
 				}
@@ -425,6 +425,10 @@ static class Analyser
 				instructions.Add(new IR_Br{ trueLabelId = land.trueLabelId, falseLabelId = land.falseLabelId, condition = land.condition.result });
 				instructions.Add(new IR_Label{ id = land.trueLabelId });
 				contextStack.Push(new Context(cursor + land.memberCount, Context.Kind.LOGIC_AND){ target = land });
+			} },
+			{ NT.BITCAST, node => {
+				var op = (AST_Operation)node;
+				op.result = Lookup.doCast<IR_Bitcast>(op.a.result, op.b.result.type);
 			} },
 			{ NT.LOGIC_NOT,   node => {
 				Cast cast;
@@ -491,7 +495,7 @@ static class Analyser
 		
 		switch(mod.toType) {
 			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
-			case AST_ModifyType.TO_ARRAY: /*Debug.Assert(false); break;*/
+			case AST_ModifyType.TO_ARRAY:   mod.result.type = new DataType_Array(mod.target.result.type);     break;
 			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
 			case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
 		}
@@ -601,12 +605,12 @@ static class Analyser
 		if(!valueIsStatic(a.result))
 		{
 			var varType = ((DataType_Reference)a.result.type).referenced;
-			var definition = varType.getMember(a, b.text, instructions);
+			var definition = varType.getMember(a.result, b.text, instructions);
 			
 			var refType = varType as DataType_Reference;
 			if(definition == null && refType != null) {
 				load(a);
-				definition = refType.referenced.getMember(a, b.text, instructions);
+				definition = refType.referenced.getMember(a.result, b.text, instructions);
 			}
 			
 			if(definition == null) {

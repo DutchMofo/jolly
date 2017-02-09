@@ -172,7 +172,14 @@ static class Lookup
 	
 	static Tuple<CastPair, Cast> tp(DataType _from, DataType _to, Cast cast) => new Tuple<CastPair, Cast>(new CastPair{ _from = _from, _to = _to }, cast);
 	
-	static Value doInstr<T>(Value a, Value b) where T : IR_Instr, new()
+	public static Value getMember(Value _struct, int index, DataType result)
+	{
+		var t = new IR_GetMember { _struct = _struct, index = index, result = Analyser.newResult(new Value{ type = result, kind = Value.Kind.VALUE }) };
+		Analyser.instructions.Add(t);
+		return t.result;
+	}
+	
+	public static Value doInstr<T>(Value a, Value b) where T : IR_Instr, new()
 	{
 		var t = new T { a = a, b = b, result = Analyser.newResult(a) };
 		Analyser.instructions.Add(t);
@@ -180,7 +187,7 @@ static class Lookup
 		return t.result;
 	}
 	
-	static Value doCast<T>(Value _from, DataType _to) where T : IR_Cast, new()
+	public static Value doCast<T>(Value _from, DataType _to) where T : IR_Cast, new()
 	{
 		var t = new T { _to = _to, _from = _from };
 		Analyser.instructions.Add(t);

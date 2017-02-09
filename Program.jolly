@@ -1,22 +1,4 @@
 
-int main()
-{
-	AnalyseTest a = {
-		id: ID.OTHER,
-		count: 10,
-		number: 12,
-	};
-	
-	swapCountNumber(&a);
-	return !~10;
-}
-
-AnalyseTest* swapCountNumber(AnalyseTest* b)
-{
-	b.(count, number) = b.(number, count);
-	return b;
-}
-
 enum ID
 {
 	ANALYSE_TEST,
@@ -32,4 +14,25 @@ struct AnalyseTest : StructID
 {
 	int count;
 	int number;
+}
+
+int main()
+{
+	AnalyseTest a = {
+		id: ID.OTHER,
+		count: 10,
+		number: 12,
+	};
+	
+	
+	int[] data;
+	
+	swapCountNumber(&a);
+	return (i32: data.count);
+}
+
+AnalyseTest* swapCountNumber(AnalyseTest* b)
+{
+	b.(count, number) = b.(number, count);
+	return b;
 }

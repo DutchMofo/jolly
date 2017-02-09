@@ -588,6 +588,8 @@ class ExpressionParser
 		if(target == null) {
 			throw Jolly.unexpected(token);
 		}
+		
+		values.Push(null);
 		operators.Push(new Operator(255, 0, false, NT.BRACKET_OPEN, false, token.location));
 		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.SUBSCRIPT){ target = target });
 	}
@@ -632,6 +634,10 @@ class ExpressionParser
 			var opNode = new AST_Operation(token.location, NT.SUBSCRIPT, a, null);
 			parseData.ast.Add(opNode);
 			values.Push(opNode);
+		}
+		
+		if(values.Peek() == null) {
+			values.Pop();
 		}
 	}
 	
