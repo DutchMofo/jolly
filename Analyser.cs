@@ -294,14 +294,12 @@ static class Analyser
 			{ NT.ENUM,   skipSymbol },
 			{ NT.OBJECT, node => {
 				var _object = (AST_Object)node;
+				_object.infer = inferObject;
 				_object.onUsed = storeObject;
 				_object.startIndex = cursor + 1;
 				cursor += _object.memberCount;
 			} },
-			{ NT.INITIALIZER, node => {
-				var init = (AST_Operation)node;
-				assign(init.a, init.b);
-			} },
+			{ NT.INITIALIZER, assign },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
@@ -405,6 +403,7 @@ static class Analyser
 			{ NT.LOGIC_AND,    node => {
 				// 'or' and 'and' ended up swapped
 				var lor = (AST_Logic)node;
+				inferOperands(lor);
 				
 				if(lor.condition.result.type != Lookup.I1)
 				{
@@ -423,6 +422,7 @@ static class Analyser
 			} },
 			{ NT.LOGIC_OR,   node => {
 				var land = (AST_Logic)node;
+				inferOperands(land);
 				
 				if(land.condition.result.type != Lookup.I1)
 				{
@@ -441,11 +441,13 @@ static class Analyser
 			} },
 			{ NT.BITCAST, node => {
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				op.result = Lookup.doCast<IR_Bitcast>(op.a.result, op.b.result.type);
 			} },
 			{ NT.LOGIC_NOT,   node => {
 				Cast cast;
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				if(!Lookup.casts.getCast(op.a.result.type, Lookup.I1, out cast)) {
 					throw Jolly.addError(op.location, "Cannot use operator '!' on"+node.result.type);
 				}
@@ -455,15 +457,13 @@ static class Analyser
 			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
-			{ NT.ASSIGN, node => {
-				var op = (AST_Operation)node;
-				assign(op.a, op.b);
-				op.result = op.b.result;
-			} },
+			{ NT.ASSIGN, assign },
 			{ NT.REFERENCE, node => {
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {
 					throw Jolly.addError(op.location, "Cannot get a reference to this");
 				}
@@ -472,6 +472,7 @@ static class Analyser
 			} },
 			{ NT.DEREFERENCE, node => {
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				if(op.a.result.kind == Value.Kind.ADDRES) {
 					op.a.result.kind = Value.Kind.VALUE;
 				} else {
@@ -482,6 +483,7 @@ static class Analyser
 			} },
 			{ NT.CAST, node => {
 				var op = (AST_Operation)node;
+				inferOperands(op);
 				load(op.b);
 				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
@@ -569,46 +571,28 @@ static class Analyser
 		}
 	}
 
-	static void assign(AST_Node a, AST_Node b)
+	static void assign(AST_Node node)
 	{
-		bool aIsTuple = a.nodeType == NT.TUPLE | a.nodeType == NT.MEMBER_TUPLE;
-		bool bIsTuple = b.nodeType == NT.TUPLE | b.nodeType == NT.MEMBER_TUPLE;
-		if(!aIsTuple & !bIsTuple)
+		var op = (AST_Operation)node;
+		inferOperands(op);
+		load(op.b);
+		
+		var target = op.a.result.type as DataType_Reference;
+		if(target == null) {
+			throw Jolly.addError(op.a.location, "Cannot assign to this");
+		}
+					
+		if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
+		
+		if(target.referenced != op.b.result.type)
 		{
-			load(b);
-			
-			var target = a.result.type as DataType_Reference;
-			if(target == null) {
-				throw Jolly.addError(a.location, "Cannot assign to this");
+			Cast cast;
+			if(!Lookup.implicitCasts.getCast(op.b.result.type, target.referenced, out cast)) {
+				throw Jolly.addError(op.a.location, "Cannot assign this value type");
 			}
-						
-			if(b.onUsed?.Invoke(a, b, instructions) ?? false) return;
-			
-			if(target.referenced != b.result.type)
-			{
-				Cast cast;
-				if(!Lookup.implicitCasts.getCast(b.result.type, target.referenced, out cast)) {
-					throw Jolly.addError(a.location, "Cannot assign this value type");
-				}
-				b.result = cast(b.result, target.referenced);
-			}
-			
-			instructions.Add(new IR_Store{ location = a.result, _value = b.result, result = b.result });
+			op.b.result = cast(op.b.result, target.referenced);
 		}
-		else if(aIsTuple & bIsTuple)
-		{
-			var aVals = ((AST_Tuple)a).values;
-			var bVals = ((AST_Tuple)b).values;
-			if(aVals.Count != bVals.Count) {
-				throw Jolly.addError(a.location, "Tuple's not the same size");
-			}
-			aVals.forEach((aVal, i) => assign(aVal, bVals[i]));
-		}
-		else if(aIsTuple & !bIsTuple) {
-			((AST_Tuple)a).values.forEach(v => assign(v, b));
-		} else {
-			throw Jolly.addError(a.location, "Cannot assign tuple to variable");
-		}
+		instructions.Add(new IR_Store{ location = op.a.result, _value = op.b.result, result = op.b.result });
 	}
 	
 	static Value operatorGetMember(ref AST_Node a, AST_Symbol b)
@@ -621,12 +605,12 @@ static class Analyser
 		if(!valueIsStatic(a.result))
 		{
 			var varType = ((DataType_Reference)a.result.type).referenced;
-			var definition = varType.getMember(a.result, b.text, instructions);
+			var definition = varType.getMember(a.result, b.text);
 			
 			var refType = varType as DataType_Reference;
 			if(definition == null && refType != null) {
 				load(a);
-				definition = refType.referenced.getMember(a.result, b.text, instructions);
+				definition = refType.referenced.getMember(a.result, b.text);
 			}
 			
 			if(definition == null) {
@@ -653,8 +637,8 @@ static class Analyser
 	static void basicOperator(AST_Node node, Dictionary<DataType, Instr> instrs)
 	{
 		var op = (AST_Operation)node;
-		load(op.a);
-		load(op.b);
+		inferOperands(op);
+		load(op.a); load(op.b);
 		if(op.a.result.type != op.b.result.type)
 		{
 			Cast cast;
@@ -694,6 +678,17 @@ static class Analyser
 		}
 	}
 	
+	static void inferOperands(AST_Operation op)
+	{
+		if(op.leftToRight) {
+			op.a.infer?.Invoke(op.a, op.b, instructions);
+			op.b.infer?.Invoke(op.b, op.a, instructions);
+		} else {
+			op.b.infer?.Invoke(op.b, op.a, instructions);
+			op.a.infer?.Invoke(op.a, op.b, instructions);
+		}
+	}
+	
 	static void getTypeFromName(AST_Node node)
 	{
 		if(node.result.type != null) {
@@ -721,6 +716,11 @@ static class Analyser
 	/*###########
 	    Hooks
 	###########*/
+	
+	static bool inferObject(AST_Node i, AST_Node other, List<IR> instructions)
+	{
+		
+	}
 	
 	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
 	{

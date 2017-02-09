@@ -35,9 +35,11 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
-		public virtual Value? getMember(Value i, string name, List<IR> instruction) => null;
-		public virtual Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
-		public virtual Value? subscript(Value i, Value subscript, List<IR> instructions) => null;
+		public virtual Value? getMember(Value i, string name) => null;
+		public virtual Value? implicitCast(Value i, DataType to) => null;
+		public virtual Value? subscript(Value i, Value subscript) => null;
+		
+		public virtual Value? operator_assign(Value other) => null;
 		
 		public override string ToString() => name;
 	}
@@ -97,7 +99,7 @@ namespace Jolly
 		public DataType[] members;
 		public DataType_Struct inherits;
 		
-		public override Value? getMember(Value i, string name, List<IR> instructions)
+		public override Value? getMember(Value i, string name)
 		{
 			int index;
 			DataType_Struct iterator = this;
@@ -118,7 +120,7 @@ namespace Jolly
 			return null;
 		}
 		
-		public override Value? implicitCast(Value i, DataType to, List<IR> instructions)
+		public override Value? implicitCast(Value i, DataType to)
 		{
 			if(!(to is DataType_Reference)) {
 				return null;
@@ -190,7 +192,7 @@ namespace Jolly
 		public override int GetHashCode()
 			=> collectionType.GetHashCode() << 7 & count;
 		
-		public override Value? getMember(Value i, string name, List<IR> instructions)
+		public override Value? getMember(Value i, string name)
 		{
 			if(name == "count") return Lookup.doCast<IR_Bitcast>(i, Lookup.I64);
 			if(name == "data") {
@@ -200,9 +202,8 @@ namespace Jolly
 			}
 			return null;
 		}
-		public override Value? implicitCast(Value i, DataType to, List<IR> instructions) => null;
-		public override Value? subscript(Value i, Value subscript, List<IR> instructions) => null;
 		
+		public override Value? subscript(Value i, Value subscript) => null;
 		public override string ToString() => "struct {{ i64, [{0} x {1}] }}".fill(count, collectionType);
 	}
 }

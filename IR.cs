@@ -4,7 +4,7 @@ namespace Jolly
 {
 	class _IR
 	{
-		public Value value;
+		// public Value value;
 	}
 	
 	abstract class _IR_Operation

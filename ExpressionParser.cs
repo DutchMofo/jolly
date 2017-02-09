@@ -631,7 +631,7 @@ class ExpressionParser
 				values.Push(mod);
 				return;
 			}
-			var opNode = new AST_Operation(token.location, NT.SUBSCRIPT, a, null);
+			var opNode = new AST_Operation(token.location, NT.SUBSCRIPT, a, null, false);
 			parseData.ast.Add(opNode);
 			values.Push(opNode);
 		}
@@ -783,8 +783,8 @@ class ExpressionParser
 				}
 				// Slice allows a value to be null
 				var slice = (a == null) ?
-					new AST_Operation(op.location, NT.SLICE, b, null) :
-					new AST_Operation(op.location, NT.SLICE, a, b);
+					new AST_Operation(op.location, NT.SLICE, b, null, true) :
+					new AST_Operation(op.location, NT.SLICE, a, b, true);
 				parseData.ast.Add(slice);
 				values.Push(slice);
 				return;
@@ -857,7 +857,7 @@ class ExpressionParser
 			Jolly.addNote(op.location, "Compiler: unnecessary operator marked special {0}".fill(op.operation));
 		} // if(op.isSpecial)
 		
-		AST_Operation opNode = new AST_Operation(op.location, op.operation, a, b);
+		AST_Operation opNode = new AST_Operation(op.location, op.operation, a, b, op.leftToRight);
 		parseData.ast.Add(opNode);
 		values.Push(opNode);
 	} // pushOperator()

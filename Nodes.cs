@@ -141,7 +141,7 @@ namespace Jolly
 		public Type nodeType;
 		public Value result;
 		
-		public Hook onUsed;
+		public Hook onUsed, infer;
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
@@ -157,20 +157,18 @@ namespace Jolly
 		public AST_Node values;
 	}
 	
-	class AST_Logic : AST_Node
+	class AST_Logic : AST_Operation
 	{
 		public AST_Logic(SourceLocation loc, NT operation, int memberCount, int count, AST_Node condition, AST_Node a, AST_Node b)
-			: base(loc, operation)
+			: base(loc, operation, a, b, true)
 		{
 			this.memberCount = memberCount;
 			this.condition = condition;
 			this.count = count;
-			this.a = a;
-			this.b = b;
 		}
 		
 		public int memberCount, count, trueLabelId, falseLabelId;
-		public AST_Node condition, a, b;
+		public AST_Node condition;
 	}
 	
 	class AST_If : AST_Node
@@ -201,7 +199,6 @@ namespace Jolly
 	{
 		public AST_Object(SourceLocation loc, NT type) : base(loc, type) { }
 		public int memberCount, startIndex;
-		public IR_Allocate allocation;
 		public AST_Node inferFrom;
 		public bool isArray;
 	}
@@ -276,13 +273,15 @@ namespace Jolly
 		
 	class AST_Operation : AST_Node
 	{
-		public AST_Operation(SourceLocation loc, NT operation, AST_Node a, AST_Node b)
+		public AST_Operation(SourceLocation loc, NT operation, AST_Node a, AST_Node b, bool leftToRight)
 			: base(loc, operation)
 		{
+			this.leftToRight = leftToRight;
 			this.a = a;
 			this.b = b;
 		}
-				
+		
+		public bool leftToRight;
 		public AST_Node a, b;
 	}
 }
