@@ -5,29 +5,7 @@ namespace Jolly
 {
     using NT = AST_Node.Type;
 	using Hook = Func<AST_Node, AST_Node, List<IR>, bool>;
-	
-	struct Value
-	{
-		public enum Kind : byte
-		{
-			UNDEFINED = 0,
-			STATIC_TYPE,
-			STATIC_VALUE,
-			STATIC_FUNCTION,
-			VALUE,
-			ADDRES,
-		}
 		
-		public DataType type;
-		public object data;
-		public int tempID;
-		public Kind kind;
-		
-		public override string ToString() => (kind == Kind.STATIC_VALUE) ?
-			"{0} {1}".fill(type, data?.ToString().ToLower()) :
-			"{0} %{1}".fill(type, tempID);
-	}
-	
 	class AST_Node
 	{
 		public AST_Node() { }
@@ -74,8 +52,8 @@ namespace Jolly
 			##############*/
 			REFERENCE,
 			DEREFERENCE,
-			PLUS,
-			MINUS,
+			ADD,
+			SUBTRACT,
 			LOGIC_AND,
 			LOGIC_OR,
 			LOGIC_NOT,
@@ -94,11 +72,16 @@ namespace Jolly
 			SHIFT_RIGHT,
 			SLICE,
 			CAST,
-			BITCAST,
 			LESS,
 			GREATER,
 			NEW,
 			DELETE,
+			EXTEND,
+			ALLOCATE,
+			TRUNCATE,
+			REINTERPRET,
+			INT_TO_FLOAT,
+			FLOAT_TO_INT,
 			
 			TERNARY,
 			TERNARY_SELECT,
@@ -107,9 +90,9 @@ namespace Jolly
 			##########################*/
 			AND_ASSIGN,
 			OR_ASSIGN,
-			ASTERISK_ASSIGN,
-			MINUS_ASSIGN,
-			PLUS_ASSIGN,
+			MULTIPLY_ASSIGN,
+			SUBTRACT_ASSIGN,
+			ADD_ASSIGN,
 			SLASH_ASSIGN,
 			PERCENT_ASSIGN,
 			CARET_ASSIGN,
@@ -139,7 +122,7 @@ namespace Jolly
 		
 		public SourceLocation location;
 		public Type nodeType;
-		public Value result;
+		public IR result;
 		
 		public Hook onUsed, infer;
 		

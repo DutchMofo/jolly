@@ -21,7 +21,7 @@ namespace Jolly
 		public Symbol() { }
 		public Symbol(SymbolTable parent) { this.parent = parent; }
 		public SymbolTable parent;
-		public Value type;
+		public DataType type;
 		
 		public virtual Symbol searchSymbol(string name) => null;
 		public virtual Symbol getChildSymbol(string name) => null;

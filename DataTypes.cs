@@ -11,6 +11,7 @@ namespace Jolly
 			NONE         = 0,
 			BASE_TYPE    = 1<<0,
 			INSTANTIABLE = 1<<1,
+			SIGNED       = 1<<2,
 		}
 		
 		static int lastTypeID = 40;
@@ -35,11 +36,11 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
-		public virtual Value? getMember(Value i, string name) => null;
-		public virtual Value? implicitCast(Value i, DataType to) => null;
-		public virtual Value? subscript(Value i, Value subscript) => null;
+		public virtual IR getMember(IR i, string name) => null;
+		public virtual IR implicitCast(IR i, DataType to) => null;
+		public virtual IR subscript(IR i, IR subscript) => null;
 		
-		public virtual Value? operator_assign(Value other) => null;
+		public virtual IR operator_assign(IR other) => null;
 		
 		public override string ToString() => name;
 	}
@@ -109,8 +110,8 @@ namespace Jolly
 				{
 					Value _struct = i;
 					if(iterator != this) {
-						DataType reference = new DataType_Reference(iterator);
-						makeUnique(ref reference);
+						// DataType reference = new DataType_Reference(iterator);
+						// makeUnique(ref reference);
 						_struct = Lookup.doCast<IR_Bitcast>(i, reference);
 					}
 					return Lookup.getMember(_struct, index + (iterator.inherits == null ? 0 : 1), iterator.members[index]);
@@ -129,8 +130,8 @@ namespace Jolly
 			while(iterator != null)
 			{
 				if(iterator == to) {
-					DataType reference = new DataType_Reference(iterator);
-					makeUnique(ref reference);
+					// DataType reference = new DataType_Reference(iterator);
+					// makeUnique(ref reference);
 					return Lookup.doCast<IR_Bitcast>(i, reference);
 				}
 			}

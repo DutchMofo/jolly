@@ -322,7 +322,7 @@ class ExpressionParser
 			structType.memberMap.Add(name, structType.memberMap.Count);
 			
 			variableNode = new AST_Declaration(token.location, target, scope, name);
-			variableNode.result.kind = Value.Kind.VALUE;
+			variableNode.result.dKind = Value.Kind.VALUE;
 		}
 		else if(defineMode == DefineMode.STATEMENT ||
 				defineMode == DefineMode.ARGUMENT)

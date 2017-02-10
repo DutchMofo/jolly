@@ -8,8 +8,7 @@ using TT = Token.Type;
 using NT = AST_Node.Type;
 using Operator = ExpressionParser.Operator;
 
-using Cast = Func<Value,DataType,Value>;
-using Instr = Func<Value,Value,Value>;
+using Cast = Func<IR, DataType, IR>;
 
 static class Lookup 
 {
@@ -24,18 +23,17 @@ static class Lookup
 			directives.Add(names[i].ToLower(), values[i]);
 	}
 	
-	const DataType.Flags BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE, INSTANTIABLE = DataType.Flags.INSTANTIABLE;
+	const DataType.Flags
+		BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE | DataType.Flags.SIGNED,
+		U_BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE,
+		INSTANTIABLE = DataType.Flags.INSTANTIABLE;
 	
 	public static readonly DataType
 		I1       = new DataType{ name = "i1",     size = 1,  align = 1, typeID = 1,  flags = BASE_TYPE },
-		I8       = new DataType{ name = "i8",     size = 1,  align = 1, typeID = 2,  flags = BASE_TYPE },
-		U8       = new DataType{ name = "u8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
-		I16      = new DataType{ name = "i16",    size = 2,  align = 2, typeID = 4,  flags = BASE_TYPE },
-		U16      = new DataType{ name = "u16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
-		I32      = new DataType{ name = "i32",    size = 4,  align = 4, typeID = 6,  flags = BASE_TYPE },
-		U32      = new DataType{ name = "u32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
-		I64      = new DataType{ name = "i64",    size = 8,  align = 8, typeID = 8,  flags = BASE_TYPE },
-		U64      = new DataType{ name = "u64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
+		I8       = new DataType{ name = "u8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
+		I16      = new DataType{ name = "u16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
+		I32      = new DataType{ name = "u32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
+		I64      = new DataType{ name = "u64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
 		F32      = new DataType{ name = "f32",    size = 4,  align = 4, typeID = 10, flags = BASE_TYPE },
 		F64      = new DataType{ name = "f64",    size = 4,  align = 4, typeID = 11, flags = BASE_TYPE },
 		VOID     = new DataType{ name = "void",   size = 0,  align = 0, typeID = 12, flags = BASE_TYPE },
@@ -49,13 +47,9 @@ static class Lookup
 	static readonly DataType[] baseTypes = new DataType[] {
 		I1,  I1,
 		I8,  I8,
-		U8,  U8,
 		I16, I16,
-		U16, U16,
 		I32, I32,
-		U32, U32,
 		I64, I64,
-		U64, U64,
 		F32, F32,
 		F64, F64,
 		VOID,
@@ -70,43 +64,43 @@ static class Lookup
 	
 	public readonly static Dictionary<TT, Operator>
 		OPERATORS = new Dictionary<TT, Operator>() {
-			{ TT.PERIOD,          new Operator(01, 2, true,  NT.GET_MEMBER      )},
-			{ TT.EXCLAMATION,     new Operator(02, 1, false, NT.LOGIC_NOT       )},
-			{ TT.TILDE,           new Operator(02, 1, false, NT.BIT_NOT         )},
-			{ TT.NEW,             new Operator(02, 1, false, NT.NEW             )},
-			{ TT.DELETE,          new Operator(02, 1, false, NT.DELETE          )},
-			{ TT.AS,              new Operator(03, 2, true,  NT.CAST            )},
-			{ TT.PERCENT,         new Operator(03, 2, true,  NT.MODULO          )},
-			{ TT.ASTERISK,        new Operator(03, 2, true,  NT.MULTIPLY,  true )},
-			{ TT.SLASH,           new Operator(03, 2, true,  NT.DIVIDE          )},
-			{ TT.MINUS,           new Operator(04, 2, true,  NT.MINUS           )},
-			{ TT.PLUS,            new Operator(04, 2, true,  NT.PLUS            )},
-			{ TT.GREATER_GREATER, new Operator(05, 2, true,  NT.SHIFT_RIGHT     )},
-			{ TT.LESS_LESS,       new Operator(05, 2, true,  NT.SHIFT_LEFT      )},
-			{ TT.LESS_EQUAL,      new Operator(06, 2, true,  NT.LESS_EQUAL      )},
-			{ TT.LESS,            new Operator(06, 2, true,  NT.LESS            )},
-			{ TT.GREATER_EQUAL,   new Operator(06, 2, true,  NT.GREATER_EQUAL   )},
-			{ TT.GREATER,         new Operator(06, 2, true,  NT.GREATER         )},
-			{ TT.NOT_EQUAL,       new Operator(07, 2, true,  NT.NOT_EQUAL       )},
-			{ TT.EQUAL_EQUAL,     new Operator(07, 2, true,  NT.EQUAL_TO        )},
-			{ TT.AND,             new Operator(08, 2, true,  NT.BIT_AND         )},
-			{ TT.CARET,           new Operator(09, 2, true,  NT.BIT_XOR         )},
-			{ TT.PIPE,            new Operator(10, 2, true,  NT.BIT_OR          )},
-			{ TT.AND_AND,         new Operator(11, 2, true,  NT.LOGIC_AND, true )},
-			{ TT.OR_OR,           new Operator(12, 2, true,  NT.LOGIC_OR,  true )},
-			{ TT.COLON_TILDE,     new Operator(13, 2, false, NT.BITCAST,   true )},
-			{ TT.QUESTION_MARK,   new Operator(14, 2, false, NT.TERNARY,   true )},
-			{ TT.COLON,           new Operator(14, 2, true,  NT.COLON,     true )},
-			{ TT.COMMA,           new Operator(15, 2, true,  NT.COMMA           )},
-			{ TT.EQUAL,           new Operator(16, 2, false, NT.ASSIGN          )},
-			{ TT.AND_EQUAL,       new Operator(16, 2, false, NT.AND_ASSIGN      )},
-			{ TT.SLASH_EQUAL,     new Operator(16, 2, false, NT.SLASH_ASSIGN    )},
-			{ TT.MINUS_EQUAL,     new Operator(16, 2, false, NT.MINUS_ASSIGN    )},
-			{ TT.PERCENT_EQUAL,   new Operator(16, 2, false, NT.PERCENT_ASSIGN  )},
-			{ TT.ASTERISK_EQUAL,  new Operator(16, 2, false, NT.ASTERISK_ASSIGN )},
-			{ TT.OR_EQUAL,        new Operator(16, 2, false, NT.OR_ASSIGN       )},
-			{ TT.PLUS_EQUAL,      new Operator(16, 2, false, NT.PLUS_ASSIGN     )},
-			{ TT.CARET_EQUAL,     new Operator(16, 2, false, NT.CARET_ASSIGN    )},
+			{ TT.PERIOD,          new Operator(01, 2, true,  NT.GET_MEMBER        )},
+			{ TT.EXCLAMATION,     new Operator(02, 1, false, NT.LOGIC_NOT         )},
+			{ TT.TILDE,           new Operator(02, 1, false, NT.BIT_NOT           )},
+			{ TT.NEW,             new Operator(02, 1, false, NT.NEW               )},
+			{ TT.DELETE,          new Operator(02, 1, false, NT.DELETE            )},
+			{ TT.AS,              new Operator(03, 2, true,  NT.CAST              )},
+			{ TT.PERCENT,         new Operator(03, 2, true,  NT.MODULO            )},
+			{ TT.ASTERISK,        new Operator(03, 2, true,  NT.MULTIPLY,    true )},
+			{ TT.SLASH,           new Operator(03, 2, true,  NT.DIVIDE            )},
+			{ TT.MINUS,           new Operator(04, 2, true,  NT.SUBTRACT          )},
+			{ TT.PLUS,            new Operator(04, 2, true,  NT.ADD               )},
+			{ TT.GREATER_GREATER, new Operator(05, 2, true,  NT.SHIFT_RIGHT       )},
+			{ TT.LESS_LESS,       new Operator(05, 2, true,  NT.SHIFT_LEFT        )},
+			{ TT.LESS_EQUAL,      new Operator(06, 2, true,  NT.LESS_EQUAL        )},
+			{ TT.LESS,            new Operator(06, 2, true,  NT.LESS              )},
+			{ TT.GREATER_EQUAL,   new Operator(06, 2, true,  NT.GREATER_EQUAL     )},
+			{ TT.GREATER,         new Operator(06, 2, true,  NT.GREATER           )},
+			{ TT.NOT_EQUAL,       new Operator(07, 2, true,  NT.NOT_EQUAL         )},
+			{ TT.EQUAL_EQUAL,     new Operator(07, 2, true,  NT.EQUAL_TO          )},
+			{ TT.AND,             new Operator(08, 2, true,  NT.BIT_AND           )},
+			{ TT.CARET,           new Operator(09, 2, true,  NT.BIT_XOR           )},
+			{ TT.PIPE,            new Operator(10, 2, true,  NT.BIT_OR            )},
+			{ TT.AND_AND,         new Operator(11, 2, true,  NT.LOGIC_AND,   true )},
+			{ TT.OR_OR,           new Operator(12, 2, true,  NT.LOGIC_OR,    true )},
+			{ TT.COLON_TILDE,     new Operator(13, 2, false, NT.REINTERPRET, true )},
+			{ TT.QUESTION_MARK,   new Operator(14, 2, false, NT.TERNARY,     true )},
+			{ TT.COLON,           new Operator(14, 2, true,  NT.COLON,       true )},
+			{ TT.COMMA,           new Operator(15, 2, true,  NT.COMMA             )},
+			{ TT.EQUAL,           new Operator(16, 2, false, NT.ASSIGN            )},
+			{ TT.AND_EQUAL,       new Operator(16, 2, false, NT.AND_ASSIGN        )},
+			{ TT.SLASH_EQUAL,     new Operator(16, 2, false, NT.SLASH_ASSIGN      )},
+			{ TT.MINUS_EQUAL,     new Operator(16, 2, false, NT.SUBTRACT_ASSIGN   )},
+			{ TT.PERCENT_EQUAL,   new Operator(16, 2, false, NT.PERCENT_ASSIGN    )},
+			{ TT.ASTERISK_EQUAL,  new Operator(16, 2, false, NT.MULTIPLY_ASSIGN   )},
+			{ TT.OR_EQUAL,        new Operator(16, 2, false, NT.OR_ASSIGN         )},
+			{ TT.PLUS_EQUAL,      new Operator(16, 2, false, NT.ADD_ASSIGN        )},
+			{ TT.CARET_EQUAL,     new Operator(16, 2, false, NT.CARET_ASSIGN      )},
 		};
 	
 	//In ascii order
@@ -148,8 +142,105 @@ static class Lookup
 	public static Dictionary<string, Token.Type>
 		directives = new Dictionary<string, Token.Type>(),
 		keywords = new Dictionary<string, Token.Type>();
+	
+	
+	public class CastLookup : Dictionary<int, Cast>
+	{
+		public void Add(DataType a, DataType b)
+		{
+			Add(a, b, casts[a.GetHashCode() << 8 + b.GetHashCode()]);
+		}
 		
-	public struct CastPair
+		public void Add(DataType a, DataType b, Cast cast)
+		{
+			Add(a.GetHashCode() << 8 + b.GetHashCode(), cast);
+		}
+		
+		public bool get(DataType a, DataType b, out Cast cast)
+		{
+			return TryGetValue(a.GetHashCode() << 8 + b.GetHashCode(), out cast);
+		}
+	}
+	
+	public static CastLookup casts = new CastLookup() {
+		{ I1,  I8,  (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (sbyte)((bool)c ? 1 : 0)) },
+		{ I1,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)((bool)c ? 1 : 0)) },
+		{ I1,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)((bool)c ? 1 : 0)) },
+		{ I1,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)((bool)c ? 1 : 0)) },
+		{ I1,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)((bool)c ? 1 : 0)) },
+		{ I1,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)((bool)c ? 1 : 0)) },
+		
+		{ I8,  I1,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) =>        (sbyte)c != 0) },
+		{ I8,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)(sbyte)c)      },
+		{ I8,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(sbyte)c)      },
+		{ I8,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(sbyte)c)      },
+		{ I8,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(sbyte)c)      },
+		{ I8,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(sbyte)c)      },
+		
+		{ I16, I1,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) =>        (short)c != 0) },
+		{ I16, I8,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) => (sbyte)(short)c)      },
+		{ I16, I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(short)c)      },
+		{ I16, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(short)c)      },
+		{ I16, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(short)c)      },
+		{ I16, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(short)c)      },
+		
+		{ I32, I1,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) =>        (int)c != 0) },
+		{ I32, I8,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) => (sbyte)(int)c)      },
+		{ I32, I16, (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) => (short)(int)c)      },
+		{ I32, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(int)c)      },
+		{ I32, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(int)c)      },
+		{ I32, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(int)c)      },
+		
+		{ I64, I1,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) =>        (long)c != 0) },
+		{ I64, I8,  (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) => (sbyte)(long)c)      },
+		{ I64, I16, (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) => (short)(long)c)      },
+		{ I64, I32, (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d) =>   (int)(long)c)      },
+		{ I64, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(long)c)      },
+		{ I64, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(long)c)      },
+		
+		{ F32, I1,  (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d) =>        (float)c != 0) },
+		{ F32, I8,  (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d) => (sbyte)(float)c)      },
+		{ F32, I16, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d) => (short)(float)c)      },
+		{ F32, I32, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d) =>   (int)(float)c)      },
+		{ F32, I64, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d) =>  (long)(float)c)      },
+		{ F32, F64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>(double)(float)c)      },
+		
+		{ F64, I1,  (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=>        (double)c != 0) },
+		{ F64, I8,  (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=> (sbyte)(double)c)      },
+		{ F64, I16, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=> (short)(double)c)      },
+		{ F64, I32, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=>   (int)(double)c)      },
+		{ F64, I64, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=>  (long)(double)c)      },
+		{ F64, F32, (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d)=> (float)(double)c)      },
+	}, implicitCast = new CastLookup() {
+		{ I1,  I8,  (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (sbyte)((bool)c ? 1 : 0)) },
+		{ I1,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)((bool)c ? 1 : 0)) },
+		{ I1,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)((bool)c ? 1 : 0)) },
+		{ I1,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)((bool)c ? 1 : 0)) },
+		{ I1,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)((bool)c ? 1 : 0)) },
+		{ I1,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)((bool)c ? 1 : 0)) },
+		
+		{ I8,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)(sbyte)c) },
+		{ I8,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(sbyte)c) },
+		{ I8,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(sbyte)c) },
+		{ I8,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(sbyte)c) },
+		{ I8,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(sbyte)c) },
+		
+		{ I16, I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(short)c) },
+		{ I16, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(short)c) },
+		{ I16, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(short)c) },
+		{ I16, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(short)c) },
+		
+		{ I32, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(int)c)   },
+		{ I32, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(int)c)   },
+		{ I32, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(int)c)   },
+		
+		{ I64, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(long)c)  },
+		{ I64, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(long)c)  },
+		
+		{ F32, F64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>(double)(float)c) },
+	};
+	
+	/*public struct CastPair
 	{
 		public DataType _from, _to;
 		public override int GetHashCode()
@@ -187,7 +278,7 @@ static class Lookup
 		return t.result;
 	}
 	
-	public static Value doCast<T>(Value _from, DataType _to) where T : IR_Cast, new()
+	public static IR doCast<T>(IR _from, DataType _to) where T : IR_Cast, new()
 	{
 		var t = new T { _to = _to, _from = _from };
 		Analyser.instructions.Add(t);
@@ -394,7 +485,7 @@ static class Lookup
 			{ U16, doInstr<IR_Xor>  }, { I16, doInstr<IR_Xor>  },
 			{ U32, doInstr<IR_Xor>  }, { I32, doInstr<IR_Xor>  },
 			{ U64, doInstr<IR_Xor>  }, { I64, doInstr<IR_Xor>  },
-		};
+		};*/
 }
 
 }

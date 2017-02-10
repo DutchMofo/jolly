@@ -5,9 +5,7 @@ using System;
 namespace Jolly
 {
 using NT = AST_Node.Type;
-
-using Cast = Func<Value,DataType,Value>;
-using Instr = Func<Value,Value,Value>;
+using Cast = Func<IR, DataType, IR>;
 
 static class Analyser
 {
@@ -70,12 +68,27 @@ static class Analyser
 		cursor += 1;
 	}
 	
-	static int tempID = 0;
-	public static Value newResult(Value _value)
-		=> new Value{ type = _value.type, kind = _value.kind, tempID = (tempID += 1) };
-		
-	public static bool valueIsStatic(Value val)
-		=> val.kind == Value.Kind.STATIC_TYPE | val.kind == Value.Kind.STATIC_FUNCTION;
+	static void swap(ref List<IR> a, ref List<IR> b)
+	{
+		var _swp = a;
+		a = b;
+		b = _swp;
+	}
+	
+	static void implicitCast(ref IR ir, DataType to)
+	{
+		if(ir.dType != to)
+		{
+			Cast cast;
+			if(!Lookup.implicitCast.get(ir.dType, to, out cast)) {
+				throw Jolly.addError(new SourceLocation(), "Cannot implicitly cast ");
+			}
+			ir = cast(ir, to);
+		}
+	}
+	
+	static bool isStatic(ValueKind kind) => kind == ValueKind.STATIC_TYPE || kind == ValueKind.STATIC_FUNCTION;
+	
 	
 	public static List<IR> analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
@@ -120,36 +133,31 @@ static class Analyser
 			case NT.MEMBER_TUPLE: {
 				var tuple = (AST_Tuple)ended.node;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
-				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.type);
-				ended.node.result.type = tupleType;
-				DataType.makeUnique(ref ended.node.result.type);
+				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.dType);
+				ended.node.result.dType = tupleType;
+				DataType.makeUnique(ref ended.node.result.dType);
 			} break;
 			case NT.FUNCTION: break;
 			case NT.STRUCT: {
 				var structNode = (AST_Struct)ended.node;
-				var structType = (DataType_Struct)structNode.result.type;
+				var structType = (DataType_Struct)structNode.result.dType;
 				
 				DataType[] members;
 				if(structNode.inherits != null) {
 					members = new DataType[structType.members.Length + 1];
-					members[0] = structNode.inherits.result.type;
+					members[0] = structNode.inherits.result.dType;
 					structType.members.CopyTo(members, 1);
 				} else {
 					members = new DataType[structType.members.Length];
 					structType.members.CopyTo(members, 0);
 				}
-				instructions.Add(new IR_Struct{ _struct = structType, members = members });
-				
-				for(int i = 0; i < structType.members.Length; i += 1) {
-					structType.members[i] = new DataType_Reference(structType.members[i]);
-					DataType.makeUnique(ref structType.members[i]);
-				}
+				instructions.Add(new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE });
 				
 				if(structNode.inherits != null) {
-					if(!valueIsStatic(structNode.inherits.result) || !(structNode.inherits.result.type is DataType_Struct)) {
+					if(!isStatic(structNode.inherits.result.dKind) || !(structNode.inherits.result.dType is DataType_Struct)) {
 						throw Jolly.addError(structNode.inherits.location, "Can only inherit from other structs");
 					}
-					structType.inherits = (DataType_Struct)structNode.inherits.result.type;
+					structType.inherits = (DataType_Struct)structNode.inherits.result.dType;
 				}
 			} break;
 			case NT.TUPLE: break;
@@ -165,93 +173,66 @@ static class Analyser
 			case Context.Kind.TUPLE: {
 				var tuple = (AST_Tuple)ended.target;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
-				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.type);
-				ended.target.result.type = tupleType;
-				DataType.makeUnique(ref ended.target.result.type);
+				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.dType);
+				ended.target.result.dType = tupleType;
+				DataType.makeUnique(ref ended.target.result.dType);
 			} break;
 			case Context.Kind.IF_CONDITION: {
 				var ifNode = (AST_If)ended.target;
-				ifNode.trueLabelId = (tempID += 1);
-				ifNode.falseLabelId = (tempID += 1);
-				instructions.Add(new IR_Br{ condition = ifNode.condition.result, trueLabelId = ifNode.trueLabelId, falseLabelId = ifNode.falseLabelId });
-				instructions.Add(new IR_Label{ id = ifNode.trueLabelId });
+				implicitCast(ref ifNode.condition.result, Lookup.I1);
+				ifNode.result = new IR_If{ condition = ifNode.condition.result, ifBlock = instructions };
 				contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
+				instructions = new List<IR>();
 			} break;
 			case Context.Kind.IF_TRUE: {
 				var ifNode = (AST_If)ended.target;
+				var ifIR = (IR_If)ifNode.result;
+				swap(ref instructions, ref ifIR.ifBlock);
+				
 				if(ifNode.elseCount > 0) {
-					ifNode.endLabelId = (tempID += 1);
-					instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
-					instructions.Add(new IR_Label{ id = ifNode.falseLabelId });
+					ifIR.elseBlock = instructions;
+					instructions = new List<IR>();
 					contextStack.Push(new Context(cursor + ifNode.elseCount, Context.Kind.IF_FALSE) { target = ifNode });
-				} else {
-					instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
-					instructions.Add(new IR_Label{ id = ifNode.falseLabelId });
 				}
 			} break;
 			case Context.Kind.IF_FALSE: {
 				var ifNode = (AST_If)ended.target;
-				instructions.Add(new IR_Goto{ labelId = ifNode.endLabelId });
-				instructions.Add(new IR_Label{ id = ifNode.endLabelId });
+				var ifIR = (IR_If)ifNode.result;
+				swap(ref instructions, ref ifIR.elseBlock);
 			} break;
 			case Context.Kind.LOGIC_OR: {
 				var lor = (AST_Logic)ended.target;
-				
-				if(lor.a.result.type != Lookup.I1)
-				{
-					Cast cast;
-					if(!Lookup.implicitCasts.getCast(lor.a.result.type, Lookup.I1, out cast)) {
-						throw Jolly.addError(lor.a.location, "Cannot use '||' on this type");
-					}
-					lor.a.result = cast(lor.a.result, Lookup.I1);
-				}
-				instructions.Add(new IR_Goto{ labelId = lor.trueLabelId });
-				instructions.Add(new IR_Label{ id = lor.trueLabelId });
-				instructions.Add(new IR_Phi(new PhiBranch[] {
-					new PhiBranch(lor.trueLabelId, new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = true }), // TODO: WRONG
-					new PhiBranch(lor.falseLabelId, lor.a.result)
-				}));
-				lor.result = new Value{ tempID = (tempID += 1), kind = Value.Kind.VALUE, type = Lookup.I1 };
+				var lorIR = (IR_Logic)lor.result;
+				swap(ref instructions, ref lorIR.block);
+				implicitCast(ref lor.a.result, Lookup.I1);
+				lorIR.a = lor.a.result;
 			} break;
 			case Context.Kind.LOGIC_AND: {
 				var land = (AST_Logic)ended.target;
-				
-				if(land.a.result.type != Lookup.I1)
-				{
-					Cast cast;
-					if(!Lookup.implicitCasts.getCast(land.a.result.type, Lookup.I1, out cast)) {
-						throw Jolly.addError(land.a.location, "Cannot use '&&' on this type");
-					}
-					land.a.result = cast(land.a.result, Lookup.I1);
-				}
-				instructions.Add(new IR_Goto{ labelId = land.falseLabelId });
-				instructions.Add(new IR_Label{ id = land.falseLabelId });
-				instructions.Add(new IR_Phi(new PhiBranch[] {
-					new PhiBranch(land.falseLabelId, new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = false }), // TODO: WRONG
-					new PhiBranch(land.trueLabelId, land.a.result)
-				}));
-				land.result = new Value{ tempID = (tempID += 1), kind = Value.Kind.VALUE, type = Lookup.I1 };
+				var landIR = (IR_Logic)land.result;
+				swap(ref instructions, ref landIR.block);
+				implicitCast(ref land.a.result, Lookup.I1);
+				landIR.a = land.a.result;
 			} break;
 			case Context.Kind.DECLARATION: {
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
 				
-				if(declaration.result.type == Lookup.AUTO) {
+				if(declaration.result.dType == Lookup.AUTO) {
 					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
 				}
 			} break;
 			case Context.Kind.FUNCTION_DECLARATION: {
 				// The declaration ends after the return values and arguments are parsed.
 				var function = (AST_Function)enclosure.node;
-				var functionType = (DataType_Function)function.result.type;
+				var functionType = (DataType_Function)function.result.dType;
 				var tuple = function.returns as AST_Tuple;
 				if(tuple != null) {
-					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.type);
+					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.dType);
 				} else {
-					functionType.returns[0] = function.returns.result.type;
+					functionType.returns[0] = function.returns.result.dType;
 				}
-				
-				DataType.makeUnique(ref function.result.type);
+				DataType.makeUnique(ref function.result.dType);
 				cursor = enclosure.end; // Skip to end of function enclosure
 			} break;
 		}
@@ -264,11 +245,6 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
-				tempID = 0;
-				// Allocate id's
-				foreach(var allocation in table.allocations) {
-					allocation.result.tempID = (tempID += 1);
-				}
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				contextStack.Push(new Context(function.definitionCount + cursor, Context.Kind.FUNCTION_DECLARATION));
 			} },
@@ -301,44 +277,39 @@ static class Analyser
 			} },
 			{ NT.INITIALIZER, assign },
 			{ NT.FUNCTION, node => {
-				var function = (AST_Function)node;
-				var table = (SymbolTable)function.symbol;
-				instructions.Add(new IR_Function((DataType_Function)function.result.type));
+				// var function = (AST_Function)node;
+				// var table = (SymbolTable)function.symbol;
+				// instructions.Add(new IR_Function((DataType_Function)function.result.dType));
 				
-				// TODO: Is this necessary?
-				// foreach(var returns in ((DataType_Function)function.result.type).returns) {
-				// 	instructions.Add(new IR_Allocate{ type = returns, result = new Value{ tempID = tempID++, type = returns } });
+				// foreach(var allocation in table.allocations) {
+				// 	instructions.Add(allocation);
 				// }
-				foreach(var allocation in table.allocations) {
-					instructions.Add(allocation);
-				}
-				tempID = table.allocations.Count;
 				
-				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
-				cursor += function.definitionCount;
+				// enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
+				// cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
-				var functionCall = (AST_FunctionCall)node;
-				var functionType = functionCall.function.result.type as DataType_Function;
-				if(functionType == null) {
-					throw Jolly.addError(node.location, "Can not call this");
-				}
-				var arguments = functionType.arguments;
-				var values = new Value[functionCall.arguments.Length];
+				// var functionCall = (AST_FunctionCall)node;
+				// var functionType = functionCall.function.result.dType as DataType_Function;
+				// if(functionType == null) {
+				// 	throw Jolly.addError(node.location, "Can not call this");
+				// }
+				// var arguments = functionType.arguments;
+				// var values = new Value[functionCall.arguments.Length];
 				
-				for(int i = 0; i < values.Length; i += 1)
-				{
-					Cast cast = null;
-					var arg = functionCall.arguments[i];
-					var argT = arguments[i];
+				// for(int i = 0; i < values.Length; i += 1)
+				// {
+				// 	Cast cast = null;
+				// 	var arg = functionCall.arguments[i];
+				// 	var argT = arguments[i];
 					
-					load(arg);
-					if(!arg.result.type.Equals(argT) && !Lookup.implicitCasts.getCast(arg.result.type, argT, out cast)) {
-						throw Jolly.addError(arg.location, "Wrong argument");
-					}
-					values[i] = cast?.Invoke(functionCall.arguments[i].result, arguments[i]) ?? functionCall.arguments[i].result;
-				}
-				instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = values });
+				// 	load(arg);
+				// 	if(!arg.result.dType.Equals(argT) && !Lookup.implicitCasts.get(arg.result.dType, argT, out cast)) {
+				// 		throw Jolly.addError(arg.location, "Wrong argument");
+				// 	}
+				// 	values[i] = cast?.Invoke(functionCall.arguments[i].result, arguments[i]) ?? functionCall.arguments[i].result;
+				// }
+				// instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = values });
 			} },
 			{ NT.TUPLE, tupleContext },
 			{ NT.MEMBER_TUPLE, node => {
@@ -357,102 +328,79 @@ static class Analyser
 				node.result = operatorGetMember(ref enclosure.node, node as AST_Symbol);
 			} },
 			{ NT.RETURN, node => {
-				var returnNode = (AST_Return)node;
-				AST_Function function = null;
-				foreach(var closure in enclosureStack) {
-					function = closure.node as AST_Function;
-					if(function != null) break;
-				}
-				Debug.Assert(function != null);
+				// var returnNode = (AST_Return)node;
+				// AST_Function function = null;
+				// foreach(var closure in enclosureStack) {
+				// 	function = closure.node as AST_Function;
+				// 	if(function != null) break;
+				// }
+				// Debug.Assert(function != null);
 				
-				AST_Node[] valueNodes = (returnNode.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returnNode.values };
-				DataType[] returns = ((DataType_Function)function.result.type).returns;
-				Value[] values = new Value[valueNodes.Length];
+				// AST_Node[] valueNodes = (returnNode.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returnNode.values };
+				// DataType[] returns = ((DataType_Function)function.result.dType).returns;
+				// Value[] values = new Value[valueNodes.Length];
 				
-				for(int i = 0; i < valueNodes.Length; i += 1)
-				{
-					load(valueNodes[i]);
-					Cast cast = null;
-					DataType aR = returns[i];
-					Value bR = valueNodes[i].result;
-					if(aR != bR.type && !Lookup.implicitCasts.getCast(bR.type, aR, out cast)) {
-						throw Jolly.addError(valueNodes[i].location, "Invalid return value");
-					}
-					values[i] = cast?.Invoke(bR, aR) ?? bR;
-				}
-				instructions.Add(new IR_Return{ values = values });
+				// for(int i = 0; i < valueNodes.Length; i += 1)
+				// {
+				// 	load(valueNodes[i]);
+				// 	Cast cast = null;
+				// 	DataType aR = returns[i];
+				// 	Value bR = valueNodes[i].result;
+				// 	if(aR != bR.type && !Lookup.implicitCasts.getCast(bR.type, aR, out cast)) {
+				// 		throw Jolly.addError(valueNodes[i].location, "Invalid return value");
+				// 	}
+				// 	values[i] = cast?.Invoke(bR, aR) ?? bR;
+				// }
+				// instructions.Add(new IR_Return{ values = values });
 			} },
-			{ NT.MINUS,       node => basicOperator(node, Lookup.subs)    },
-			{ NT.PLUS,        node => basicOperator(node, Lookup.adds)    },
-			{ NT.MULTIPLY,    node => basicOperator(node, Lookup.muls)    },
-			{ NT.DIVIDE,      node => basicOperator(node, Lookup.divs)    },
-			{ NT.BIT_OR,      node => basicOperator(node, Lookup.ors)     },
-			{ NT.BIT_AND,     node => basicOperator(node, Lookup.ands)    },
+			// { NT.SUBTRACT,       node => basicOperator(node, Lookup.subs)    },
+			// { NT.ADD,        node => basicOperator(node, Lookup.adds)    },
+			// { NT.MULTIPLY,    node => basicOperator(node, Lookup.muls)    },
+			// { NT.DIVIDE,      node => basicOperator(node, Lookup.divs)    },
+			// { NT.BIT_OR,      node => basicOperator(node, Lookup.ors)     },
+			// { NT.BIT_AND,     node => basicOperator(node, Lookup.ands)    },
 			{ NT.BIT_NOT,     node => {
-				Instr xor;
-				var op = (AST_Operation)node;
-				if(!Lookup.xors.TryGetValue(op.a.result.type, out xor)) {
-					throw Jolly.addError(op.location, "Cannot use operator '~' on"+node.result.type);
-				}
-				op.result = xor(op.a.result, new Value{ type = op.a.result.type, kind = Value.Kind.STATIC_VALUE, data = -1 });
+				// Instr xor;
+				// var op = (AST_Operation)node;
+				// if(!Lookup.xors.TryGetValue(op.a.result.dType, out xor)) {
+				// 	throw Jolly.addError(op.location, "Cannot use operator '~' on"+node.result.dType);
+				// }
+				// op.result = xor(op.a.result, new Value{ type = op.a.result.dType, kind = Value.Kind.STATIC_VALUE, data = -1 });
 			} },
-			{ NT.BIT_XOR,     node => basicOperator(node, Lookup.xors)    },
-			{ NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
-			{ NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
-			{ NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
+			// { NT.BIT_XOR,     node => basicOperator(node, Lookup.xors)    },
+			// { NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
+			// { NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
+			// { NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
 			{ NT.LOGIC_AND,    node => {
-				// 'or' and 'and' ended up swapped
-				var lor = (AST_Logic)node;
-				inferOperands(lor);
-				
-				if(lor.condition.result.type != Lookup.I1)
-				{
-					Cast cast;
-					if(!Lookup.implicitCasts.getCast(lor.condition.result.type, Lookup.I1, out cast)) {
-						throw Jolly.addError(lor.condition.location, "Cannot use '||' on this type");
-					}
-					lor.condition.result = cast(lor.condition.result, Lookup.I1);
-				}
-				
-				lor.trueLabelId = (tempID += 1);
-				lor.falseLabelId = (tempID += 1);
-				instructions.Add(new IR_Br{ trueLabelId = lor.trueLabelId, falseLabelId = lor.falseLabelId, condition = lor.condition.result });
-				instructions.Add(new IR_Label{ id = lor.falseLabelId });
-				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_OR){ target = lor });
+				var land = (AST_Logic)node;
+				land.result = new IR_Logic{ irType = NT.LOGIC_AND, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions };
+				instructions = new List<IR>();
+				inferOperands(land);
+				implicitCast(ref land.condition.result, Lookup.I1);
+				contextStack.Push(new Context(cursor + land.memberCount, Context.Kind.LOGIC_OR){ target = land });
 			} },
 			{ NT.LOGIC_OR,   node => {
-				var land = (AST_Logic)node;
-				inferOperands(land);
-				
-				if(land.condition.result.type != Lookup.I1)
-				{
-					Cast cast;
-					if(!Lookup.implicitCasts.getCast(land.condition.result.type, Lookup.I1, out cast)) {
-						throw Jolly.addError(land.condition.location, "Cannot use '&&' on this type");
-					}
-					land.condition.result = cast(land.condition.result, Lookup.I1);
-				}
-				
-				land.trueLabelId = (tempID += 1);
-				land.falseLabelId = (tempID += 1);
-				instructions.Add(new IR_Br{ trueLabelId = land.trueLabelId, falseLabelId = land.falseLabelId, condition = land.condition.result });
-				instructions.Add(new IR_Label{ id = land.trueLabelId });
-				contextStack.Push(new Context(cursor + land.memberCount, Context.Kind.LOGIC_AND){ target = land });
+				var lor = (AST_Logic)node;
+				lor.result   = new IR_Logic{ irType = NT.LOGIC_OR, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions };
+				instructions = new List<IR>();
+				inferOperands(lor);
+				implicitCast(ref lor.condition.result, Lookup.I1);
+				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_AND){ target = lor });
 			} },
-			{ NT.BITCAST, node => {
-				var op = (AST_Operation)node;
-				inferOperands(op);
-				op.result = Lookup.doCast<IR_Bitcast>(op.a.result, op.b.result.type);
+			{ NT.REINTERPRET, node => {
+				// var op = (AST_Operation)node;
+				// inferOperands(op);
+				// op.result = Lookup.doCast<IR_Bitcast>(op.a.result, op.b.result.dType);
 			} },
 			{ NT.LOGIC_NOT,   node => {
 				Cast cast;
 				var op = (AST_Operation)node;
 				inferOperands(op);
-				if(!Lookup.casts.getCast(op.a.result.type, Lookup.I1, out cast)) {
-					throw Jolly.addError(op.location, "Cannot use operator '!' on"+node.result.type);
-				}
-				Instr xor = Lookup.xors[Lookup.I1];
-				op.result = xor(cast(op.a.result, Lookup.I1), new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = true });
+				implicitCast(ref op.a.result, Lookup.I1);
+				// var result = IR.operation<IR_Xor>(op.a.result, op.b.result, (a,b) => (bool)a ^ (bool)b);
+				
+				
+				// op.result = xor(cast(op.a.result, Lookup.I1), new Value{ type = Lookup.I1, kind = Value.Kind.STATIC_VALUE, data = true });
 			} },
 			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
@@ -463,60 +411,60 @@ static class Analyser
 			{ NT.ASSIGN, assign },
 			{ NT.REFERENCE, node => {
 				var op = (AST_Operation)node;
-				inferOperands(op);
-				if(op.a.result.kind != Value.Kind.VALUE | !(op.a.result.type is DataType_Reference)) {
+				if(op.a.result.dKind != ValueKind.ADDRES) {
 					throw Jolly.addError(op.location, "Cannot get a reference to this");
 				}
-				op.result.type = op.a.result.type;
-				op.result.kind = Value.Kind.ADDRES;
+				DataType reference = new DataType_Reference(op.a.result.dType);
+				DataType.makeUnique(ref reference);
+				op.result = new IR_Reference{ dType = reference, dKind = ValueKind.VALUE };
 			} },
 			{ NT.DEREFERENCE, node => {
 				var op = (AST_Operation)node;
 				inferOperands(op);
-				if(op.a.result.kind == Value.Kind.ADDRES) {
-					op.a.result.kind = Value.Kind.VALUE;
+				if(op.a.result.dKind == Value.Kind.ADDRES) {
+					op.a.result.dKind = Value.Kind.VALUE;
 				} else {
 					load(op.a);
 				}
-				op.result.kind = op.a.result.kind;
-				op.result.type = op.a.result.type;
+				op.result.dKind = op.a.result.dKind;
+				op.result.dType = op.a.result.dType;
 			} },
 			{ NT.CAST, node => {
 				var op = (AST_Operation)node;
 				inferOperands(op);
 				load(op.b);
-				if(op.a.result.kind != Value.Kind.STATIC_TYPE) {
+				if(op.a.result.dKind != Value.Kind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
 				}
-				if(op.a.result.type == op.b.result.type) return;
+				if(op.a.result.dType == op.b.result.dType) return;
 				
 				Cast cast;
-				if(!Lookup.casts.getCast(op.b.result.type, op.a.result.type, out cast)) {
-					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.type, op.b.result.type));
+				if(!Lookup.casts.getCast(op.b.result.dType, op.a.result.dType, out cast)) {
+					throw Jolly.addError(op.location, "Cannot cast {1} to {0}".fill(op.a.result.dType, op.b.result.dType));
 				}
-				op.result = cast(op.b.result, op.a.result.type);
+				op.result = cast(op.b.result, op.a.result.dType);
 			} },
 		};
 	
 	static void modifyType(AST_Node node)
 	{
 		AST_ModifyType mod = (AST_ModifyType)node;
-		if((mod.target.result.type.flags & DataType.Flags.INSTANTIABLE) == 0) {
-			throw Jolly.addError(mod.target.location, "The type {0} is not instantiable.".fill(mod.target.result.type));
+		if((mod.target.result.dType.flags & DataType.Flags.INSTANTIABLE) == 0) {
+			throw Jolly.addError(mod.target.location, "The type {0} is not instantiable.".fill(mod.target.result.dType));
 		}
-		if(mod.target.result.kind != Value.Kind.STATIC_TYPE) {
+		if(mod.target.result.dKind != Value.Kind.STATIC_TYPE) {
 			throw Jolly.addError(mod.target.location, "Not a type");
 		}
 		
 		switch(mod.toType) {
 			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
-			case AST_ModifyType.TO_ARRAY:   mod.result.type = new DataType_Array(mod.target.result.type);     break;
+			case AST_ModifyType.TO_ARRAY:   mod.result.dType = new DataType_Array(mod.target.result.dType);     break;
 			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
-			case AST_ModifyType.TO_POINTER: mod.result.type = new DataType_Reference(mod.target.result.type); break;
+			case AST_ModifyType.TO_POINTER: mod.result.dType = new DataType_Reference(mod.target.result.dType); break;
 		}
 		
-		DataType.makeUnique(ref mod.result.type);
-		mod.result.kind = mod.target.result.kind;
+		DataType.makeUnique(ref mod.result.dType);
+		mod.result.dKind = mod.target.result.dKind;
 	}
 	
 	static void skipSymbol(AST_Node node)
@@ -527,14 +475,14 @@ static class Analyser
 	
 	static void declare(AST_Node node)
 	{
-		if(node.result.type != null) {
+		if(node.result.dType != null) {
 			skipSymbol(node);
 			return;
 		}
 		
 		var enclosureNode  = (AST_Scope)enclosure.node;
 		var definition     = (AST_Declaration)node;
-		DataType allocType = definition.typeFrom.result.type;
+		DataType allocType = definition.typeFrom.result.dType;
 				
 		switch(enclosure.type)
 		{
@@ -542,12 +490,11 @@ static class Analyser
 			case NT.GLOBAL: {
 				Value resultValue = new Value {
 					tempID = definition.allocation.result.tempID,
-					type   = new DataType_Reference(allocType),
 					kind   = Value.Kind.VALUE,
+					type   = allocType,
 				};
-				DataType.makeUnique(ref allocType);
 				
-				definition.allocation.type   = allocType;
+				definition.allocation.dType   = allocType;
 				definition.allocation.result = resultValue;
 				definition.symbol.type       = resultValue;
 				definition.result            = resultValue;
@@ -555,14 +502,14 @@ static class Analyser
 				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
 				{
 					var function     = (AST_Function)enclosure.node;
-					var functionType = (DataType_Function)function.result.type;
+					var functionType = (DataType_Function)function.result.dType;
 					functionType.arguments[function.finishedArguments] = allocType;
 					function.finishedArguments += 1;
 					cursor = enclosure.end;
 				}
 			} break;
 			case NT.STRUCT: {
-				((DataType_Struct)enclosureNode.result.type).finishDefinition(definition.text, allocType);
+				((DataType_Struct)enclosureNode.result.dType).finishDefinition(definition.text, allocType);
 			} break;
 			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
 		}
@@ -577,17 +524,17 @@ static class Analyser
 		inferOperands(op);
 		load(op.b);
 		
-		var target = op.a.result.type as DataType_Reference;
+		var target = op.a.result.dType as DataType_Reference;
 		if(target == null) {
 			throw Jolly.addError(op.a.location, "Cannot assign to this");
 		}
 					
 		if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
 		
-		if(target.referenced != op.b.result.type)
+		if(target.referenced != op.b.result.dType)
 		{
 			Cast cast;
-			if(!Lookup.implicitCasts.getCast(op.b.result.type, target.referenced, out cast)) {
+			if(!Lookup.implicitCasts.getCast(op.b.result.dType, target.referenced, out cast)) {
 				throw Jolly.addError(op.a.location, "Cannot assign this value type");
 			}
 			op.b.result = cast(op.b.result, target.referenced);
@@ -604,7 +551,7 @@ static class Analyser
 		Value result = new Value();
 		if(!valueIsStatic(a.result))
 		{
-			var varType = ((DataType_Reference)a.result.type).referenced;
+			var varType = ((DataType_Reference)a.result.dType).referenced;
 			var definition = varType.getMember(a.result, b.text);
 			
 			var refType = varType as DataType_Reference;
@@ -618,7 +565,7 @@ static class Analyser
 			}
 			result = definition.Value;
 		}
-		else if(a.result.kind == Value.Kind.STATIC_TYPE)
+		else if(a.result.dKind == Value.Kind.STATIC_TYPE)
 		{
 			// Get static member
 			var definition = ((AST_Symbol)a).symbol.getChildSymbol(b.text);
@@ -639,21 +586,21 @@ static class Analyser
 		var op = (AST_Operation)node;
 		inferOperands(op);
 		load(op.a); load(op.b);
-		if(op.a.result.type != op.b.result.type)
+		if(op.a.result.dType != op.b.result.dType)
 		{
 			Cast cast;
-			if(Lookup.implicitCasts.getCast(op.a.result.type, op.b.result.type, out cast)) {
-				op.a.result = cast(op.a.result, op.b.result.type);
-			} else if(Lookup.implicitCasts.getCast(op.b.result.type, op.a.result.type, out cast)) {
-				op.b.result = cast(op.b.result, op.a.result.type);
+			if(Lookup.implicitCasts.getCast(op.a.result.dType, op.b.result.dType, out cast)) {
+				op.a.result = cast(op.a.result, op.b.result.dType);
+			} else if(Lookup.implicitCasts.getCast(op.b.result.dType, op.a.result.dType, out cast)) {
+				op.b.result = cast(op.b.result, op.a.result.dType);
 			} else {
 				throw Jolly.addError(op.location, "Types not the same");
 			}
 		}
 		
 		Instr instr;
-		if(!instrs.TryGetValue(op.a.result.type, out instr)) {
-			throw Jolly.addError(op.location, "Operator cannot be used on the type "+op.a.result.type);
+		if(!instrs.TryGetValue(op.a.result.dType, out instr)) {
+			throw Jolly.addError(op.location, "Operator cannot be used on the type "+op.a.result.dType);
 		}
 		
 		op.result = instr(op.a.result, op.b.result);
@@ -661,14 +608,14 @@ static class Analyser
 	
 	static void load(AST_Node node)
 	{
-		var refTo = node.result.type as DataType_Reference;
+		var refTo = node.result.dType as DataType_Reference;
 		if(refTo != null)
 		{
-			if(node.result.kind == Value.Kind.STATIC_TYPE) {
+			if(node.result.dKind == Value.Kind.STATIC_TYPE) {
 				throw Jolly.addError(node.location, "Cannot be used as value");
 			}
 			
-			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.result.kind == Value.Kind.ADDRES) {
+			if(((refTo.referenced.flags & DataType.Flags.BASE_TYPE) == 0)  | node.result.dKind == Value.Kind.ADDRES) {
 				return;
 			}
 			Value result = newResult(node.result);
@@ -691,7 +638,7 @@ static class Analyser
 	
 	static void getTypeFromName(AST_Node node)
 	{
-		if(node.result.type != null) {
+		if(node.result.dType != null) {
 			// Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
 			return;
 		}
@@ -719,7 +666,7 @@ static class Analyser
 	
 	static bool inferObject(AST_Node i, AST_Node other, List<IR> instructions)
 	{
-		
+		return false;
 	}
 	
 	static bool storeObject(AST_Node location, AST_Node obj, List<IR> instructions)
@@ -735,11 +682,10 @@ static class Analyser
 			if(!valueIsStatic(inferFrom)) {
 				 throw Jolly.addError(_object.inferFrom.location, "Not a type");
 			}
-			_object.result.kind = Value.Kind.VALUE;
-			_object.result.type = new DataType_Reference(inferFrom.type);
-			DataType.makeUnique(ref _object.result.type);
+			_object.result.dKind = Value.Kind.VALUE;
+			_object.result.dType = inferFrom.dType;
 		}
-		else if(location.result.type == Lookup.AUTO) {
+		else if(location.result.dType == Lookup.AUTO) {
 			throw Jolly.addError(_object.location, "Cannot derive type.");
 		}
 		
