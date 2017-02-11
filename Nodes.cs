@@ -4,7 +4,7 @@ using System;
 namespace Jolly
 {
     using NT = AST_Node.Type;
-	using Hook = Func<AST_Node, AST_Node, List<IR>, bool>;
+	using Hook = Func<AST_Node, AST_Node, IRList, bool>;
 		
 	class AST_Node
 	{
@@ -192,7 +192,7 @@ namespace Jolly
 		public AST_Symbol(SourceLocation loc, Symbol symbol, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
-		public Symbol symbol;
+		public Symbol symbol; // TODO: Maybe remove later?
 		public string text;
 	}
 	
@@ -204,7 +204,6 @@ namespace Jolly
 		public AST_Declaration(SourceLocation loc, AST_Node typeFrom, SymbolTable scope, string name)
 			: base(loc, NT.DEFINITION, scope, name) { this.typeFrom = typeFrom; }
 		
-		public IR_Allocate allocation;
 		public AST_Node typeFrom;
 		// public string[] names;
 	}

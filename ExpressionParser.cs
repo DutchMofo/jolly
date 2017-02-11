@@ -480,7 +480,7 @@ class ExpressionParser
 				// Push popped context back because c#
 				contextStack.Push(context);
 			}
-			else if(op.operation == NT.BITCAST)
+			else if(op.operation == NT.REINTERPRET)
 			{
 				Context context = contextStack.Pop();
 				if(context.hasColon) {

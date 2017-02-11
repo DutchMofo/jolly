@@ -44,20 +44,20 @@ namespace Jolly
 	{
 		public IR_If() { irType = NT.IF; }
 		public IR condition;
-		public List<IR> ifBlock, elseBlock;
+		public IRList ifBlock, elseBlock;
 	}
 	
 	class IR_Logic : IR
 	{
 		public IR a, b;
-		public List<IR> block;
+		public IRList block;
 	}
 	
 	class IR_Ternary : IR
 	{
 		public IR_Ternary() { irType = NT.TERNARY; }
 		public IR condition, a, b;
-		public List<IR> trueBlock, falseBlock;
+		public IRList trueBlock, falseBlock;
 	}
 	
 	class IR_Literal : IR
@@ -75,16 +75,25 @@ namespace Jolly
 			irType = NT.ALLOCATE;
 			dKind = ValueKind.ADDRES;
 		}
+		public DataType type;
 	}
 	
 	class IR_Reference : IR
 	{
 		public IR_Reference() { irType = NT.REFERENCE; }
+		public IR target;
 	}
 	
 	class IR_Dereference : IR
 	{
 		public IR_Dereference() { irType = NT.DEREFERENCE; }
+		public IR target;
+	}
+	
+	class IR_Read : IR
+	{
+		public IR_Read() { irType = NT.READ; }
+		public IR target;
 	}
 	
 	abstract class IR_Cast : IR
@@ -114,6 +123,9 @@ namespace Jolly
 		public IR a, b;
 	}
 	
+	class IR_Assign : IR_Operation {
+		public IR_Assign() : base() { irType = NT.ASSIGN; }
+	}
 	class IR_Add : IR_Operation {
 		public IR_Add() : base() { irType = NT.ADD; }
 	}

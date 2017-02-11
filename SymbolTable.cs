@@ -20,8 +20,8 @@ namespace Jolly
 	{
 		public Symbol() { }
 		public Symbol(SymbolTable parent) { this.parent = parent; }
+		public IR_Allocate declaration;
 		public SymbolTable parent;
-		public DataType type;
 		
 		public virtual Symbol searchSymbol(string name) => null;
 		public virtual Symbol getChildSymbol(string name) => null;
