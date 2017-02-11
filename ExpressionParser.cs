@@ -266,7 +266,7 @@ class ExpressionParser
 			
 			functionNode.symbol = functionTable;
 			functionNode.text   = functionType.name  = name;
-			functionNode.result = functionTable.declaration = new IR{ irType = NT.FUNCTION, dType = functionType, dKind = ValueKind.STATIC_TYPE };
+			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
 			
 			if(!scope.Add(name, functionTable)) {
 				// TODO: add overloads

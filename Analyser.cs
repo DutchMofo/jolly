@@ -289,15 +289,12 @@ static class Analyser
 			{ NT.INITIALIZER, assign },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
-				var table = (SymbolTable)function.symbol;
-				function.symbol.declaration = function.result = instructions.Add(new IR_Function{ dType = function.result.dType, block = instructions });
+				var functionIR = (IR_Function)function.result;
+				instructions.Add(functionIR);
+				functionIR.block = instructions;
 				instructions = new IRList();
 				
-				// foreach(var allocation in table.allocations) {
-				// 	instructions.Add(allocation);
-				// }
-				
-				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, (SymbolTable)function.symbol, function.memberCount + cursor));
 				cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
