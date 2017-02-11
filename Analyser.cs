@@ -44,6 +44,7 @@ static class Analyser
 	static ContextStack contextStack;
 	static List<AST_Node> program;
 	static Enclosure enclosure;
+	static bool isDefineFase = true;
 	static Context context;
 	static int cursor;
 	
@@ -114,6 +115,8 @@ static class Analyser
 			}
 		}
 		
+		isDefineFase = false;
+		
 		for(cursor = 0; cursor < program.Count; incrementCursor(ref cursor)) {
 			analyseNode(program[cursor]);
 		}
@@ -145,7 +148,7 @@ static class Analyser
 				ended.node.result.dType = tupleType;
 				DataType.makeUnique(ref ended.node.result.dType);
 			} break;
-			case NT.FUNCTION: break;
+			case NT.FUNCTION: if(!isDefineFase) swap(ref instructions, ref ((IR_Function)ended.node.result).block); break;
 			case NT.STRUCT: {
 				var structNode = (AST_Struct)ended.node;
 				var structType = (DataType_Struct)structNode.result.dType;
@@ -285,16 +288,17 @@ static class Analyser
 			} },
 			{ NT.INITIALIZER, assign },
 			{ NT.FUNCTION, node => {
-				// var function = (AST_Function)node;
-				// var table = (SymbolTable)function.symbol;
-				// instructions.Add(new IR_Function((DataType_Function)function.result.dType));
+				var function = (AST_Function)node;
+				var table = (SymbolTable)function.symbol;
+				function.symbol.declaration = function.result = instructions.Add(new IR_Function{ dType = function.result.dType, block = instructions });
+				instructions = new IRList();
 				
 				// foreach(var allocation in table.allocations) {
 				// 	instructions.Add(allocation);
 				// }
 				
-				// enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
-				// cursor += function.definitionCount;
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
+				cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
 				// var functionCall = (AST_FunctionCall)node;
@@ -610,7 +614,7 @@ static class Analyser
 	
 	static void getTypeFromName(AST_Node node)
 	{
-		if(node.result.dType != null) {
+		if(node.result?.dType != null) {
 			// Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
 			return;
 		}

@@ -38,7 +38,7 @@ namespace Jolly
 			   b.dKind == ValueKind.STATIC_VALUE) {
 				return new IR_Literal{ dType = a.dType, data = exec(((IR_Literal)a).data, ((IR_Literal)a).data) };
 			}
-			return new T{ a = a, b = b };
+			return new T{ a = a, b = b, dType = a.dType };
 		}
 		
 		public static IR getMember(IR _struct, DataType result, int index)
@@ -73,6 +73,15 @@ namespace Jolly
 			irType = NT.STRUCT;
 		}
 		public DataType _struct;
+	}
+	
+	class IR_Function : IR
+	{
+		public IR_Function() {
+			dKind = ValueKind.STATIC_FUNCTION;
+			irType = NT.FUNCTION;
+		}
+		public IRList block;
 	}
 	
 	class IR_Logic : IR

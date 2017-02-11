@@ -88,7 +88,6 @@ namespace Jolly
 			
 			var instructions = Analyser.analyse(parseData.ast, globalScope);
 			
-			instructions.forEach(n => Console.WriteLine(n));
             Debugger.Break();
 		}
 	}

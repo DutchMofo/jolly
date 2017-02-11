@@ -30,10 +30,10 @@ static class Lookup
 	
 	public static readonly DataType
 		I1       = new DataType{ name = "i1",     size = 1,  align = 1, typeID = 1,  flags = BASE_TYPE },
-		I8       = new DataType{ name = "u8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
-		I16      = new DataType{ name = "u16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
-		I32      = new DataType{ name = "u32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
-		I64      = new DataType{ name = "u64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
+		I8       = new DataType{ name = "i8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
+		I16      = new DataType{ name = "i16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
+		I32      = new DataType{ name = "i32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
+		I64      = new DataType{ name = "i64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
 		F32      = new DataType{ name = "f32",    size = 4,  align = 4, typeID = 10, flags = BASE_TYPE },
 		F64      = new DataType{ name = "f64",    size = 4,  align = 4, typeID = 11, flags = BASE_TYPE },
 		VOID     = new DataType{ name = "void",   size = 0,  align = 0, typeID = 12, flags = BASE_TYPE },
