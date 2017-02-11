@@ -36,9 +36,9 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
-		public virtual IR getMember(IR i, string name) => null;
-		public virtual IR implicitCast(IR i, DataType to) => null;
-		public virtual IR subscript(IR i, IR subscript) => null;
+		public virtual IR getMember(IR i, string name, IRList list) => null;
+		public virtual IR implicitCast(IR i, DataType to, IRList list) => null;
+		public virtual IR subscript(IR i, IR subscript, IRList list) => null;
 		
 		public virtual IR operator_assign(IR other) => null;
 		
@@ -100,7 +100,7 @@ namespace Jolly
 		public DataType[] members;
 		public DataType_Struct inherits;
 		
-		public override Value? getMember(Value i, string name)
+		public override IR getMember(IR i, string name, IRList list)
 		{
 			int index;
 			DataType_Struct iterator = this;
@@ -108,20 +108,18 @@ namespace Jolly
 			{
 				if(iterator.memberMap.TryGetValue(name, out index))
 				{
-					Value _struct = i;
+					IR _struct = i;
 					if(iterator != this) {
-						// DataType reference = new DataType_Reference(iterator);
-						// makeUnique(ref reference);
-						_struct = Lookup.doCast<IR_Bitcast>(i, reference);
+						_struct = list.Add(IR.cast<IR_Reinterpret>(i, iterator, null));
 					}
-					return Lookup.getMember(_struct, index + (iterator.inherits == null ? 0 : 1), iterator.members[index]);
+					return list.Add(IR.getMember(_struct, iterator.members[index], index + (iterator.inherits == null ? 0 : 1)));
 				}
 				iterator = iterator.inherits;
 			}
 			return null;
 		}
 		
-		public override Value? implicitCast(Value i, DataType to)
+		public override IR implicitCast(IR i, DataType to, IRList list)
 		{
 			if(!(to is DataType_Reference)) {
 				return null;
@@ -130,9 +128,7 @@ namespace Jolly
 			while(iterator != null)
 			{
 				if(iterator == to) {
-					// DataType reference = new DataType_Reference(iterator);
-					// makeUnique(ref reference);
-					return Lookup.doCast<IR_Bitcast>(i, reference);
+					return list.Add(IR.cast<IR_Reinterpret>(i, to, null));
 				}
 			}
 			return null;
@@ -193,18 +189,14 @@ namespace Jolly
 		public override int GetHashCode()
 			=> collectionType.GetHashCode() << 7 & count;
 		
-		public override Value? getMember(Value i, string name)
+		public override IR getMember(IR i, string name, IRList list)
 		{
-			if(name == "count") return Lookup.doCast<IR_Bitcast>(i, Lookup.I64);
-			if(name == "data") {
-				DataType reference = new DataType_Reference(collectionType);
-				makeUnique(ref reference);
-				return Lookup.getMember(i, 1, reference);
-			}
+			if(name == "count") return list.Add(IR.getMember(i, Lookup.I64, 0));
+			if(name == "data")  return list.Add(IR.getMember(i, collectionType, 1));
 			return null;
 		}
 		
-		public override Value? subscript(Value i, Value subscript) => null;
+		public override IR subscript(IR i, IR subscript, IRList list) => null;
 		public override string ToString() => "struct {{ i64, [{0} x {1}] }}".fill(count, collectionType);
 	}
 }

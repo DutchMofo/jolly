@@ -150,7 +150,7 @@ namespace Jolly
 			this.count = count;
 		}
 		
-		public int memberCount, count, trueLabelId, falseLabelId;
+		public int memberCount, count;
 		public AST_Node condition;
 	}
 	
@@ -159,8 +159,7 @@ namespace Jolly
 		public AST_If(SourceLocation loc) : base(loc, NT.IF) { }
 		
 		public AST_Node condition;
-		public int conditionCount, ifCount, elseCount,
-			trueLabelId, falseLabelId, endLabelId;
+		public int conditionCount, ifCount, elseCount;
 		public SymbolTable ifScope, elseScope;
 	}
 	

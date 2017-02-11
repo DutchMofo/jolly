@@ -24,7 +24,8 @@ namespace Jolly
 		
 		public static IR cast<T>(IR from, DataType to, StaticExec exec) where T : IR_Cast, new()
 		{
-			if(@from.dKind == ValueKind.STATIC_VALUE) {
+			if(exec != null &&
+			   @from.dKind == ValueKind.STATIC_VALUE) {
 				return new IR_Literal{ dType = to, data = exec(((IR_Literal)@from).data, 0) };
 			}
 			return new T{ @from = @from, dType = to };
@@ -32,12 +33,20 @@ namespace Jolly
 		
 		public static IR operation<T>(IR a, IR b, StaticExec exec) where T : IR_Operation, new()
 		{ 
-			if(a.dKind == ValueKind.STATIC_VALUE &&
+			if(exec != null &&
+			   a.dKind == ValueKind.STATIC_VALUE &&
 			   b.dKind == ValueKind.STATIC_VALUE) {
 				return new IR_Literal{ dType = a.dType, data = exec(((IR_Literal)a).data, ((IR_Literal)a).data) };
 			}
 			return new T{ a = a, b = b };
 		}
+		
+		public static IR getMember(IR _struct, DataType result, int index)
+		{
+			return new IR_GetMember{ _struct = _struct, index = index, dType = result };
+		}
+		
+		public override string ToString() => "{0} {1} {2}".fill(dType, dKind, irType);
 	}
 	
 	class IR_If : IR
@@ -45,6 +54,25 @@ namespace Jolly
 		public IR_If() { irType = NT.IF; }
 		public IR condition;
 		public IRList ifBlock, elseBlock;
+	}
+	
+	class IR_GetMember : IR
+	{
+		public IR_GetMember() {
+			dKind = ValueKind.ADDRES;
+			irType = NT.GET_MEMBER;
+		}
+		public IR _struct;
+		public int index;
+	}
+	
+	class IR_Struct : IR
+	{
+		public IR_Struct() {
+			dKind = ValueKind.STATIC_TYPE;
+			irType = NT.STRUCT;
+		}
+		public DataType _struct;
 	}
 	
 	class IR_Logic : IR
@@ -75,7 +103,6 @@ namespace Jolly
 			irType = NT.ALLOCATE;
 			dKind = ValueKind.ADDRES;
 		}
-		public DataType type;
 	}
 	
 	class IR_Reference : IR

@@ -20,7 +20,7 @@ namespace Jolly
 	{
 		public Symbol() { }
 		public Symbol(SymbolTable parent) { this.parent = parent; }
-		public IR_Allocate declaration;
+		public IR declaration;
 		public SymbolTable parent;
 		
 		public virtual Symbol searchSymbol(string name) => null;

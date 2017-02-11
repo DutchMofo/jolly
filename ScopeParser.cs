@@ -121,7 +121,7 @@ namespace Jolly
 			structNode.inherits = inherits;
 			structNode.symbol   = structTable;
 			structNode.text     = structType.name  = name.text;
-			structNode.result   = structTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = structType };
+			structNode.result   = structTable.declaration = new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE };
 			
 			if(!scope.Add(name.text, structTable)) {
 				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
@@ -156,7 +156,7 @@ namespace Jolly
 			enumNode.nodeType = NT.ENUM;
 			enumNode.symbol   = enumTable;
 			enumNode.text     = enumType.name  = identifier.text;
-			enumNode.result   = enumTable.type = new Value { kind = Value.Kind.STATIC_TYPE, type = enumType };
+			enumNode.result   = enumTable.declaration = new IR{ irType = NT.ENUM, dType = enumType, dKind = ValueKind.STATIC_TYPE };
 			
 			if(!scope.Add(enumType.name, enumTable)) {
 				throw Jolly.addError(identifier.location, "Trying to redefinen {0}".fill(enumType.name));
@@ -176,7 +176,7 @@ namespace Jolly
 					throw Jolly.unexpected(memberNode);
 				}
 				
-				var symbol = new Symbol(enumTable) { type = new Value{ type = enumType, kind = Value.Kind.STATIC_VALUE, data = nextValue++ } };
+				var symbol = new Symbol(enumTable) { declaration = new IR_Literal{ dType = enumType, data = nextValue++ } };
 				enumTable.Add(((AST_Symbol)memberNode).text, symbol);
 			}
 		}

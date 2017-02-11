@@ -188,7 +188,7 @@ static class Analyser
 			case Context.Kind.IF_CONDITION: {
 				var ifNode = (AST_If)ended.target;
 				implicitCast(ref ifNode.condition.result, Lookup.I1);
-				ifNode.result = new IR_If{ condition = ifNode.condition.result, ifBlock = instructions };
+				ifNode.result = instructions.Add(new IR_If{ condition = ifNode.condition.result, ifBlock = instructions });
 				contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
 				instructions = new IRList();
 			} break;
@@ -422,14 +422,7 @@ static class Analyser
 				DataType.makeUnique(ref reference);
 				op.result = new IR_Reference{ dType = reference, dKind = ValueKind.VALUE };
 			} },
-			{ NT.DEREFERENCE, node => {
-				var op = (AST_Operation)node;
-				var reference = op.a.result.dType as DataType_Reference;
-				if(isStatic(op.a.result.dKind) || reference == null) {
-					throw Jolly.addError(op.a.location, "Cannot dereference this");
-				}
-				op.result = new IR_Dereference{ target = op.a.result, dType = reference.referenced, dKind = ValueKind.ADDRES };
-			} },
+			{ NT.DEREFERENCE, dereference },
 			{ NT.CAST, node => {
 				var op = (AST_Operation)node;
 				load(op.b);
@@ -476,7 +469,7 @@ static class Analyser
 	
 	static void declare(AST_Node node)
 	{
-		if(node.result.dType != null) {
+		if(node.result?.dType != null) {
 			skipSymbol(node);
 			return;
 		}
@@ -489,8 +482,9 @@ static class Analyser
 		{
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
-				var alloc = new IR_Allocate{ type  = allocType, dType = allocType };
-				definition.result = definition.symbol.declaration = alloc;
+				var alloc = new IR_Allocate{ dType = allocType };
+				definition.symbol.declaration = alloc;
+				definition.result = instructions.Add(alloc);
 				
 				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
 				{
@@ -530,16 +524,15 @@ static class Analyser
 			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
 		}
 		
-		if(!isStatic(a.result.dKind))
+		if(a.result.dKind == ValueKind.ADDRES)
 		{
-			var varType = ((DataType_Reference)a.result.dType).referenced;
-			var definition = varType.getMember(a.result, b.text);
+			var iterator = a.result;
+			var definition = iterator.dType.getMember(iterator, b.text, instructions);
 			
-			var refType = varType as DataType_Reference;
-			if(definition == null && refType != null) {
-				load(a);
-				definition = refType.referenced.getMember(a.result, b.text);
-			}
+			// while(definition == null) {
+			// 	iterator = dereference(a);
+			// 	definition = iterator.dType.getMember(iterator, b.text, instructions);
+			// }
 			
 			if(definition == null) {
 				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
@@ -586,10 +579,20 @@ static class Analyser
 	// 	op.result = instr(op.a.result, op.b.result);
 	// }
 	
+	static void dereference(AST_Node node)
+	{
+		var op = (AST_Operation)node;
+		var reference = op.a.result.dType as DataType_Reference;
+		if(isStatic(op.a.result.dKind) || reference == null) {
+			throw Jolly.addError(op.a.location, "Cannot dereference this");
+		}
+		op.result = instructions.Add(new IR_Dereference{ target = op.a.result, dType = reference.referenced, dKind = ValueKind.ADDRES });
+	}
+	
 	static void load(AST_Node node)
 	{
 		if(node.result.dKind != ValueKind.ADDRES) {
-			throw Jolly.addError(node.location, "Cannot be used as value");
+			return;
 		}
 		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType, dKind = node.result.dKind });
 	}

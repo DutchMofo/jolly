@@ -3,7 +3,9 @@
 
 int main()
 {
-	(i32, f32) tupTest = (10, 23);
+	i32 test = 10;
+	
+	// (i32, f32) tupTest = (10, 23);
 	
 	return 0;
 }

@@ -130,13 +130,13 @@ class ExpressionParser
 	Stack<AST_Node> values = new Stack<AST_Node>();
 	Stack<Operator> operators = new Stack<Operator>();
 	
-	static Value   BOOL(bool   data) => new Value{ type = Lookup.I1,     kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value    INT(ulong  data) => new Value{ type = Lookup.I32,    kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value  FLOAT(double data) => new Value{ type = Lookup.F32,    kind = Value.Kind.STATIC_VALUE, data = data };
-	static Value STRING(string data) => new Value{ type = Lookup.STRING, kind = Value.Kind.STATIC_VALUE, data = data };
+	static IR   BOOL(bool   data) => new IR_Literal{ dType = Lookup.I1,     data = data };
+	static IR    INT(ulong  data) => new IR_Literal{ dType = Lookup.I32,    data = data };
+	static IR  FLOAT(double data) => new IR_Literal{ dType = Lookup.F32,    data = data };
+	static IR STRING(string data) => new IR_Literal{ dType = Lookup.STRING, data = data };
 	
-	static Value VOID_PTR() => new Value { type = Lookup.VOID_PTR, kind = Value.Kind.STATIC_VALUE, data = 0 };
-	static Value TUPLE() => new Value { type = Lookup.TUPLE, kind = Value.Kind.STATIC_TYPE };
+	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0 };
+	static IR TUPLE() => new IR_Literal{ dType = Lookup.TUPLE };
 	
 	public bool isDefinition() => firstDefined != null;
 	
@@ -176,7 +176,7 @@ class ExpressionParser
 				default:
 					if(token.type >= TT.I1 & token.type <= TT.AUTO) {
 						_value = new AST_Node(token.location, NT.BASETYPE) 
-							{ result = new Value{ type = Lookup.getBaseType(token.type), kind = Value.Kind.STATIC_TYPE } };
+							{ result = new IR_Literal{ dType = Lookup.getBaseType(token.type), dKind = ValueKind.STATIC_TYPE } };
 						goto case 0;
 					}
 					if(parseOperator())
@@ -266,7 +266,7 @@ class ExpressionParser
 			
 			functionNode.symbol = functionTable;
 			functionNode.text   = functionType.name  = name;
-			functionNode.result = functionTable.type = new Value { kind = Value.Kind.STATIC_FUNCTION, type = functionType };
+			functionNode.result = functionTable.declaration = new IR{ irType = NT.FUNCTION, dType = functionType, dKind = ValueKind.STATIC_TYPE };
 			
 			if(!scope.Add(name, functionTable)) {
 				// TODO: add overloads
@@ -315,14 +315,13 @@ class ExpressionParser
 			
 		if(defineMode == DefineMode.MEMBER)
 		{
-			var structType = (DataType_Struct)scope.type.type;
+			var structType = (DataType_Struct)scope.declaration.dType;
 			if(structType.memberMap.ContainsKey(name)) {
 				throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
 			}
 			structType.memberMap.Add(name, structType.memberMap.Count);
 			
 			variableNode = new AST_Declaration(token.location, target, scope, name);
-			variableNode.result.dKind = Value.Kind.VALUE;
 		}
 		else if(defineMode == DefineMode.STATEMENT ||
 				defineMode == DefineMode.ARGUMENT)
@@ -332,8 +331,7 @@ class ExpressionParser
 			
 			variableNode.symbol     = variableSymbol;
 			variableNode.text       = name;
-			variableNode.result     = variableSymbol.type = new Value { kind = Value.Kind.VALUE };
-			variableNode.allocation = scope.allocateVariable();
+			// variableNode.allocation = scope.allocateVariable();
 			
 			if(!scope.Add(name, variableSymbol)) {
 				throw Jolly.addError(token.location, "Trying to redefine variable");
