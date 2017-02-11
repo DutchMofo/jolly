@@ -136,7 +136,6 @@ class ExpressionParser
 	static IR STRING(string data) => new IR_Literal{ dType = Lookup.STRING, data = data };
 	
 	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0 };
-	static IR TUPLE() => new IR_Literal{ dType = Lookup.TUPLE };
 	
 	public bool isDefinition() => firstDefined != null;
 	
@@ -719,10 +718,8 @@ class ExpressionParser
 				operators.Pop(); // Remove GET_MEMBER
 				tup.membersFrom = values.Pop();
 				tup.nodeType = NT.MEMBER_TUPLE;
-				parseData.ast.Insert(context.index, tup);
-			} else {
-				parseData.ast.Add(tup);
 			}
+			parseData.ast.Insert(context.index, tup);
 			values.Push(tup);
 		}
 	} // parseParenthesisClose()
@@ -753,7 +750,7 @@ class ExpressionParser
 				if(a == null) {
 					values.Push(null);
 					if(!(b is AST_Tuple)) {
-						var tup = new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() };
+						var tup = new AST_Tuple(b.location, NT.TUPLE);
 						tup.values.Add(b);
 						values.Push(tup);
 						return;
@@ -764,7 +761,7 @@ class ExpressionParser
 				
 				AST_Tuple tuple = a as AST_Tuple;
 				if(tuple?.closed ?? true) {
-					tuple = new AST_Tuple(b.location, NT.TUPLE) { result = TUPLE() };
+					tuple = new AST_Tuple(b.location, NT.TUPLE);
 					tuple.values.Add(a);
 				}
 				tuple.values.Add(b);

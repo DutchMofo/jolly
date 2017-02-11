@@ -47,9 +47,13 @@ namespace Jolly
 	
 	class DataType_Tuple : DataType
 	{
+		public enum Kind
+		{
+			
+		}
+		
 		public DataType_Tuple(int memberCount) { members = new DataType[memberCount]; }
 		public DataType[] members;
-		public bool isVarTuple = true;
 		
 		public override int GetHashCode() => members.Length == 0 ? 0 : members.Select(m=>m.GetHashCode()).Aggregate((a,b)=>a << 7 & b);
 		public override bool Equals(object obj)
@@ -58,6 +62,8 @@ namespace Jolly
 			if(other == null) return false;
 			return  other.members.Length == members.Length && other.members.all((m,i)=>m==members[i]);
 		}
+		
+		public override string ToString() => '('+members?.implode(", ")+')';
 	}
 	
 	class DataType_Reference : DataType

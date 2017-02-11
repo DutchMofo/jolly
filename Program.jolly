@@ -1,16 +1,33 @@
 
 struct OwBoy
 {
-	i32 disGonnaWork;
-	i32 hopeSo;
+	DisGonnaWork? hopeSo;
 }
+
+// (i32, i32) nop((i32, i32) in)
+// {
+// 	return in;
+// }
 
 int main()
 {
-	OwBoy test;
-	test.disGonnaWork = 10;
-	test.hopeSo = 11;
-	// (i32, f32) tupTest = (10, 23);
+	i32 a;
+	i32 b;
+	(int, int) c;
+	// auto (a, b) = (1, 2);
+	
+	(a, b) = (1, 2);
+	// c = (1, 2);
+	// (a, b) = c;
+	// c = (a, b);
+	
+	// c = nop(c);
+	// (a, b) = nop((1,2));
 	
 	return 0;
+}
+
+struct DisGonnaWork
+{
+	i32 counter;
 }

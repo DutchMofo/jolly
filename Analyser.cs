@@ -87,7 +87,7 @@ static class Analyser
 		{
 			Cast cast;
 			if(!Lookup.implicitCast.get(ir.dType, to, out cast)) {
-				throw Jolly.addError(new SourceLocation(), "Cannot implicitly cast ");
+				throw Jolly.addError(new SourceLocation(), "Cannot implicitly cast {0} to {1}".fill(ir.dType, to));
 			}
 			ir = cast(ir, to);
 		}
@@ -144,7 +144,12 @@ static class Analyser
 			case NT.MEMBER_TUPLE: {
 				var tuple = (AST_Tuple)ended.node;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
-				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.dType);
+				tuple.values.forEach((v, i)=> {
+					if(v.result.dKind != ValueKind.ADDRES) {
+						throw Jolly.addError(v.location, "This tuple can only contain members of {0}".fill(tuple.membersFrom.result.dType));
+					}
+					tupleType.members[i] = v.result.dType;
+				});
 				ended.node.result.dType = tupleType;
 				DataType.makeUnique(ref ended.node.result.dType);
 			} break;
@@ -162,7 +167,7 @@ static class Analyser
 					members = new DataType[structType.members.Length];
 					structType.members.CopyTo(members, 0);
 				}
-				instructions.Add(new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE });
+				structNode.result = instructions.Add(new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE });
 				
 				if(structNode.inherits != null) {
 					if(structNode.inherits.result.dKind != ValueKind.STATIC_TYPE || !(structNode.inherits.result.dType is DataType_Struct)) {
@@ -171,7 +176,6 @@ static class Analyser
 					structType.inherits = (DataType_Struct)structNode.inherits.result.dType;
 				}
 			} break;
-			case NT.TUPLE: break;
 			case NT.OBJECT: break;
 			default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
 		}
@@ -185,8 +189,8 @@ static class Analyser
 				var tuple = (AST_Tuple)ended.target;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
 				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.dType);
-				ended.target.result.dType = tupleType;
-				DataType.makeUnique(ref ended.target.result.dType);
+				tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = ValueKind.VALUE };
+				DataType.makeUnique(ref tuple.result.dType);
 			} break;
 			case Context.Kind.IF_CONDITION: {
 				var ifNode = (AST_If)ended.target;
@@ -451,11 +455,16 @@ static class Analyser
 			throw Jolly.addError(mod.target.location, "The type {0} is not instantiable.".fill(mod.target.result.dType));
 		}
 		
+		// TODO: Fix
 		switch(mod.toType) {
-			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
-			case AST_ModifyType.TO_ARRAY:   mod.result.dType = new DataType_Array(mod.target.result.dType);     break;
+			case AST_ModifyType.TO_ARRAY:
+				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
+				break;
 			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
-			case AST_ModifyType.TO_POINTER: mod.result.dType = new DataType_Reference(mod.target.result.dType); break;
+			case AST_ModifyType.TO_POINTER:
+			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
+				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Reference(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
+				break;
 		}
 		
 		DataType.makeUnique(ref mod.result.dType);
@@ -511,8 +520,16 @@ static class Analyser
 		var op = (AST_Operation)node;
 		load(op.b);
 		
-		if(op.a.result.dKind != ValueKind.ADDRES) {
-			throw Jolly.addError(op.a.location, "Cannot assign to this");
+		if(op.a.result.dKind != ValueKind.ADDRES)
+		{
+			var aTup = op.a.result.dType as DataType_Tuple;
+			var bTup = op.b.result.dType as DataType_Tuple;
+			if(aTup == null || bTup == null) {
+				throw Jolly.addError(op.a.location, "Cannot assign to this");
+			}
+			
+			
+			
 		}
 		if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
 		implicitCast(ref op.b.result, op.a.result.dType);
