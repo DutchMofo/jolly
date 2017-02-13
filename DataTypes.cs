@@ -36,6 +36,7 @@ namespace Jolly
 		public Flags flags;
 		public byte align;
 		
+		public virtual IR getMember(IR i, int index, IRList list) => null;
 		public virtual IR getMember(IR i, string name, IRList list) => null;
 		public virtual IR implicitCast(IR i, DataType to, IRList list) => null;
 		public virtual IR subscript(IR i, IR subscript, IRList list) => null;
@@ -47,11 +48,6 @@ namespace Jolly
 	
 	class DataType_Tuple : DataType
 	{
-		public enum Kind
-		{
-			
-		}
-		
 		public DataType_Tuple(int memberCount) { members = new DataType[memberCount]; }
 		public DataType[] members;
 		
@@ -60,7 +56,13 @@ namespace Jolly
 		{
 			var other = obj as DataType_Tuple;
 			if(other == null) return false;
-			return  other.members.Length == members.Length && other.members.all((m,i)=>m==members[i]);
+			return  other.members.Length == members.Length && other.members.all((m,i)=>m.Equals(members[i]));
+		}
+		
+		public override IR getMember(IR i, int index, IRList list)
+		{
+			if(index >= members.Length) return null;
+			return list.Add(IR.getMember(i, members[index], index));
 		}
 		
 		public override string ToString() => '('+members?.implode(", ")+')';

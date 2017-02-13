@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Jolly
 {
@@ -20,6 +19,7 @@ namespace Jolly
 	{
 		public DataType  dType;
 		public ValueKind dKind;
+		public bool packed; // Used for tuple's
 		public NT irType;
 		
 		public static IR cast<T>(IR from, DataType to, StaticExec exec) where T : IR_Cast, new()
@@ -65,16 +65,7 @@ namespace Jolly
 		public IR _struct;
 		public int index;
 	}
-	
-	class IR_Struct : IR
-	{
-		public IR_Struct() {
-			dKind = ValueKind.STATIC_TYPE;
-			irType = NT.STRUCT;
-		}
-		public DataType _struct;
-	}
-	
+		
 	class IR_Function : IR
 	{
 		public IR_Function() {
@@ -106,12 +97,20 @@ namespace Jolly
 		public object data;
 	}
 	
+	class IR_Tuple : IR
+	{
+		public IR_Tuple() { irType = NT.TUPLE; }
+		public AST_Node[] values;
+	}
+	
 	class IR_Allocate : IR
 	{
 		public IR_Allocate() {
 			irType = NT.ALLOCATE;
 			dKind = ValueKind.ADDRES;
 		}
+		public bool initialized;
+		public int references;
 	}
 	
 	class IR_Reference : IR

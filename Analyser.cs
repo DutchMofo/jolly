@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System;
 
 namespace Jolly
@@ -181,6 +182,30 @@ static class Analyser
 		}
 	}
 	
+	static void getTupleKind(IEnumerable<AST_Node> values, ref ValueKind kind)
+	{
+		Action<SourceLocation> err = (location) => { throw Jolly.addError(location, "Tuple mixes type's and values"); };
+		if(isStatic(kind))
+		{
+			foreach(var node in values) {
+				if(!isStatic(node.result.dKind)) err(node.location);
+				if(node.nodeType == NT.TUPLE) {
+					getTupleKind(((AST_Tuple)node).values, ref kind);
+				}
+			}
+			kind = ValueKind.STATIC_TYPE;
+		}
+		else
+		{
+			bool addresOnly = (kind == ValueKind.STATIC_TYPE);
+			foreach(var node in values) {
+				if(isStatic(node.result.dKind)) err(node.location);
+				if(node.result.dKind == ValueKind.VALUE) addresOnly = false;
+			}
+			kind = addresOnly ? ValueKind.ADDRES : ValueKind.VALUE;
+		}
+	}
+	
 	static void contextEnd(Context ended)
 	{
 		switch(ended.kind)
@@ -188,8 +213,12 @@ static class Analyser
 			case Context.Kind.TUPLE: {
 				var tuple = (AST_Tuple)ended.target;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
-				tuple.values.forEach((v,i)=> tupleType.members[i] = v.result.dType);
-				tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = ValueKind.VALUE };
+				Debug.Assert(tuple.values.Count > 0, "Tuple cannot be empty");
+				ValueKind tupKind = tuple.values[0].result.dKind;
+				getTupleKind(tuple.values, ref tupKind);
+				
+				tupleType.members = tuple.values.Select(v => v.result.dType).ToArray();
+				tuple.result = new IR_Tuple{ irType = NT.TUPLE, dType = tupleType, dKind = ValueKind.VALUE, values = tuple.values.ToArray() };
 				DataType.makeUnique(ref tuple.result.dType);
 			} break;
 			case Context.Kind.IF_CONDITION: {
@@ -218,22 +247,24 @@ static class Analyser
 			case Context.Kind.LOGIC_OR: {
 				var lor = (AST_Logic)ended.target;
 				var lorIR = (IR_Logic)lor.result;
-				swap(ref instructions, ref lorIR.block);
 				implicitCast(ref lor.a.result, Lookup.I1);
+				swap(ref instructions, ref lorIR.block);
 				lorIR.a = lor.a.result;
 			} break;
 			case Context.Kind.LOGIC_AND: {
 				var land = (AST_Logic)ended.target;
 				var landIR = (IR_Logic)land.result;
-				swap(ref instructions, ref landIR.block);
 				implicitCast(ref land.a.result, Lookup.I1);
+				swap(ref instructions, ref landIR.block);
 				landIR.a = land.a.result;
 			} break;
 			case Context.Kind.DECLARATION: {
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
+				var alloc = (IR_Allocate)declaration.result;
+				declaration.result.packed = true; // TODO: Maybe remove later
 				
-				if(declaration.result.dType == Lookup.AUTO) {
+				if(alloc.dType == Lookup.AUTO || !alloc.initialized) {
 					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
 				}
 			} break;
@@ -290,7 +321,10 @@ static class Analyser
 				_object.startIndex = cursor + 1;
 				cursor += _object.memberCount;
 			} },
-			{ NT.INITIALIZER, assign },
+			{ NT.INITIALIZER, node => {
+				var op = (AST_Operation)node;
+				op.result = assign(op.a, op.b);
+			} },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var functionIR = (IR_Function)function.result;
@@ -399,8 +433,8 @@ static class Analyser
 				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_AND){ target = lor });
 			} },
 			{ NT.REINTERPRET, node => {
-				// var op = (AST_Operation)node;
-				// op.result = Lookup.doCast<IR_Bitcast>(op.a.result, op.b.result.dType);
+				var op = (AST_Operation)node;
+				op.result = instructions.Add(IR.cast<IR_Reinterpret>(op.a.result, op.b.result.dType, null));
 			} },
 			{ NT.LOGIC_NOT,   node => {
 				Cast cast;
@@ -414,10 +448,12 @@ static class Analyser
 			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
-				
 				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
-			{ NT.ASSIGN, assign },
+			{ NT.ASSIGN, node => {
+				var op = (AST_Operation)node;
+				op.result = assign(op.a, op.b);
+			} },
 			{ NT.REFERENCE, node => {
 				var op = (AST_Operation)node;
 				if(op.a.result.dKind != ValueKind.ADDRES) {
@@ -425,12 +461,12 @@ static class Analyser
 				}
 				DataType reference = new DataType_Reference(op.a.result.dType);
 				DataType.makeUnique(ref reference);
-				op.result = new IR_Reference{ dType = reference, dKind = ValueKind.VALUE };
+				op.result = new IR_Reference{ target = op.a.result, dType = reference, dKind = ValueKind.VALUE };
 			} },
 			{ NT.DEREFERENCE, dereference },
 			{ NT.CAST, node => {
 				var op = (AST_Operation)node;
-				load(op.b);
+				load(ref op.b.result);
 				
 				if(op.a.result.dKind != ValueKind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
@@ -515,27 +551,51 @@ static class Analyser
 		}
 	}
 
-	static void assign(AST_Node node)
+	static IR assign(AST_Node a, AST_Node b)
 	{
-		var op = (AST_Operation)node;
-		load(op.b);
+		load(ref b.result);
 		
-		if(op.a.result.dKind != ValueKind.ADDRES)
+		var aTup = a.result.dType as DataType_Tuple;
+		var bTup = b.result.dType as DataType_Tuple;
+		if(aTup != null)
 		{
-			var aTup = op.a.result.dType as DataType_Tuple;
-			var bTup = op.b.result.dType as DataType_Tuple;
-			if(aTup == null || bTup == null) {
-				throw Jolly.addError(op.a.location, "Cannot assign to this");
+			if(bTup == null) {
+				throw new ParseException(); 
 			}
 			
-			
-			
+			if(a.result.dKind == ValueKind.ADDRES)
+			{
+				
+			}
+			else if(a.result.dKind == ValueKind.VALUE)
+			{
+				var tupNode = a as AST_Tuple;
+				if(tupNode == null) {
+					Debug.Fail("Cannot assing to value");
+				}
+				
+				if(b.result.packed) {
+					
+				}
+				
+				
+				
+			}
+			else
+			{
+				throw new ParseException(); 
+			}
+			return a.result;
 		}
-		if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
-		implicitCast(ref op.b.result, op.a.result.dType);
-		op.result = instructions.Add(IR.operation<IR_Assign>(op.a.result, op.b.result, (a,b)=>0));
+		
+		if(a.result.dKind != ValueKind.ADDRES) {
+			throw new ParseException();
+		}
+		// if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
+		implicitCast(ref b.result, a.result.dType);
+		return instructions.Add(IR.operation<IR_Assign>(a.result, b.result, null));
 	}
-	
+		
 	static IR operatorGetMember(ref AST_Node a, AST_Symbol b)
 	{
 		if(b == null) {
@@ -607,12 +667,12 @@ static class Analyser
 		op.result = instructions.Add(new IR_Dereference{ target = op.a.result, dType = reference.referenced, dKind = ValueKind.ADDRES });
 	}
 	
-	static void load(AST_Node node)
+	static void load(ref IR ir)
 	{
-		if(node.result.dKind != ValueKind.ADDRES) {
+		if(ir.dKind != ValueKind.ADDRES) {
 			return;
 		}
-		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType, dKind = node.result.dKind });
+		ir = instructions.Add(new IR_Read{ target = ir, dType = ir.dType, dKind = ValueKind.VALUE });
 	}
 	
 	static void inferOperands(AST_Operation op)
@@ -629,7 +689,6 @@ static class Analyser
 	static void getTypeFromName(AST_Node node)
 	{
 		if(node.result?.dType != null) {
-			// Jolly.addNote(node.location, "Name got looked up twice.".fill(node));
 			return;
 		}
 		
@@ -639,6 +698,7 @@ static class Analyser
 		}
 		AST_Symbol name = (AST_Symbol)node;
 		var definition = enclosure.scope.searchSymbol(name.text);
+		// ((IR_Allocate)definition.declaration).references += 1;
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
