@@ -311,7 +311,7 @@ class Tokenizer
 		}
 		else
 		{
-			if( Lookup.keywords.ContainsKey(token.text))
+			if(Lookup.keywords.ContainsKey(token.text))
 				token.type = Lookup.keywords[token.text];
 		}
 		return token;

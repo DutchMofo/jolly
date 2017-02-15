@@ -7,12 +7,12 @@ namespace Jolly
 
     enum ValueKind : byte
 	{
-		UNDEFINED = 0,
-		STATIC_TYPE,
-		STATIC_VALUE,
-		STATIC_FUNCTION,
-		ADDRES,
-		VALUE,
+		UNDEFINED       = 0,
+		STATIC_TYPE     = 1<<0,
+		STATIC_VALUE    = 1<<1,
+		STATIC_FUNCTION = 1<<2,
+		ADDRES          = 1<<3,
+		VALUE           = 1<<4,
 	};
 	
 	class IR
@@ -100,7 +100,6 @@ namespace Jolly
 	class IR_Tuple : IR
 	{
 		public IR_Tuple() { irType = NT.TUPLE; }
-		public AST_Node[] values;
 	}
 	
 	class IR_Allocate : IR

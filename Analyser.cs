@@ -182,28 +182,19 @@ static class Analyser
 		}
 	}
 	
-	static void getTupleKind(IEnumerable<AST_Node> values, ref ValueKind kind)
+	static ValueKind validateTupleKind(IEnumerable<AST_Node> values)
 	{
-		Action<SourceLocation> err = (location) => { throw Jolly.addError(location, "Tuple mixes type's and values"); };
-		if(isStatic(kind))
-		{
-			foreach(var node in values) {
-				if(!isStatic(node.result.dKind)) err(node.location);
-				if(node.nodeType == NT.TUPLE) {
-					getTupleKind(((AST_Tuple)node).values, ref kind);
-				}
+		ValueKind kind = values.Select(a => a.result.dKind).Aggregate((a, b) => a | b);
+		
+		SourceLocation removeThis = values.FirstOrDefault()?.location ?? new SourceLocation();
+		if((kind & (ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
+			if((kind & ~(ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
+				throw Jolly.addError(removeThis, "Tuple mixes values and types");
 			}
-			kind = ValueKind.STATIC_TYPE;
+		} else if((kind & (ValueKind.ADDRES | ValueKind.STATIC_VALUE | ValueKind.VALUE)) == 0) {
+			throw Jolly.addError(removeThis, "Unknown tuple type");
 		}
-		else
-		{
-			bool addresOnly = (kind == ValueKind.STATIC_TYPE);
-			foreach(var node in values) {
-				if(isStatic(node.result.dKind)) err(node.location);
-				if(node.result.dKind == ValueKind.VALUE) addresOnly = false;
-			}
-			kind = addresOnly ? ValueKind.ADDRES : ValueKind.VALUE;
-		}
+		return kind;
 	}
 	
 	static void contextEnd(Context ended)
@@ -213,12 +204,9 @@ static class Analyser
 			case Context.Kind.TUPLE: {
 				var tuple = (AST_Tuple)ended.target;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
-				Debug.Assert(tuple.values.Count > 0, "Tuple cannot be empty");
-				ValueKind tupKind = tuple.values[0].result.dKind;
-				getTupleKind(tuple.values, ref tupKind);
-				
+				var kind = validateTupleKind(tuple.values);
 				tupleType.members = tuple.values.Select(v => v.result.dType).ToArray();
-				tuple.result = new IR_Tuple{ irType = NT.TUPLE, dType = tupleType, dKind = ValueKind.VALUE, values = tuple.values.ToArray() };
+				tuple.result = new IR_Tuple{ irType = NT.TUPLE, dType = tupleType, dKind = kind };
 				DataType.makeUnique(ref tuple.result.dType);
 			} break;
 			case Context.Kind.IF_CONDITION: {
@@ -563,28 +551,9 @@ static class Analyser
 				throw new ParseException(); 
 			}
 			
-			if(a.result.dKind == ValueKind.ADDRES)
-			{
-				
-			}
-			else if(a.result.dKind == ValueKind.VALUE)
-			{
-				var tupNode = a as AST_Tuple;
-				if(tupNode == null) {
-					Debug.Fail("Cannot assing to value");
-				}
-				
-				if(b.result.packed) {
-					
-				}
-				
-				
-				
-			}
-			else
-			{
-				throw new ParseException(); 
-			}
+			
+			
+			
 			return a.result;
 		}
 		
