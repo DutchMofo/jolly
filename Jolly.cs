@@ -14,7 +14,7 @@ namespace Jolly
 	static class Extensions
 	{
 		public static string implode<T>(this IEnumerable<T> values, string glue)
-			=> values.Count() == 0 ? "" : values.Select(v=>v.ToString()).Aggregate((a,b)=>a+glue+b);
+			=> values.map(v=>v.ToString()).reduce((a,b)=>a+glue+b);
 		
 		public static string fill(this string format, params object[] args)
 			=> string.Format(format, args);
@@ -31,6 +31,21 @@ namespace Jolly
 		public static void forEach<T>(this List<T> list, Action<T, int> action)
 			{ for(int i = 0; i < list.Count; ++i) action(list[i], i); }
 			
+		public static void forEach<T>(this T[] list, Action<T, int> action)
+			{ for(int i = 0; i < list.Length; ++i) action(list[i], i); }
+		
+		public static IEnumerable<T1> map<T, T1>(this IEnumerable<T> list, Func<T,T1> action)
+			{ foreach(var item in list) yield return action(item); }
+		
+		public static T reduce<T>(this IEnumerable<T> list, Func<T,T,T> action)
+		{
+			var enumerator = list.GetEnumerator();
+			if(!enumerator.MoveNext()) return default(T);
+			var aggregator = enumerator.Current;
+			while(enumerator.MoveNext()) aggregator = action(aggregator, enumerator.Current);
+			return aggregator;
+		}
+		
 		public static bool all<T>(this T[] list, Func<T, int, bool> action)
 			{ for(int i = 0; i < list.Length; i += 1) if(action(list[i], i)) return false; return true; }
 	}

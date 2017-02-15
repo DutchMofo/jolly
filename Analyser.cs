@@ -182,9 +182,9 @@ static class Analyser
 		}
 	}
 	
-	static ValueKind validateTupleKind(IEnumerable<AST_Node> values)
+	static ValueKind validateTupleKind(List<AST_Node> values)
 	{
-		ValueKind kind = values.Select(a => a.result.dKind).Aggregate((a, b) => a | b);
+		ValueKind kind = values.map(a => a.result.dKind).reduce((a, b) => a | b);
 		
 		SourceLocation removeThis = values.FirstOrDefault()?.location ?? new SourceLocation();
 		if((kind & (ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
@@ -250,7 +250,7 @@ static class Analyser
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
 				var alloc = (IR_Allocate)declaration.result;
-				declaration.result.packed = true; // TODO: Maybe remove later
+				// declaration.result.packed = true; // TODO: Maybe remove later
 				
 				if(alloc.dType == Lookup.AUTO || !alloc.initialized) {
 					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
@@ -538,24 +538,43 @@ static class Analyser
 			contextStack.Push(new Context(definition.memberCount + cursor, Context.Kind.DECLARATION));
 		}
 	}
-
+	
+	static bool extrapolate(AST_Node a, AST_Node b, Func<AST_Node, AST_Node, IR> action)
+	{
+		if(a.nodeType == NT.TUPLE)
+		{
+			var aTup = (AST_Tuple)a;
+			if(b.nodeType == NT.TUPLE)
+			{
+				var bTup = (AST_Tuple)b;
+				aTup.values.forEach((v, i) => action(v, bTup.values[i]));
+			}
+			else
+			{
+				var bTup = (IR_Tuple)b.result;
+				var tNode = new AST_Node();
+				
+				
+				
+			}
+			return true;
+		}
+		else if(b.nodeType == NT.TUPLE)
+		{
+			var aTup = (IR_Tuple)a.result;
+			var bTup = (AST_Tuple)b;
+			
+			
+			return true;
+		}
+		
+		return false;
+	}
+	
 	static IR assign(AST_Node a, AST_Node b)
 	{
+		if(extrapolate(a, b, assign)) return null;
 		load(ref b.result);
-		
-		var aTup = a.result.dType as DataType_Tuple;
-		var bTup = b.result.dType as DataType_Tuple;
-		if(aTup != null)
-		{
-			if(bTup == null) {
-				throw new ParseException(); 
-			}
-			
-			
-			
-			
-			return a.result;
-		}
 		
 		if(a.result.dKind != ValueKind.ADDRES) {
 			throw new ParseException();

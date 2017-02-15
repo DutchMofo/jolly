@@ -19,7 +19,6 @@ namespace Jolly
 	{
 		public DataType  dType;
 		public ValueKind dKind;
-		public bool packed; // Used for tuple's
 		public NT irType;
 		
 		public static IR cast<T>(IR from, DataType to, StaticExec exec) where T : IR_Cast, new()
