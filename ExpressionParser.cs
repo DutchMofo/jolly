@@ -66,17 +66,18 @@ class ExpressionParser
 	{
 		public Operator(byte precedence, byte valCount, bool leftToRight, NT operation, bool isSpecial = false, SourceLocation location = new SourceLocation())
 		{
+			this.canStillDefine = false;
+			this.operatorIndex = 0;
 			this.leftToRight = leftToRight;
 			this.precedence = precedence;
 			this.operation = operation;
 			this.isSpecial = isSpecial;
 			this.location = location;
 			this.valCount = valCount;
-			this.operatorIndex = 0;
 		}
 		public byte precedence, valCount;
 		public SourceLocation location;
-		public bool leftToRight, isSpecial;
+		public bool leftToRight, isSpecial, canStillDefine;
 		public int operatorIndex;
 		public NT operation;
 		
@@ -413,7 +414,7 @@ class ExpressionParser
 				default: throw Jolly.unexpected(token);
 			}
 		}
-		
+				
 		Operator prevOp = operators.PeekOrDefault();
 		// valCount of default(Op) == 0
 		while(prevOp.valCount > 0 && 
@@ -457,6 +458,7 @@ class ExpressionParser
 					op.operation = NT.SLICE;
 					op.leftToRight = true;
 					op.isSpecial = false;
+					op.canStillDefine = true;
 				} else if(context.kind == Context.Kind.TERNARY) {
 					op.operation = NT.TERNARY_SELECT;
 					op.leftToRight = false;
@@ -493,6 +495,10 @@ class ExpressionParser
 				}
 				contextStack.Push(context);
 			}
+		}
+		
+		if(!op.canStillDefine) {
+			canDefine = false;
 		}
 		
 		op.location = token.location;
@@ -770,10 +776,6 @@ class ExpressionParser
 			if(a == null) {
 				throw Jolly.addError(op.location, "Invalid expression term");
 			}
-		}
-		
-		if(op.operation != NT.GET_MEMBER) {
-			canDefine = false;
 		}
 		
 		if(op.isSpecial)

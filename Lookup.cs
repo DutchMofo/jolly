@@ -64,14 +64,14 @@ static class Lookup
 	
 	public readonly static Dictionary<TT, Operator>
 		OPERATORS = new Dictionary<TT, Operator>() {
-			{ TT.PERIOD,          new Operator(01, 2, true,  NT.GET_MEMBER        )},
+			{ TT.PERIOD,          new Operator(01, 2, true,  NT.GET_MEMBER        ){ canStillDefine = true }},
 			{ TT.EXCLAMATION,     new Operator(02, 1, false, NT.LOGIC_NOT         )},
 			{ TT.TILDE,           new Operator(02, 1, false, NT.BIT_NOT           )},
 			{ TT.NEW,             new Operator(02, 1, false, NT.NEW               )},
 			{ TT.DELETE,          new Operator(02, 1, false, NT.DELETE            )},
 			{ TT.AS,              new Operator(03, 2, true,  NT.CAST              )},
 			{ TT.PERCENT,         new Operator(03, 2, true,  NT.MODULO            )},
-			{ TT.ASTERISK,        new Operator(03, 2, true,  NT.MULTIPLY,    true )},
+			{ TT.ASTERISK,        new Operator(03, 2, true,  NT.MULTIPLY,    true ){ canStillDefine = true }},
 			{ TT.SLASH,           new Operator(03, 2, true,  NT.DIVIDE            )},
 			{ TT.MINUS,           new Operator(04, 2, true,  NT.SUBTRACT          )},
 			{ TT.PLUS,            new Operator(04, 2, true,  NT.ADD               )},
@@ -89,9 +89,9 @@ static class Lookup
 			{ TT.AND_AND,         new Operator(11, 2, true,  NT.LOGIC_AND,   true )},
 			{ TT.OR_OR,           new Operator(12, 2, true,  NT.LOGIC_OR,    true )},
 			{ TT.COLON_TILDE,     new Operator(13, 2, false, NT.REINTERPRET, true )},
-			{ TT.QUESTION_MARK,   new Operator(14, 2, false, NT.TERNARY,     true )},
+			{ TT.QUESTION_MARK,   new Operator(14, 2, false, NT.TERNARY,     true ){ canStillDefine = true }},
 			{ TT.COLON,           new Operator(14, 2, true,  NT.COLON,       true )},
-			{ TT.COMMA,           new Operator(15, 2, true,  NT.COMMA             )},
+			{ TT.COMMA,           new Operator(15, 2, true,  NT.COMMA             ){ canStillDefine = true }},
 			{ TT.EQUAL,           new Operator(16, 2, false, NT.ASSIGN            )},
 			{ TT.AND_EQUAL,       new Operator(16, 2, false, NT.AND_ASSIGN        )},
 			{ TT.SLASH_EQUAL,     new Operator(16, 2, false, NT.SLASH_ASSIGN      )},
@@ -143,22 +143,29 @@ static class Lookup
 		directives = new Dictionary<string, Token.Type>(),
 		keywords = new Dictionary<string, Token.Type>();
 	
+	public struct Pair
+	{
+		public DataType a, b;
+		public override bool Equals (object obj) { var other = (Pair)obj; return a == other.a && b == other.b; }
+		public override int GetHashCode() => a.GetHashCode() << 13 + b.GetHashCode();	
+	}
 	
-	public class CastLookup : Dictionary<int, Cast>
+	
+	public class CastLookup : Dictionary<Pair, Cast>
 	{
 		public void Add(DataType a, DataType b)
 		{
-			Add(a, b, casts[a.GetHashCode() << 8 + b.GetHashCode()]);
+			Add(a, b, casts[new Pair{ a = a, b = b }]);
 		}
 		
 		public void Add(DataType a, DataType b, Cast cast)
 		{
-			Add(a.GetHashCode() << 8 + b.GetHashCode(), cast);
+			Add(new Pair{ a = a, b = b }, cast);
 		}
 		
 		public bool get(DataType a, DataType b, out Cast cast)
 		{
-			return TryGetValue(a.GetHashCode() << 8 + b.GetHashCode(), out cast);
+			return TryGetValue(new Pair{ a = a, b = b }, out cast);
 		}
 	}
 	

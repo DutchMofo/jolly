@@ -261,7 +261,6 @@ static class Analyser
 				// The declaration ends after the return values and arguments are parsed.
 				var function = (AST_Function)enclosure.node;
 				var functionType = (DataType_Function)function.result.dType;
-				var tuple = function.returns as AST_Tuple;
 				functionType.returns = function.returns.result.dType;
 				DataType.makeUnique(ref function.result.dType);
 				cursor = enclosure.end; // Skip to end of function enclosure
@@ -380,13 +379,13 @@ static class Analyser
 				// }
 				// instructions.Add(new IR_Return{ values = values });
 			} },
-			// { NT.SUBTRACT,       node => basicOperator(node, Lookup.subs)    },
-			// { NT.ADD,        node => basicOperator(node, Lookup.adds)    },
-			// { NT.MULTIPLY,    node => basicOperator(node, Lookup.muls)    },
-			// { NT.DIVIDE,      node => basicOperator(node, Lookup.divs)    },
-			// { NT.BIT_OR,      node => basicOperator(node, Lookup.ors)     },
-			// { NT.BIT_AND,     node => basicOperator(node, Lookup.ands)    },
-			{ NT.BIT_NOT,     node => {
+			{ NT.SUBTRACT, basicOperator<IR_Subtract> },
+			{ NT.ADD,      basicOperator<IR_Add>      },
+			{ NT.MULTIPLY, basicOperator<IR_Multiply> },
+			{ NT.DIVIDE,   basicOperator<IR_Divide>   },
+			// { NT.BIT_OR,   basicOperator<IR_>    },
+			// { NT.BIT_AND,  basicOperator<IR_>    },
+			{ NT.BIT_NOT,  node => {
 				// Instr xor;
 				// var op = (AST_Operation)node;
 				// if(!Lookup.xors.TryGetValue(op.a.result.dType, out xor)) {
@@ -394,10 +393,10 @@ static class Analyser
 				// }
 				// op.result = xor(op.a.result, new Value{ type = op.a.result.dType, kind = Value.Kind.STATIC_VALUE, data = -1 });
 			} },
-			// { NT.BIT_XOR,     node => basicOperator(node, Lookup.xors)    },
-			// { NT.MODULO,      node => basicOperator(node, Lookup.mods)    },
-			// { NT.SHIFT_LEFT,  node => basicOperator(node, Lookup.slefts)  },
-			// { NT.SHIFT_RIGHT, node => basicOperator(node, Lookup.srights) },
+			{ NT.BIT_XOR,     basicOperator<IR_Xor>    },
+			// { NT.MODULO,      basicOperator<>    },
+			// { NT.SHIFT_LEFT,  basicOperator<>  },
+			// { NT.SHIFT_RIGHT, basicOperator<> },
 			{ NT.LOGIC_AND,    node => {
 				var land = (AST_Logic)node;
 				land.result = instructions.Add(new IR_Logic{ irType = NT.LOGIC_AND, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions });
@@ -595,30 +594,15 @@ static class Analyser
 		}
 	}
 	
-	// static void basicOperator(AST_Node node, Dictionary<DataType, Instr> instrs)
-	// {
-	// 	var op = (AST_Operation)node;
+	static void basicOperator<T>(AST_Node node) where T : IR_Operation, new()
+	{
+		var op = (AST_Operation)node;
 		
-	// 	load(op.a); load(op.b);
-	// 	if(op.a.result.dType != op.b.result.dType)
-	// 	{
-	// 		Cast cast;
-	// 		if(Lookup.implicitCast.get(op.a.result.dType, op.b.result.dType, out cast)) {
-	// 			op.a.result = cast(op.a.result, op.b.result.dType);
-	// 		} else if(Lookup.implicitCast.get(op.b.result.dType, op.a.result.dType, out cast)) {
-	// 			op.b.result = cast(op.b.result, op.a.result.dType);
-	// 		} else {
-	// 			throw Jolly.addError(op.location, "Types not the same");
-	// 		}
-	// 	}
+		load(op.a); load(op.b);
+		implicitCast(ref op.a.result, op.b.result.dType);
 		
-	// 	Instr instr;
-	// 	if(!instrs.TryGetValue(op.a.result.dType, out instr)) {
-	// 		throw Jolly.addError(op.location, "Operator cannot be used on the type "+op.a.result.dType);
-	// 	}
-		
-	// 	op.result = instr(op.a.result, op.b.result);
-	// }
+		op.result = instructions.Add(new T{ a = op.a.result, b = op.b.result, dType = op.b.result.dType });
+	}
 	
 	static void dereference(AST_Node node)
 	{

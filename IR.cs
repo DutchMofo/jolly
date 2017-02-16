@@ -106,7 +106,6 @@ namespace Jolly
 	class IR_Tuple : IR
 	{
 		public IR_Tuple() { irType = NT.TUPLE; }
-		public ValueKind contains;
 	}
 	
 	class IR_Allocate : IR

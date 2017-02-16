@@ -11,17 +11,10 @@ struct OwBoy
 
 int main()
 {
-	i32 a;
-	i32 b;
-	(int, int) c;
+	(int, int) c = (10 * 223, 23 - +23);
 	
-	(a, b) = (1, 2);
-	c = (1, 2);
-	(a, b) = c;
-	c = (a, b);
 	
-	// c = nop(c);
-	(a, b) = nop((1,2));
+	
 	
 	return 0;
 }
