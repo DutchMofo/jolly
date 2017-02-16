@@ -4,25 +4,24 @@ struct OwBoy
 	DisGonnaWork? hopeSo;
 }
 
-// (i32, i32) nop((i32, i32) in)
-// {
-// 	return in;
-// }
+(i32, i32) nop((i32, i32) _in)
+{
+	return _in;
+}
 
 int main()
 {
 	i32 a;
 	i32 b;
 	(int, int) c;
-	// auto (a, b) = (1, 2);
 	
 	(a, b) = (1, 2);
-	// c = (1, 2);
-	// (a, b) = c;
-	// c = (a, b);
+	c = (1, 2);
+	(a, b) = c;
+	c = (a, b);
 	
 	// c = nop(c);
-	// (a, b) = nop((1,2));
+	(a, b) = nop((1,2));
 	
 	return 0;
 }

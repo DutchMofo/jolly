@@ -673,7 +673,8 @@ class ExpressionParser
 			AST_Node[] arguments = null;
 			if(context.index != parseData.ast.Count) {
 				AST_Node node = values.Pop();
-				arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
+				AST_Tuple tuple = node as AST_Tuple;
+				arguments = tuple != null && !tuple.closed ? tuple.values.ToArray() : new AST_Node[] { node };
 			}
 			var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
 			parseData.ast.Add(call);
