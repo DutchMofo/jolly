@@ -159,22 +159,22 @@ namespace Jolly
 	
 	class DataType_Function : DataType
 	{
-		public DataType[] returns, arguments;
+		public DataType[] arguments;
+		public DataType returns;
 		
 		public override bool Equals(object obj)
 		{
 			var arr = obj as DataType_Function;
 			if(arr != null) {
-				return returns.Length == arr.returns.Length && arguments.Length == arr.arguments.Length &&
-					returns.all((r, i) => arr.returns[i] == r) && arguments.all((a, i) => arr.arguments[i] == a);
+				return arguments.Length == arr.arguments.Length &&
+					returns ==  arr.returns && arguments.all((a, i) => arr.arguments[i] == a);
 			}
 			return false;
 		}
 		public override int GetHashCode()
 		{
-			int hash = 0;
+			int hash = returns.GetHashCode();
 			arguments.forEach(a => hash ^= a.GetHashCode());
-			returns.forEach(a => hash ^= a.GetHashCode());
 			return hash;
 		}
 		

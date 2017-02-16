@@ -31,7 +31,7 @@ namespace Jolly
 	{
 		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
 		
-		public List<IR_Allocate> allocations = new List<IR_Allocate>();
+		// public List<IR_Allocate> allocations = new List<IR_Allocate>();
 		public bool canAllocate;
 		
 		
@@ -69,17 +69,6 @@ namespace Jolly
 			
 			children.Add(childName, definition);
 			return true;
-		}
-		
-		public IR_Allocate allocateVariable()
-		{
-			// Bubble allocations to functions or global scope
-			if(canAllocate) {
-				var alloc = new IR_Allocate();
-				allocations.Add(alloc);
-				return alloc;
-			}
-			return parent.allocateVariable();
 		}
 	}
 }

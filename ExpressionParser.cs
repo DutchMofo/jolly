@@ -197,7 +197,7 @@ class ExpressionParser
 		breakLoop:
 		
 		// An early exit is when you exit on a semicolon and not the terminator
-		if(!allowEarlyExit && token.type != terminator) {
+		if(!allowEarlyExit && parseData.cursor < end && token.type != terminator) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -277,12 +277,11 @@ class ExpressionParser
 			
 			parseData.cursor += 2;
 			functionTable.canAllocate = true;
-			new ExpressionParser(parseData, TT.PARENTHESIS_CLOSE, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
+			new ExpressionParser(parseData, TT.UNDEFINED, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
 				.parse(false);
 			
 			functionNode.returns         = target;
-			functionType.arguments       = new DataType[functionTable.allocations.Count];
-			functionType.returns         = new DataType[(target as AST_Tuple)?.values.Count ?? 1];
+			functionType.arguments       = new DataType[functionTable.children.Count]; // TODO: This is the wrong count, I think
 			functionNode.definitionCount = parseData.ast.Count - startNodeCount;
 			
 			Token brace = parseData.tokens[parseData.cursor + 1];
@@ -671,42 +670,14 @@ class ExpressionParser
 		
 		if(context.isFunctionCall)
 		{
-			if(canDefine)
-			{
-				Debug.Fail("Not implemented");
-				// Define multiple varibales: int (i, j, k);
-				
-				var target = context.target;
-				var tup = values.PeekOrDefault() as AST_Tuple;
-				if(tup == null) {
-					throw Jolly.addError(op.location, "Expected a list of names");
-				}
-				
-				parseData.ast.RemoveRange(parseData.ast.Count - tup.values.Count, tup.values.Count);
-				for(int i = 0; i < tup.values.Count; i += 1)
-				{
-					var name = tup.values[i] as AST_Symbol;
-					if(name == null) {
-						throw Jolly.addError(tup.values[i].location, "Expected a name");
-					}	
-					var definition = declareVariable(name.text, target);
-					parseData.ast.Add(tup.values[i] = definition);
-				}
-				
-				// contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DEFINITION) { target = v });
-				parseData.ast.Add(tup);
+			AST_Node[] arguments = null;
+			if(context.index != parseData.ast.Count) {
+				AST_Node node = values.Pop();
+				arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 			}
-			else
-			{
-				AST_Node[] arguments = null;
-				if(context.index != parseData.ast.Count) {
-					AST_Node node = values.Pop();
-					arguments = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
-				}
-				var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
-				parseData.ast.Add(call);
-				values.Push(call);
-			}
+			var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
+			parseData.ast.Add(call);
+			values.Push(call);
 		}
 		else if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
 		{
@@ -733,7 +704,7 @@ class ExpressionParser
 		
 		// Not sure what kind of error to throw yet.
 		// This code 'SHOULD' not be reachable
-		Debug.Fail("Illigal context popped");
+		// Debug.Fail("Illigal context popped");
 	}
 	
 	void pushOperator(Operator op)

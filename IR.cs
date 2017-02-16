@@ -48,6 +48,13 @@ namespace Jolly
 		public override string ToString() => "{0} {1} {2}".fill(dType, dKind, irType);
 	}
 	
+	class IR_Call : IR
+	{
+		public IR_Call() { irType = NT.FUNCTION_CALL; dKind = ValueKind.VALUE; }
+		public IR[] arguments;		
+		public IR target;
+	}
+	
 	class IR_If : IR
 	{
 		public IR_If() { irType = NT.IF; }
@@ -99,6 +106,7 @@ namespace Jolly
 	class IR_Tuple : IR
 	{
 		public IR_Tuple() { irType = NT.TUPLE; }
+		public ValueKind contains;
 	}
 	
 	class IR_Allocate : IR

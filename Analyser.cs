@@ -39,14 +39,7 @@ static class Analyser
 			return popped;
 		}
 	}
-	
-	struct AnalyseResult
-	{
-		public bool isError;
-		public string text;
-		public IR ir;
-	}
-	
+		
 	public static IRList instructions;
 	static EnclosureStack enclosureStack;
 	static ContextStack contextStack;
@@ -91,6 +84,7 @@ static class Analyser
 	
 	static void implicitCast(ref IR ir, DataType to)
 	{
+		return; // TODO: temporary
 		if(ir.dType != to)
 		{
 			Cast cast;
@@ -153,7 +147,7 @@ static class Analyser
 				var tuple = (AST_Tuple)ended.node;
 				var tupleType = new DataType_Tuple(tuple.values.Count);
 				tuple.values.forEach((v, i)=> {
-					if(v.result.dKind != ValueKind.ADDRES) {
+					if((v.result.dKind & ValueKind.ADDRES) == 0) {
 						throw Jolly.addError(v.location, "This tuple can only contain members of {0}".fill(tuple.membersFrom.result.dType));
 					}
 					tupleType.members[i] = v.result.dType;
@@ -268,11 +262,7 @@ static class Analyser
 				var function = (AST_Function)enclosure.node;
 				var functionType = (DataType_Function)function.result.dType;
 				var tuple = function.returns as AST_Tuple;
-				if(tuple != null) {
-					tuple.values.forEach((v, i) => functionType.returns[i] = v.result.dType);
-				} else {
-					functionType.returns[0] = function.returns.result.dType;
-				}
+				functionType.returns = function.returns.result.dType;
 				DataType.makeUnique(ref function.result.dType);
 				cursor = enclosure.end; // Skip to end of function enclosure
 			} break;
@@ -316,10 +306,7 @@ static class Analyser
 				_object.startIndex = cursor + 1;
 				cursor += _object.memberCount;
 			} },
-			{ NT.INITIALIZER, node => {
-				var op = (AST_Operation)node;
-				op.result = assign(op.a.result, op.b.result).ir;
-			} },
+			{ NT.INITIALIZER, assign },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var functionIR = (IR_Function)function.result;
@@ -331,27 +318,25 @@ static class Analyser
 				cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
-				// var functionCall = (AST_FunctionCall)node;
-				// var functionType = functionCall.function.result.dType as DataType_Function;
-				// if(functionType == null) {
-				// 	throw Jolly.addError(node.location, "Can not call this");
-				// }
-				// var arguments = functionType.arguments;
-				// var values = new Value[functionCall.arguments.Length];
+				var functionCall = (AST_FunctionCall)node;
+				var functionType = functionCall.function.result.dType as DataType_Function;
+				if(functionType == null) {
+					throw Jolly.addError(node.location, "Can not call this");
+				}
+				var arguments = functionType.arguments;
+				var values = new IR[functionCall.arguments.Length];
 				
-				// for(int i = 0; i < values.Length; i += 1)
-				// {
-				// 	Cast cast = null;
-				// 	var arg = functionCall.arguments[i];
-				// 	var argT = arguments[i];
+				for(int i = 0; i < values.Length; i += 1)
+				{
+					var arg = functionCall.arguments[i];
+					var argT = arguments[i];
 					
-				// 	load(arg);
-				// 	if(!arg.result.dType.Equals(argT) && !Lookup.implicitCasts.get(arg.result.dType, argT, out cast)) {
-				// 		throw Jolly.addError(arg.location, "Wrong argument");
-				// 	}
-				// 	values[i] = cast?.Invoke(functionCall.arguments[i].result, arguments[i]) ?? functionCall.arguments[i].result;
-				// }
-				// instructions.Add(new IR_Call(){ function = functionCall.function.result, arguments = values });
+					load(arg);
+					implicitCast(ref arg.result, argT);
+					
+					values[i] = arg.result;
+				}
+				node.result = instructions.Add(new IR_Call(){ target = functionCall.function.result, arguments = values, dType = functionType.returns });
 			} },
 			{ NT.TUPLE, tupleContext },
 			{ NT.MEMBER_TUPLE, node => {
@@ -445,10 +430,7 @@ static class Analyser
 				var op = (AST_Operation)node;
 				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
 			} },
-			{ NT.ASSIGN, node => {
-				var op = (AST_Operation)node;
-				op.result = assign(op.a.result, op.b.result).ir;
-			} },
+			{ NT.ASSIGN, assign },
 			{ NT.REFERENCE, node => {
 				var op = (AST_Operation)node;
 				if(op.a.result.dKind != ValueKind.ADDRES) {
@@ -461,7 +443,7 @@ static class Analyser
 			{ NT.DEREFERENCE, dereference },
 			{ NT.CAST, node => {
 				var op = (AST_Operation)node;
-				load(ref op.b.result);
+				load(op.b);
 				
 				if(op.a.result.dKind != ValueKind.STATIC_TYPE) {
 					throw Jolly.addError(op.a.location, "Cannot cast to this");
@@ -546,17 +528,35 @@ static class Analyser
 		}
 	}
 	
-	static AnalyseResult assign(IR a, IR b)
+	static void assign(AST_Node node)
 	{
-		// if(extrapolate(a, b, assign)) return default(AnalyseResult);
-		load(ref b);
+		var op = (AST_Operation)node;
 		
-		if(a.dKind != ValueKind.ADDRES) {
-			throw new ParseException();
+		if((op.a.result.dKind & ~ValueKind.ADDRES) != 0) {
+			throw Jolly.addError(op.location, "Cannot assign to this");
 		}
-		// if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
-		implicitCast(ref b, a.dType);
-		return new AnalyseResult{ ir = instructions.Add(IR.operation<IR_Assign>(a, b, null)) };
+		load(op.b);
+		implicitCast(ref op.b.result, op.a.result.dType);
+		
+		Action<AST_Node, IR> assignTup = null; assignTup = (c, d) => {
+			var aTupType = (DataType_Tuple)c.result.dType;
+			int i = 0;
+			foreach(var val in ((AST_Tuple)c).values)
+			{
+				var member = instructions.Add(IR.getMember(d, aTupType.members[i], i++));
+				if(val.nodeType == NT.TUPLE) {
+					assignTup(val, member);
+					continue;
+				}
+				instructions.Add(IR.operation<IR_Assign>(c.result, d, null));
+			}
+		};
+		
+		if(op.a.nodeType == NT.TUPLE) {
+			assignTup(op.a, op.b.result);
+			return;
+		}
+		op.result = instructions.Add(IR.operation<IR_Assign>(op.a.result, op.b.result, null));
 	}
 		
 	static IR operatorGetMember(ref AST_Node a, AST_Symbol b)
@@ -630,12 +630,27 @@ static class Analyser
 		op.result = instructions.Add(new IR_Dereference{ target = op.a.result, dType = reference.referenced, dKind = ValueKind.ADDRES });
 	}
 	
-	static void load(ref IR ir)
+	static void load(AST_Node node)
 	{
-		if(ir.dKind != ValueKind.ADDRES) {
+		if(node.nodeType == NT.TUPLE)
+		{
+			var tupType = (DataType_Tuple)node.result.dType;
+			node.result = instructions.Add(new IR_Allocate{ dType = node.result.dType, initialized = true });
+			
+			int i = 0;
+			foreach(var val in ((AST_Tuple)node).values) {
+				var member = instructions.Add(IR.getMember(node.result, tupType.members[i], i++));
+				load(val);
+				implicitCast(ref val.result, member.dType);
+				instructions.Add(IR.operation<IR_Assign>(member, val.result, null));
+			}
+		}
+		
+		if((node.result.dKind & ValueKind.ADDRES) == 0) {
 			return;
 		}
-		ir = instructions.Add(new IR_Read{ target = ir, dType = ir.dType, dKind = ValueKind.VALUE });
+		
+		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType, dKind = ValueKind.VALUE });
 	}
 	
 	static void inferOperands(AST_Operation op)
