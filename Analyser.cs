@@ -40,6 +40,13 @@ static class Analyser
 		}
 	}
 	
+	struct AnalyseResult
+	{
+		public bool isError;
+		public string text;
+		public IR ir;
+	}
+	
 	public static IRList instructions;
 	static EnclosureStack enclosureStack;
 	static ContextStack contextStack;
@@ -311,7 +318,7 @@ static class Analyser
 			} },
 			{ NT.INITIALIZER, node => {
 				var op = (AST_Operation)node;
-				op.result = assign(op.a, op.b);
+				op.result = assign(op.a.result, op.b.result).ir;
 			} },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
@@ -425,7 +432,7 @@ static class Analyser
 				op.result = instructions.Add(IR.cast<IR_Reinterpret>(op.a.result, op.b.result.dType, null));
 			} },
 			{ NT.LOGIC_NOT,   node => {
-				Cast cast;
+				// Cast cast;
 				var op = (AST_Operation)node;
 				implicitCast(ref op.a.result, Lookup.I1);
 				// var result = IR.operation<IR_Xor>(op.a.result, op.b.result, (a,b) => (bool)a ^ (bool)b);
@@ -440,7 +447,7 @@ static class Analyser
 			} },
 			{ NT.ASSIGN, node => {
 				var op = (AST_Operation)node;
-				op.result = assign(op.a, op.b);
+				op.result = assign(op.a.result, op.b.result).ir;
 			} },
 			{ NT.REFERENCE, node => {
 				var op = (AST_Operation)node;
@@ -539,7 +546,7 @@ static class Analyser
 		}
 	}
 	
-	static bool extrapolate(AST_Node a, AST_Node b, Func<AST_Node, AST_Node, IR> action)
+	static bool extrapolate(AST_Node a, AST_Node b, Func<IR, IR, AnalyseResult> action)
 	{
 		if(a.nodeType == NT.TUPLE)
 		{
@@ -547,23 +554,29 @@ static class Analyser
 			if(b.nodeType == NT.TUPLE)
 			{
 				var bTup = (AST_Tuple)b;
-				aTup.values.forEach((v, i) => action(v, bTup.values[i]));
+				aTup.values.forEach((v, i) => action(v.result, bTup.values[i].result));
 			}
 			else
 			{
 				var bTup = (IR_Tuple)b.result;
-				var tNode = new AST_Node();
-				
-				
-				
+				var bTupType = (DataType_Tuple)b.result.dType;
+				for(int i = 0; i < bTupType.members.Length; i += 1) {
+					var bVal = IR.getMember(bTup, bTupType.members[i], i);
+					action(aTup.values[i].result, bVal);
+				}
 			}
 			return true;
 		}
 		else if(b.nodeType == NT.TUPLE)
 		{
 			var aTup = (IR_Tuple)a.result;
+			var aTupType = (DataType_Tuple)a.result.dType;
 			var bTup = (AST_Tuple)b;
 			
+			for(int i = 0; i < aTupType.members.Length; i += 1) {
+				var aVal = IR.getMember(aTup, aTupType.members[i], i);
+				action(aVal, bTup.values[i].result);
+			}
 			
 			return true;
 		}
@@ -571,17 +584,17 @@ static class Analyser
 		return false;
 	}
 	
-	static IR assign(AST_Node a, AST_Node b)
+	static AnalyseResult assign(IR a, IR b)
 	{
-		if(extrapolate(a, b, assign)) return null;
-		load(ref b.result);
+		// if(extrapolate(a, b, assign)) return default(AnalyseResult);
+		load(ref b);
 		
-		if(a.result.dKind != ValueKind.ADDRES) {
+		if(a.dKind != ValueKind.ADDRES) {
 			throw new ParseException();
 		}
 		// if(op.b.onUsed?.Invoke(op.a, op.b, instructions) ?? false) return;
-		implicitCast(ref b.result, a.result.dType);
-		return instructions.Add(IR.operation<IR_Assign>(a.result, b.result, null));
+		implicitCast(ref b, a.dType);
+		return new AnalyseResult{ ir = instructions.Add(IR.operation<IR_Assign>(a, b, null)) };
 	}
 		
 	static IR operatorGetMember(ref AST_Node a, AST_Symbol b)
