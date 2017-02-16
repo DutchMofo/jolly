@@ -546,44 +546,6 @@ static class Analyser
 		}
 	}
 	
-	static bool extrapolate(AST_Node a, AST_Node b, Func<IR, IR, AnalyseResult> action)
-	{
-		if(a.nodeType == NT.TUPLE)
-		{
-			var aTup = (AST_Tuple)a;
-			if(b.nodeType == NT.TUPLE)
-			{
-				var bTup = (AST_Tuple)b;
-				aTup.values.forEach((v, i) => action(v.result, bTup.values[i].result));
-			}
-			else
-			{
-				var bTup = (IR_Tuple)b.result;
-				var bTupType = (DataType_Tuple)b.result.dType;
-				for(int i = 0; i < bTupType.members.Length; i += 1) {
-					var bVal = IR.getMember(bTup, bTupType.members[i], i);
-					action(aTup.values[i].result, bVal);
-				}
-			}
-			return true;
-		}
-		else if(b.nodeType == NT.TUPLE)
-		{
-			var aTup = (IR_Tuple)a.result;
-			var aTupType = (DataType_Tuple)a.result.dType;
-			var bTup = (AST_Tuple)b;
-			
-			for(int i = 0; i < aTupType.members.Length; i += 1) {
-				var aVal = IR.getMember(aTup, aTupType.members[i], i);
-				action(aVal, bTup.values[i].result);
-			}
-			
-			return true;
-		}
-		
-		return false;
-	}
-	
 	static AnalyseResult assign(IR a, IR b)
 	{
 		// if(extrapolate(a, b, assign)) return default(AnalyseResult);
