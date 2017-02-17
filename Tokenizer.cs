@@ -200,7 +200,7 @@ class Token
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public double _float	{ get { return (double)data; }	set { data = value; } }
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
-	public ulong _integer	{ get { return (ulong)data; }	set { data = value; } }
+	public long _integer	{ get { return (long)data; }	set { data = value; } }
 	[DebuggerBrowsable(DebuggerBrowsableState.Never)]
 	public string text		{ get { return (string)data; }	set { data = value; } }
 	// };
@@ -248,9 +248,9 @@ class Tokenizer
 		++line;
 	}
 
-	ulong getLongBinary()
+	long getLongBinary()
 	{
-		ulong result = 0;
+		long result = 0;
 		for (char c = source[cursor]; c == '0' || c == '1'; c = source[cursor]) {
 			result = (result << 1) + c - '0';
 			incrementCursor();
@@ -258,19 +258,19 @@ class Tokenizer
 		return result;
 	}
 
-	ulong getLongHex()
+	long getLongHex()
 	{
-		ulong result = 0;
+		long result = 0;
 		for (char c = source[cursor]; isHex(c); c = source[cursor]) {
-			result = (result << 4) + (ulong)(c - '0' - (c > '9' ? 7 : 0) - (c > 'F' ? 32 : 0));
+			result = (result << 4) + (long)(c - '0' - (c > '9' ? 7 : 0) - (c > 'F' ? 32 : 0));
 			incrementCursor();
 		}
 		return result;
 	}
 
-	ulong getLong()
+	long getLong()
 	{
-		ulong result = 0;
+		long result = 0;
 		for (char c = source[cursor]; isDigit(c); c = source[cursor]) {
 			result = result * 10 + c - '0';
 			incrementCursor();
@@ -390,7 +390,7 @@ class Tokenizer
 			index = tokens.Count,
 		};
 		int start = cursor;
-		ulong integer = getLong();
+		long integer = getLong();
 		char chr = source[cursor];
 		
 		if (prevToken.type == Token.Type.PERIOD || (chr == '.' && source[cursor + 1] != '.'))

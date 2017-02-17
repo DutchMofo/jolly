@@ -132,11 +132,11 @@ class ExpressionParser
 	Stack<Operator> operators = new Stack<Operator>();
 	
 	static IR   BOOL(bool   data) => new IR_Literal{ dType = Lookup.I1,     data = data };
-	static IR    INT(ulong  data) => new IR_Literal{ dType = Lookup.I32,    data = data };
+	static IR    INT(long  data)  => new IR_Literal{ dType = Lookup.I32,    data = data };
 	static IR  FLOAT(double data) => new IR_Literal{ dType = Lookup.F32,    data = data };
 	static IR STRING(string data) => new IR_Literal{ dType = Lookup.STRING, data = data };
 	
-	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0 };
+	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0l };
 	
 	public bool isDefinition() => firstDefined != null;
 	
