@@ -711,7 +711,7 @@ class ExpressionParser
 		
 		// Not sure what kind of error to throw yet.
 		// This code 'SHOULD' not be reachable
-		// Debug.Fail("Illigal context popped");
+		Debug.Fail("Illigal context popped");
 	}
 	
 	void pushOperator(Operator op)

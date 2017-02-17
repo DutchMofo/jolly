@@ -167,7 +167,7 @@ namespace Jolly
 			var arr = obj as DataType_Function;
 			if(arr != null) {
 				return arguments.Length == arr.arguments.Length &&
-					returns ==  arr.returns && arguments.all((a, i) => arr.arguments[i] == a);
+					returns == arr.returns && arguments.all((a, i) => arr.arguments[i] == a);
 			}
 			return false;
 		}

@@ -84,7 +84,6 @@ static class Analyser
 	
 	static void implicitCast(ref IR ir, DataType to)
 	{
-		return; // TODO: temporary
 		if(ir.dType != to)
 		{
 			Cast cast;
@@ -599,9 +598,22 @@ static class Analyser
 		var op = (AST_Operation)node;
 		
 		load(op.a); load(op.b);
-		implicitCast(ref op.a.result, op.b.result.dType);
-		
-		op.result = instructions.Add(new T{ a = op.a.result, b = op.b.result, dType = op.b.result.dType });
+		 
+		IR aIR = op.a.result, bIR = op.b.result;
+		if(aIR.dType != bIR.dType)
+		{
+			// TODO: This always tries to cast's the left type to the right type then right to left,
+			// maybe this should be decided by the operator's left to right'ness.
+			Cast cast;
+			if(Lookup.implicitCast.get(aIR.dType, bIR.dType, out cast)) {
+				aIR = cast(aIR, bIR.dType);
+			} else if(Lookup.implicitCast.get(aIR.dType, bIR.dType, out cast)) {
+				bIR = cast(bIR, aIR.dType);
+			} else {
+				throw Jolly.addError(op.location, "Cannot use operator on {0} and {1}".fill(aIR.dType, bIR.dType));
+			}
+		}
+		op.result = instructions.Add(new T{ a = aIR, b = bIR, dType = aIR.dType });
 	}
 	
 	static void dereference(AST_Node node)

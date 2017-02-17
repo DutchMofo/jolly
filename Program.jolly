@@ -11,7 +11,7 @@ struct OwBoy
 
 int main()
 {
-	(int, int) c = (10 * 223, 23 - +23);
+	(f32, i32) c = (10 * 1., 23 - +23);
 	
 	
 	
@@ -26,3 +26,5 @@ struct DisGonnaWork
 
 // TODO:
 // Disallow: i32 a, 10 * 2;
+
+// Ending on a comment breaks the tokenizer

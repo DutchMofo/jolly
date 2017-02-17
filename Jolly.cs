@@ -47,7 +47,7 @@ namespace Jolly
 		}
 		
 		public static bool all<T>(this T[] list, Func<T, int, bool> action)
-			{ for(int i = 0; i < list.Length; i += 1) if(action(list[i], i)) return false; return true; }
+			{ for(int i = 0; i < list.Length; i += 1) if(!action(list[i], i)) return false; return true; }
 	}
 	
 	struct SourceLocation
