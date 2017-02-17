@@ -56,7 +56,7 @@ namespace Jolly
 		{
 			var other = obj as DataType_Tuple;
 			if(other == null) return false;
-			return  other.members.Length == members.Length && other.members.all((m,i)=>m.Equals(members[i]));
+			return other.members.Length == members.Length && other.members.all((m, i) => m == members[i]);
 		}
 		
 		public override IR getMember(IR i, int index, IRList list)
