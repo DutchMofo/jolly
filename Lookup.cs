@@ -219,104 +219,33 @@ static class Lookup
 		{ F64, I64, (a,b) => IR.cast<IR_FloatToInt>(a,b, (c,d)=>  (long)(double)c)      },
 		{ F64, F32, (a,b) => IR.cast<IR_Truncate>  (a,b, (c,d)=> (float)(double)c)      },
 	}, implicitCast = new CastLookup() {
-		{ I1,  I8,  (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (sbyte)((bool)c ? 1 : 0)) },
-		{ I1,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)((bool)c ? 1 : 0)) },
-		{ I1,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)((bool)c ? 1 : 0)) },
-		{ I1,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)((bool)c ? 1 : 0)) },
-		{ I1,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)((bool)c ? 1 : 0)) },
-		{ I1,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)((bool)c ? 1 : 0)) },
+		{ I1,  I8  },
+		{ I1,  I16 },
+		{ I1,  I32 },
+		{ I1,  I64 },
+		{ I1,  F32 },
+		{ I1,  F64 },
 		
-		{ I8,  I16, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) => (short)(sbyte)c) },
-		{ I8,  I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(sbyte)c) },
-		{ I8,  I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(sbyte)c) },
-		{ I8,  F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(sbyte)c) },
-		{ I8,  F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(sbyte)c) },
+		{ I8,  I16 },
+		{ I8,  I32 },
+		{ I8,  I64 },
+		{ I8,  F32 },
+		{ I8,  F64 },
 		
-		{ I16, I32, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>   (int)(short)c) },
-		{ I16, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(short)c) },
-		{ I16, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(short)c) },
-		{ I16, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(short)c) },
+		{ I16, I32 },
+		{ I16, I64 },
+		{ I16, F32 },
+		{ I16, F64 },
 		
-		{ I32, I64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>  (long)(int)c)   },
-		{ I32, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(int)c)   },
-		{ I32, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(int)c)   },
+		{ I32, I64 },
+		{ I32, F32 },
+		{ I32, F64 },
 		
-		{ I64, F32, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) => (float)(long)c)  },
-		{ I64, F64, (a,b) => IR.cast<IR_IntToFloat>(a,b, (c,d) =>(double)(long)c)  },
+		{ I64, F32 },
+		{ I64, F64 },
 		
-		{ F32, F64, (a,b) => IR.cast<IR_Extend>    (a,b, (c,d) =>(double)(float)c) },
+		{ F32, F64 },
 	};
-	
-	/*
-	public static Dictionary<DataType, Instr>
-		adds = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Add>  }, { I8,  doInstr<IR_Add>  },
-			{ U16, doInstr<IR_Add>  }, { I16, doInstr<IR_Add>  },
-			{ U32, doInstr<IR_Add>  }, { I32, doInstr<IR_Add>  },
-			{ U64, doInstr<IR_Add>  }, { I64, doInstr<IR_Add>  },
-			{ F32, doInstr<IR_Fadd> }, { F64, doInstr<IR_Fadd> },
-		},
-		subs = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Sub>  }, { I8,  doInstr<IR_Sub>  },
-			{ U16, doInstr<IR_Sub>  }, { I16, doInstr<IR_Sub>  },
-			{ U32, doInstr<IR_Sub>  }, { I32, doInstr<IR_Sub>  },
-			{ U64, doInstr<IR_Sub>  }, { I64, doInstr<IR_Sub>  },
-			{ F32, doInstr<IR_Fsub> }, { F64, doInstr<IR_Fsub> },
-		},
-		muls = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Mul>  }, { I8,  doInstr<IR_Mul>  },
-			{ U16, doInstr<IR_Mul>  }, { I16, doInstr<IR_Mul>  },
-			{ U32, doInstr<IR_Mul>  }, { I32, doInstr<IR_Mul>  },
-			{ U64, doInstr<IR_Mul>  }, { I64, doInstr<IR_Mul>  },
-			{ F32, doInstr<IR_Fmul> }, { F64, doInstr<IR_Fmul> },
-		},
-		divs = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Udiv> }, { I8,  doInstr<IR_Sdiv> },
-			{ U16, doInstr<IR_Udiv> }, { I16, doInstr<IR_Sdiv> },
-			{ U32, doInstr<IR_Udiv> }, { I32, doInstr<IR_Sdiv> },
-			{ U64, doInstr<IR_Udiv> }, { I64, doInstr<IR_Sdiv> },
-			{ F32, doInstr<IR_Fdiv> }, { F64, doInstr<IR_Fdiv> },
-		},
-		mods = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Urem> }, { I8,  doInstr<IR_Srem> },
-			{ U16, doInstr<IR_Urem> }, { I16, doInstr<IR_Srem> },
-			{ U32, doInstr<IR_Urem> }, { I32, doInstr<IR_Srem> },
-			{ U64, doInstr<IR_Urem> }, { I64, doInstr<IR_Srem> },
-			{ F32, doInstr<IR_Frem> }, { F64, doInstr<IR_Frem> },
-		},
-		slefts = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Shl>  }, { I8,  doInstr<IR_Shl>  },
-			{ U16, doInstr<IR_Shl>  }, { I16, doInstr<IR_Shl>  },
-			{ U32, doInstr<IR_Shl>  }, { I32, doInstr<IR_Shl>  },
-			{ U64, doInstr<IR_Shl>  }, { I64, doInstr<IR_Shl>  },
-		},
-		srights = new Dictionary<DataType, Instr>() {
-			{ U8,  doInstr<IR_Shlr> }, { I8,  doInstr<IR_Shlr> },
-			{ U16, doInstr<IR_Shlr> }, { I16, doInstr<IR_Shlr> },
-			{ U32, doInstr<IR_Shlr> }, { I32, doInstr<IR_Shlr> },
-			{ U64, doInstr<IR_Shlr> }, { I64, doInstr<IR_Shlr> },
-		},
-		ands = new Dictionary<DataType, Instr>() {
-			{ I1,  doInstr<IR_And>  },
-			{ U8,  doInstr<IR_And>  }, { I8,  doInstr<IR_And>  },
-			{ U16, doInstr<IR_And>  }, { I16, doInstr<IR_And>  },
-			{ U32, doInstr<IR_And>  }, { I32, doInstr<IR_And>  },
-			{ U64, doInstr<IR_And>  }, { I64, doInstr<IR_And>  },
-		},
-		ors = new Dictionary<DataType, Instr>() {
-			{ I1,  doInstr<IR_Or>   },
-			{ U8,  doInstr<IR_Or>   }, { I8,  doInstr<IR_Or>   },
-			{ U16, doInstr<IR_Or>   }, { I16, doInstr<IR_Or>   },
-			{ U32, doInstr<IR_Or>   }, { I32, doInstr<IR_Or>   },
-			{ U64, doInstr<IR_Or>   }, { I64, doInstr<IR_Or>   },
-		},
-		xors = new Dictionary<DataType, Instr>() {
-			{ I1,  doInstr<IR_Xor>  },
-			{ U8,  doInstr<IR_Xor>  }, { I8,  doInstr<IR_Xor>  },
-			{ U16, doInstr<IR_Xor>  }, { I16, doInstr<IR_Xor>  },
-			{ U32, doInstr<IR_Xor>  }, { I32, doInstr<IR_Xor>  },
-			{ U64, doInstr<IR_Xor>  }, { I64, doInstr<IR_Xor>  },
-		};*/
 }
 
 }

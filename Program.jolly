@@ -23,3 +23,6 @@ struct DisGonnaWork
 {
 	i32 counter;
 }
+
+// TODO:
+// Disallow: i32 a, 10 * 2;

@@ -191,7 +191,7 @@ namespace Jolly
 		public AST_Symbol(SourceLocation loc, Symbol symbol, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
-		public Symbol symbol; // TODO: Maybe remove later?
+		public Symbol symbol;
 		public string text;
 	}
 	

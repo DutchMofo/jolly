@@ -2,23 +2,9 @@ using System.Collections.Generic;
 using System;
 
 namespace Jolly
-{	
-	[Flags]
-	enum NameFlags
-	{
-		NONE		= 0,
-		FOLDER		= 1<<0,
-		STATIC		= 1<<1,
-		READ_ONLY	= 1<<2,
-		UNION		= 1<<3,
-		IS_TYPE		= 1<<4,
-		IS_BASETYPE = 1<<5,
-		IS_PURE		= 1<<6,
-	};
-	
+{
 	class Symbol
 	{
-		public Symbol() { }
 		public Symbol(SymbolTable parent) { this.parent = parent; }
 		public IR declaration;
 		public SymbolTable parent;
