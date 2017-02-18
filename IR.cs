@@ -181,7 +181,19 @@ namespace Jolly
 	class IR_Modulo : IR_Operation {
 		public IR_Modulo() : base() { irType = NT.MODULO; }
 	}
-	class IR_Xor : IR_Operation {
-		public IR_Xor() : base() { irType = NT.BIT_XOR; }
+	class IR_BitXor : IR_Operation {
+		public IR_BitXor() : base() { irType = NT.BIT_XOR; }
+	}
+	class IR_BitOr : IR_Operation {
+		public IR_BitOr() : base() { irType = NT.BIT_OR; }
+	}
+	class IR_BitAnd : IR_Operation {
+		public IR_BitAnd() : base() { irType = NT.BIT_AND; }
+	}
+	class IR_LShift : IR_Operation {
+		public IR_LShift() : base() { irType = NT.SHIFT_LEFT; }
+	}
+	class IR_RShift : IR_Operation {
+		public IR_RShift() : base() { irType = NT.SHIFT_RIGHT; }
 	}
 }

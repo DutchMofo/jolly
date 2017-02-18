@@ -136,7 +136,7 @@ class ExpressionParser
 	static IR  FLOAT(double data) => new IR_Literal{ dType = Lookup.F32,    data = data };
 	static IR STRING(string data) => new IR_Literal{ dType = Lookup.STRING, data = data };
 	
-	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0l };
+	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0L };
 	
 	public bool isDefinition() => firstDefined != null;
 	

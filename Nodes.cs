@@ -19,7 +19,7 @@ namespace Jolly
 			UNION,
 			ENUM,
 			
-			DEFINITION,
+			DECLARATION,
 			FUNCTION_DEFINITION,
 			FUNCTION,
 			
@@ -124,7 +124,7 @@ namespace Jolly
 		public Type nodeType;
 		public IR result;
 		
-		public Hook onUsed, infer;
+		public Hook infer;
 		
 		public override string ToString()
 			=> "{0}:{1} {2}".fill(location.line, location.column, nodeType);
@@ -198,10 +198,10 @@ namespace Jolly
 	class AST_Declaration : AST_Scope
 	{
 		public AST_Declaration(SourceLocation loc, AST_Node typeFrom)
-			: base(loc, NT.DEFINITION) { this.typeFrom = typeFrom; }
+			: base(loc, NT.DECLARATION) { this.typeFrom = typeFrom; }
 		
 		public AST_Declaration(SourceLocation loc, AST_Node typeFrom, SymbolTable scope, string name)
-			: base(loc, NT.DEFINITION, scope, name) { this.typeFrom = typeFrom; }
+			: base(loc, NT.DECLARATION, scope, name) { this.typeFrom = typeFrom; }
 		
 		public AST_Node typeFrom;
 		// public string[] names;

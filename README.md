@@ -107,26 +107,6 @@ i32 main()
 		pri32f("%d, ", i); // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 
 	}
 	
-	return 0;
-	
-	/*###############
-	    Uncertain
-	###############*/
-	
-	/*
-	When you call new you get the allocated data and a handle, the
-	hande guaranteed to be unique by the compiler. The handle is the
-	owner of the allocated data and when it runs out of scope the data
-	is deleted. This should resolve memory leaks but forces the you
-	implement a way storing the handle's.
-	
-	The problems this method still has is that there still can be 
-	dangling pointers to the deleted data and it doesn't resolve the
-	dereferencing off a null pointer.
-	*/
-	auto (data, handle) = new i32[123];
-	
-	// ...
-	
-} // <-- handle is out of scope and the "new i32[123]" gets deleted.
+	return 0;	
+}
 ```

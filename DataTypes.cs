@@ -48,7 +48,7 @@ namespace Jolly
 	
 	class DataType_Tuple : DataType
 	{
-		public DataType_Tuple(int memberCount) { members = new DataType[memberCount]; }
+		public DataType_Tuple(int memberCount) { members = new DataType[memberCount]; flags = Flags.INSTANTIABLE; }
 		public DataType[] members;
 		
 		public override int GetHashCode() => members.Length == 0 ? 0 : members.Select(m=>m.GetHashCode()).Aggregate((a,b)=>a << 7 & b);

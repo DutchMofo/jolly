@@ -1,39 +1,18 @@
 
-struct OwBoy
+struct DisStilWork
 {
-	DisGonnaWork? hopeSo;
-}
-
-(i32, i32) nop((i32, i32) _in)
-{
-	return _in;
+	int a;
+	int b;
 }
 
 int main()
 {
-	(f32, i32) c = (10 * 1., 23 - +23);
-	
-	
-	
+	DisStilWork vec3 =  { a: 1, b: 2, };
 	
 	return 0;
-}
-
-struct DisGonnaWork
-{
-	i32 counter;
 }
 
 // TODO:
 // Disallow: i32 a, 10 * 2;
 
 // Ending on a comment breaks the tokenizer
-
-/*
-I wish C/C++ had bit rotations operator e.g. for x86 the @ seems like a best choice with the direction of the rotation > for right, < for left
-
-int a = a @> 1; // generates ror eax,1
-int b = b <@ 2; // generates rol eax,2
-
-This would help to get rid of all the compiler instrisics and make more portable code, especially cryptographic libraries where bit rotations are as common as XOR, OR, NOT operators.
-*/

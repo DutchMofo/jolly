@@ -19,7 +19,10 @@ static class Analyser
 	{
 		public EnclosureStack() { }
 		public EnclosureStack(int size) : base(size) { }
-		new public void Push(Enclosure e) => base.Push(enclosure = e);
+		new public void Push(Enclosure e) {
+			if(e.end < int.MaxValue) Console.WriteLine("{2}: {0}, {1}".fill(e.end, program[e.end], e.type));
+			base.Push(enclosure = e);
+		}
 		new public Enclosure Pop()
 		{
 			var popped = base.Pop();
@@ -31,7 +34,11 @@ static class Analyser
 	class ContextStack : Stack<Context>
 	{
 		public ContextStack(int size) : base(size) { }
-		new public void Push(Context c) => base.Push(context = c);
+		new public void Push(Context c) {
+			if(c.index < int.MaxValue) Console.WriteLine("{2}: {0}, {1}".fill(c.index, program[c.index], c.kind));
+			base.Push(context = c);
+		}
+		
 		new public Context Pop()
 		{
 			var popped = base.Pop();
@@ -106,6 +113,9 @@ static class Analyser
 		
 		contextStack.Push(new Context(int.MaxValue, Context.Kind.STATEMENT)); // Just put something on the stack
 		enclosureStack.Push(new Enclosure(NT.GLOBAL, null, globalScope, int.MaxValue));
+		
+		program.forEach((n, i) => Console.WriteLine("{0}: {1}".fill(i, n)));
+		Console.WriteLine();
 		
 		for(cursor = 0; cursor < program.Count; incrementCursor(ref cursor))
 		{
@@ -250,10 +260,9 @@ static class Analyser
 				// type inference
 				var declaration = (AST_Declaration)ended.target;
 				var alloc = (IR_Allocate)declaration.result;
-				// declaration.result.packed = true; // TODO: Maybe remove later
 				
 				if(alloc.dType == Lookup.AUTO || !alloc.initialized) {
-					throw Jolly.addError(declaration.location, "Implicitly-typed variables must be initialized.");
+					throw Jolly.addError(declaration.location, "Auto variables must be initialized.");
 				}
 			} break;
 			case Context.Kind.FUNCTION_DECLARATION: {
@@ -270,7 +279,7 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, declare },
+			{ NT.DECLARATION, declare },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
@@ -293,14 +302,14 @@ static class Analyser
 			{ NT.ENUM,   skipSymbol },
 		},
 		analysers = new Dictionary<NT, Action<AST_Node>>() {
-			{ NT.DEFINITION, declare },
+			{ NT.DECLARATION, declare },
 			{ NT.MODIFY_TYPE, modifyType },
 			{ NT.STRUCT, skipSymbol },
 			{ NT.ENUM,   skipSymbol },
 			{ NT.OBJECT, node => {
 				var _object = (AST_Object)node;
+				_object.result = instructions.Add(new IR_Allocate{ dType = Lookup.AUTO });
 				_object.infer = inferObject;
-				_object.onUsed = storeObject;
 				_object.startIndex = cursor + 1;
 				cursor += _object.memberCount;
 			} },
@@ -378,12 +387,12 @@ static class Analyser
 				// }
 				// instructions.Add(new IR_Return{ values = values });
 			} },
-			{ NT.SUBTRACT, node => basicOperator<IR_Subtract>(node, (a, b) => (a is long ? (long)a - (long)b : (double)a - (double)b)) },
-			{ NT.ADD,      node => basicOperator<IR_Add>     (node, (a, b) => (a is long ? (long)a + (long)b : (double)a + (double)b)) },
-			{ NT.MULTIPLY, node => basicOperator<IR_Multiply>(node, (a, b) => (a is long ? (long)a * (long)b : (double)a * (double)b)) },
-			{ NT.DIVIDE,   node => basicOperator<IR_Divide>  (node, (a, b) => (a is long ? (long)a / (long)b : (double)a / (double)b)) }, // TODO: Check null
-			// { NT.BIT_OR,   basicOperator<IR_>    },
-			// { NT.BIT_AND,  basicOperator<IR_>    },
+			{ NT.SUBTRACT, node => basicOperator<IR_Subtract>(node, null) },
+			{ NT.ADD,      node => basicOperator<IR_Add>     (node, null) },
+			{ NT.MULTIPLY, node => basicOperator<IR_Multiply>(node, null) },
+			{ NT.DIVIDE,   node => basicOperator<IR_Divide>  (node, null) },
+			{ NT.BIT_OR,   node => basicOperator<IR_BitOr>   (node, null) },
+			{ NT.BIT_AND,  node => basicOperator<IR_BitAnd>  (node, null) },
 			{ NT.BIT_NOT,  node => {
 				// Instr xor;
 				// var op = (AST_Operation)node;
@@ -392,10 +401,10 @@ static class Analyser
 				// }
 				// op.result = xor(op.a.result, new Value{ type = op.a.result.dType, kind = Value.Kind.STATIC_VALUE, data = -1 });
 			} },
-			{ NT.BIT_XOR,     node => basicOperator<IR_Divide>(node, (a, b) => (long)a ^ (long)b) },
-			// { NT.MODULO,      basicOperator<>    },
-			// { NT.SHIFT_LEFT,  basicOperator<>  },
-			// { NT.SHIFT_RIGHT, basicOperator<> },
+			{ NT.BIT_XOR,     node => basicOperator<IR_Divide>(node, null) },
+			{ NT.MODULO,      node => basicOperator<IR_Modulo>(node, null) },
+			{ NT.SHIFT_LEFT,  node => basicOperator<IR_LShift>(node, null) },
+			{ NT.SHIFT_RIGHT, node => basicOperator<IR_RShift>(node, null) },
 			{ NT.LOGIC_AND,    node => {
 				var land = (AST_Logic)node;
 				land.result = instructions.Add(new IR_Logic{ irType = NT.LOGIC_AND, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions });
@@ -496,16 +505,16 @@ static class Analyser
 		}
 		
 		var enclosureNode  = (AST_Scope)enclosure.node;
-		var definition     = (AST_Declaration)node;
-		DataType allocType = definition.typeFrom.result.dType;
+		var declaration    = (AST_Declaration)node;
+		DataType allocType = declaration.typeFrom.result.dType;
 				
 		switch(enclosure.type)
 		{
 			case NT.FUNCTION:
 			case NT.GLOBAL: {
 				var alloc = new IR_Allocate{ dType = allocType };
-				definition.symbol.declaration = alloc;
-				definition.result = instructions.Add(alloc);
+				declaration.symbol.declaration = alloc;
+				declaration.result = instructions.Add(alloc);
 				
 				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
 				{
@@ -517,12 +526,13 @@ static class Analyser
 				}
 			} break;
 			case NT.STRUCT: {
-				((DataType_Struct)enclosureNode.result.dType).finishDefinition(definition.text, allocType);
+				((DataType_Struct)enclosureNode.result.dType).finishDefinition(declaration.text, allocType);
 			} break;
-			default: throw Jolly.addError(definition.location, "Cannot define a variable here");
+			default: throw Jolly.addError(declaration.location, "Cannot define a variable here");
 		}
 		if(allocType == Lookup.AUTO) {
-			contextStack.Push(new Context(definition.memberCount + cursor, Context.Kind.DECLARATION));
+			declaration.infer = inferAutoVariable;
+			contextStack.Push(new Context(declaration.memberCount + cursor, Context.Kind.DECLARATION){ target = declaration });
 		}
 	}
 	
@@ -554,6 +564,8 @@ static class Analyser
 			assignTup(op.a, op.b.result);
 			return;
 		}
+		
+		if(op.a.result.irType == NT.ALLOCATE) ((IR_Allocate)op.a.result).initialized = true;
 		op.result = instructions.Add(IR.operation<IR_Assign>(op.a.result, op.b.result, null));
 	}
 		
@@ -614,7 +626,7 @@ static class Analyser
 			}
 		}
 		
-		if((aIR.dKind & bIR.dKind & ValueKind.STATIC_VALUE) != 0) {
+		if((aIR.dKind & bIR.dKind & ValueKind.STATIC_VALUE) != 0 && staticExec != null) {
 			op.result = new IR_Literal{ dType = aIR.dType, data = staticExec(((IR_Literal)aIR).data, ((IR_Literal)bIR).data) };
 			return;
 		}
@@ -694,34 +706,36 @@ static class Analyser
 	
 	static bool inferObject(AST_Node i, AST_Node other, IRList instructions)
 	{
-		return false;
-	}
-	
-	static bool storeObject(AST_Node location, AST_Node obj, IRList instructions)
-	{
-		// TODO: Zero out struct.
+		var _object = (AST_Object)i;
+		var inferFrom = _object.inferFrom?.result ?? other.result;
+		var errLoc = _object.inferFrom?.location ?? other.location;
 		
-		var _object = (AST_Object)obj;
-		_object.result = location.result;
-		
-		if(_object.inferFrom != null)
-		{
-			var inferFrom = _object.inferFrom.result;
-			if(!isStatic(inferFrom.dKind)) {
-				 throw Jolly.addError(_object.inferFrom.location, "Not a type");
-			}
-			// _object.result.dKind = Value.Kind.VALUE;
-			// _object.result.dType = inferFrom.dType;
+		if((inferFrom.dType.flags & DataType.Flags.INSTANTIABLE) == 0) {
+			throw Jolly.addError(errLoc, "Cannot instantiate auto");
 		}
-		else if(location.result.dType == Lookup.AUTO) {
-			throw Jolly.addError(_object.location, "Cannot derive type.");
-		}
+		// TODO: Add further type checkes
 		
 		int end = _object.startIndex + _object.memberCount;
-		enclosureStack.Push(new Enclosure(NT.OBJECT, obj, enclosure.scope, end));
-		for(int i = _object.startIndex; i < end; incrementCursor(ref i)) {
-			analyseNode(program[i]);
+		_object.result.dType = inferFrom.dType;
+		enclosureStack.Push(new Enclosure(NT.OBJECT, _object, enclosure.scope, end));
+		for(int j = _object.startIndex; j < end; incrementCursor(ref j)) {
+			analyseNode(program[j]);
 		}
+		return true;
+	}
+	
+	static bool inferAutoVariable(AST_Node i, AST_Node other, IRList instructions)
+	{
+		DataType type = other.result.dType;
+		var declaration = (AST_Declaration)i;
+		
+		if((type.flags & DataType.Flags.INSTANTIABLE) == 0) {
+			throw Jolly.addError(declaration.location, "The inferred type {0} is not instantiable.".fill(type));
+		}
+		if(type == Lookup.AUTO) {
+			throw Jolly.addError(declaration.location, "The inferred type auto is not valid.");
+		}
+		declaration.symbol.declaration.dType = type;
 		return true;
 	}
 }
