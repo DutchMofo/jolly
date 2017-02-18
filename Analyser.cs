@@ -84,7 +84,6 @@ static class Analyser
 	
 	static void implicitCast(ref IR ir, DataType to)
 	{
-		return; // TODO: temporary
 		if(ir.dType != to)
 		{
 			Cast cast;
@@ -379,10 +378,10 @@ static class Analyser
 				// }
 				// instructions.Add(new IR_Return{ values = values });
 			} },
-			{ NT.SUBTRACT, basicOperator<IR_Subtract> },
-			{ NT.ADD,      basicOperator<IR_Add>      },
-			{ NT.MULTIPLY, basicOperator<IR_Multiply> },
-			{ NT.DIVIDE,   basicOperator<IR_Divide>   },
+			{ NT.SUBTRACT, node => basicOperator<IR_Subtract>(node, (a, b) => (a is long ? (long)a - (long)b : (double)a - (double)b)) },
+			{ NT.ADD,      node => basicOperator<IR_Add>     (node, (a, b) => (a is long ? (long)a + (long)b : (double)a + (double)b)) },
+			{ NT.MULTIPLY, node => basicOperator<IR_Multiply>(node, (a, b) => (a is long ? (long)a * (long)b : (double)a * (double)b)) },
+			{ NT.DIVIDE,   node => basicOperator<IR_Divide>  (node, (a, b) => (a is long ? (long)a / (long)b : (double)a / (double)b)) }, // TODO: Check null
 			// { NT.BIT_OR,   basicOperator<IR_>    },
 			// { NT.BIT_AND,  basicOperator<IR_>    },
 			{ NT.BIT_NOT,  node => {
@@ -393,7 +392,7 @@ static class Analyser
 				// }
 				// op.result = xor(op.a.result, new Value{ type = op.a.result.dType, kind = Value.Kind.STATIC_VALUE, data = -1 });
 			} },
-			{ NT.BIT_XOR,     basicOperator<IR_Xor>    },
+			{ NT.BIT_XOR,     node => basicOperator<IR_Divide>(node, (a, b) => (long)a ^ (long)b) },
 			// { NT.MODULO,      basicOperator<>    },
 			// { NT.SHIFT_LEFT,  basicOperator<>  },
 			// { NT.SHIFT_RIGHT, basicOperator<> },
@@ -594,14 +593,32 @@ static class Analyser
 		}
 	}
 	
-	static void basicOperator<T>(AST_Node node) where T : IR_Operation, new()
+	static void basicOperator<T>(AST_Node node, Func<object, object, object> staticExec) where T : IR_Operation, new()
 	{
 		var op = (AST_Operation)node;
 		
 		load(op.a); load(op.b);
-		implicitCast(ref op.a.result, op.b.result.dType);
+		 
+		IR aIR = op.a.result, bIR = op.b.result;
+		if(aIR.dType != bIR.dType)
+		{
+			// TODO: This always tries to cast's the left type to the right type then right to left,
+			// maybe this should be decided by the operator's left to right'ness.
+			Cast cast;
+			if(Lookup.implicitCast.get(aIR.dType, bIR.dType, out cast)) {
+				aIR = cast(aIR, bIR.dType);
+			} else if(Lookup.implicitCast.get(aIR.dType, bIR.dType, out cast)) {
+				bIR = cast(bIR, aIR.dType);
+			} else {
+				throw Jolly.addError(op.location, "Cannot use operator on {0} and {1}".fill(aIR.dType, bIR.dType));
+			}
+		}
 		
-		op.result = instructions.Add(new T{ a = op.a.result, b = op.b.result, dType = op.b.result.dType });
+		if((aIR.dKind & bIR.dKind & ValueKind.STATIC_VALUE) != 0) {
+			op.result = new IR_Literal{ dType = aIR.dType, data = staticExec(((IR_Literal)aIR).data, ((IR_Literal)bIR).data) };
+			return;
+		}
+		op.result = instructions.Add(new T{ a = aIR, b = bIR, dType = aIR.dType });
 	}
 	
 	static void dereference(AST_Node node)
