@@ -61,7 +61,9 @@ namespace Jolly
 		
 		public override IR getMember(IR i, int index, IRList list)
 		{
-			if(index >= members.Length) return null;
+			if(index >= members.Length) {
+				throw Jolly.addError(new SourceLocation(), "Out of index bounds");
+			}
 			return list.Add(IR.getMember(i, members[index], index));
 		}
 		
