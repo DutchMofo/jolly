@@ -102,12 +102,7 @@ namespace Jolly
 		}
 		public object data;
 	}
-	
-	class IR_Tuple : IR
-	{
-		public IR_Tuple() { irType = NT.TUPLE; }
-	}
-	
+		
 	class IR_Allocate : IR
 	{
 		public IR_Allocate() {
@@ -130,9 +125,18 @@ namespace Jolly
 		public IR target;
 	}
 	
+	class IR_Return : IR
+	{
+		public IR_Return() { irType = NT.RETURN; }
+		public IR value;
+	}
+	
 	class IR_Read : IR
 	{
-		public IR_Read() { irType = NT.READ; }
+		public IR_Read() {
+			irType = NT.READ;
+			dKind = ValueKind.VALUE;
+		}
 		public IR target;
 	}
 	

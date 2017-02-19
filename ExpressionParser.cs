@@ -229,6 +229,9 @@ class ExpressionParser
 				target = values.Pop();
 				break;
 			case TokenKind.SEPARATOR:
+				while(contextStack.Peek().kind == Context.Kind.DECLARATION) {
+					contextEnd(contextStack.Pop());
+				}
 				if(defineMode != DefineMode.ARGUMENT &&
 				   firstDefined != null &&
 				   contextStack.Peek().kind == Context.Kind.STATEMENT)

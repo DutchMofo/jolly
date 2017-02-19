@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System;
 
 namespace Jolly
@@ -19,10 +18,7 @@ static class Analyser
 	{
 		public EnclosureStack() { }
 		public EnclosureStack(int size) : base(size) { }
-		new public void Push(Enclosure e) {
-			if(e.end < int.MaxValue) Console.WriteLine("{2}: {0}, {1}".fill(e.end, program[e.end], e.type));
-			base.Push(enclosure = e);
-		}
+		new public void Push(Enclosure e) { base.Push(enclosure = e); }
 		new public Enclosure Pop()
 		{
 			var popped = base.Pop();
@@ -34,10 +30,7 @@ static class Analyser
 	class ContextStack : Stack<Context>
 	{
 		public ContextStack(int size) : base(size) { }
-		new public void Push(Context c) {
-			if(c.index < int.MaxValue) Console.WriteLine("{2}: {0}, {1}".fill(c.index, program[c.index], c.kind));
-			base.Push(context = c);
-		}
+		new public void Push(Context c) { base.Push(context = c); }
 		
 		new public Context Pop()
 		{
@@ -101,8 +94,7 @@ static class Analyser
 		}
 	}
 	
-	static bool isStatic(ValueKind kind) => kind == ValueKind.STATIC_TYPE || kind == ValueKind.STATIC_FUNCTION;
-	
+	static bool isStatic(ValueKind kind) => (kind & (ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0;
 	
 	public static IRList analyse(List<AST_Node> program, SymbolTable globalScope)
 	{
@@ -153,16 +145,13 @@ static class Analyser
 		{
 			case NT.IF: break;
 			case NT.MEMBER_TUPLE: {
-				var tuple = (AST_Tuple)ended.node;
-				var tupleType = new DataType_Tuple(tuple.values.Count);
-				tuple.values.forEach((v, i)=> {
-					if((v.result.dKind & ValueKind.ADDRES) == 0) {
-						throw Jolly.addError(v.location, "This tuple can only contain members of {0}".fill(tuple.membersFrom.result.dType));
-					}
-					tupleType.members[i] = v.result.dType;
-				});
-				ended.node.result.dType = tupleType;
-				DataType.makeUnique(ref ended.node.result.dType);
+				AST_Tuple      tuple = (AST_Tuple)ended.node;
+				DataType_Tuple tupleType;
+				ValueKind      tupleKind;
+				getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
+				tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
+				
+				// TODO: only allow members
 			} break;
 			case NT.FUNCTION: if(!isDefineFase) swap(ref instructions, ref ((IR_Function)ended.node.result).block); break;
 			case NT.STRUCT: {
@@ -192,19 +181,35 @@ static class Analyser
 		}
 	}
 	
-	static ValueKind validateTupleKind(List<AST_Node> values)
+	static void getTuple_Type_Kind(AST_Tuple tuple, out DataType_Tuple tupleType, out ValueKind tupleKind)
 	{
-		ValueKind kind = values.map(a => a.result.dKind).reduce((a, b) => a | b);
+		ValueKind      _tupleKind = 0;
+		DataType_Tuple _tupleType = new DataType_Tuple(tuple.values.Count);
 		
-		SourceLocation removeThis = values.FirstOrDefault()?.location ?? new SourceLocation();
-		if((kind & (ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
-			if((kind & ~(ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
-				throw Jolly.addError(removeThis, "Tuple mixes values and types");
+		tuple.values.forEach((val, i) => {
+			_tupleKind |= val.result.dKind;
+			_tupleType.members[i] = val.result.dType;
+		});
+		
+		if((_tupleKind & (ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
+			if((_tupleKind & ~(ValueKind.STATIC_TYPE | ValueKind.STATIC_FUNCTION)) != 0) {
+				throw Jolly.addError(tuple.location, "Tuple mixes values and types");
 			}
-		} else if((kind & (ValueKind.ADDRES | ValueKind.STATIC_VALUE | ValueKind.VALUE)) == 0) {
-			throw Jolly.addError(removeThis, "Unknown tuple type");
+		} else if((_tupleKind & (ValueKind.ADDRES | ValueKind.STATIC_VALUE | ValueKind.VALUE)) == 0) {
+			throw Jolly.addError(tuple.location, "Invalid tuple type");
 		}
-		return kind;
+		tupleKind = _tupleKind;
+		tupleType = (DataType_Tuple)DataType.makeUnique(_tupleType);
+	}
+	
+	static IR packTuple(AST_Tuple tuple, DataType_Tuple tupleType)
+	{
+		IR_Allocate alloc = new IR_Allocate{ dType = tupleType };
+		tuple.values.forEach((val, i) => {
+			IR member = instructions.Add(IR.getMember(alloc, tupleType.members[i], i));
+			instructions.Add(IR.operation<IR_Assign>(member, val.result, null));
+		});
+		return alloc;
 	}
 	
 	static void contextEnd(Context ended)
@@ -212,12 +217,17 @@ static class Analyser
 		switch(ended.kind)
 		{
 			case Context.Kind.TUPLE: {
-				var tuple = (AST_Tuple)ended.target;
-				var tupleType = new DataType_Tuple(tuple.values.Count);
-				var kind = validateTupleKind(tuple.values);
-				tupleType.members = tuple.values.Select(v => v.result.dType).ToArray();
-				tuple.result = new IR_Tuple{ irType = NT.TUPLE, dType = tupleType, dKind = kind };
-				DataType.makeUnique(ref tuple.result.dType);
+				AST_Tuple      tuple = (AST_Tuple)ended.target;
+				DataType_Tuple tupleType;
+				ValueKind      tupleKind;
+				getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
+				
+				// If the tuple doesn't contain names pack it
+				if((tupleKind & (ValueKind.ADDRES | ValueKind.STATIC_TYPE)) == 0) {
+					tuple.result = instructions.Add(new IR_Read{ target = packTuple(tuple, tupleType), dType = tupleType });
+				} else {
+					tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
+				}
 			} break;
 			case Context.Kind.IF_CONDITION: {
 				var ifNode = (AST_If)ended.target;
@@ -293,7 +303,7 @@ static class Analyser
 			} },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
-				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
+				op.result =  operatorGetMember(ref op.a, op.b);
 			} },
 			{ NT.NAME, getTypeFromName },
 			{ NT.MEMBER_NAME, node => { } },
@@ -359,33 +369,20 @@ static class Analyser
 			{ NT.NAME, getTypeFromName },
 			{ NT.OBJECT_MEMBER_NAME, node => {
 				Debug.Assert(enclosure.type == NT.OBJECT);
-				node.result = operatorGetMember(ref enclosure.node, node as AST_Symbol);
+				node.result = operatorGetMember(ref enclosure.node, node);
 			} },
 			{ NT.RETURN, node => {
-				// var returnNode = (AST_Return)node;
-				// AST_Function function = null;
-				// foreach(var closure in enclosureStack) {
-				// 	function = closure.node as AST_Function;
-				// 	if(function != null) break;
-				// }
-				// Debug.Assert(function != null);
+				var returnNode = (AST_Return)node;
+				AST_Function function = null;
+				foreach(var closure in enclosureStack) {
+					function = closure.node as AST_Function;
+					if(function != null) break;
+				}
+				Debug.Assert(function != null);
 				
-				// AST_Node[] valueNodes = (returnNode.values as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { returnNode.values };
-				// DataType[] returns = ((DataType_Function)function.result.dType).returns;
-				// Value[] values = new Value[valueNodes.Length];
-				
-				// for(int i = 0; i < valueNodes.Length; i += 1)
-				// {
-				// 	load(valueNodes[i]);
-				// 	Cast cast = null;
-				// 	DataType aR = returns[i];
-				// 	Value bR = valueNodes[i].result;
-				// 	if(aR != bR.type && !Lookup.implicitCasts.getCast(bR.type, aR, out cast)) {
-				// 		throw Jolly.addError(valueNodes[i].location, "Invalid return value");
-				// 	}
-				// 	values[i] = cast?.Invoke(bR, aR) ?? bR;
-				// }
-				// instructions.Add(new IR_Return{ values = values });
+				var returns = ((DataType_Function)function.result.dType).returns;
+				implicitCast(ref returnNode.value.result, returns);
+				node.result = instructions.Add(new IR_Return{ value = returnNode.value.result, dType = returns });
 			} },
 			{ NT.SUBTRACT, node => basicOperator<IR_Subtract>(node, null) },
 			{ NT.ADD,      node => basicOperator<IR_Add>     (node, null) },
@@ -435,7 +432,7 @@ static class Analyser
 			// { NT.SLICE,		 node => basicOperator(node, Lookup.) },
 			{ NT.GET_MEMBER, node => {
 				var op = (AST_Operation)node;
-				op.result =  operatorGetMember(ref op.a, op.b as AST_Symbol);
+				op.result =  operatorGetMember(ref op.a, op.b);
 			} },
 			{ NT.ASSIGN, assign },
 			{ NT.REFERENCE, node => {
@@ -546,56 +543,63 @@ static class Analyser
 		load(op.b);
 		implicitCast(ref op.b.result, op.a.result.dType);
 		
-		Action<AST_Node, IR> assignTup = null; assignTup = (c, d) => {
-			var aTupType = (DataType_Tuple)c.result.dType;
-			int i = 0;
-			foreach(var val in ((AST_Tuple)c).values)
-			{
-				var member = instructions.Add(IR.getMember(d, aTupType.members[i], i++));
-				if(val.nodeType == NT.TUPLE) {
-					assignTup(val, member);
-					continue;
-				}
-				instructions.Add(IR.operation<IR_Assign>(c.result, d, null));
-			}
-		};
-		
-		if(op.a.nodeType == NT.TUPLE) {
-			assignTup(op.a, op.b.result);
-			return;
+		//TODO: Assign to tuple containing names: someStruct.(a, b) = (0, 1);
+				
+		if(op.a.result.irType == NT.ALLOCATE) {
+			((IR_Allocate)op.a.result).initialized = true;
 		}
-		
-		if(op.a.result.irType == NT.ALLOCATE) ((IR_Allocate)op.a.result).initialized = true;
 		op.result = instructions.Add(IR.operation<IR_Assign>(op.a.result, op.b.result, null));
 	}
 		
-	static IR operatorGetMember(ref AST_Node a, AST_Symbol b)
+	static IR operatorGetMember(ref AST_Node a, AST_Node b)
 	{
-		if(b == null) {
-			throw Jolly.addError(b.location, "The right-hand side of the period operator must be a name");
+		bool isName;
+		string name  = null;
+		int    index = 0;
+		
+		switch(b.nodeType) {
+			case NT.NAME: {
+				isName = true;
+				name = ((AST_Symbol)b).text;
+			} break;
+			case NT.LITERAL: {
+				isName = false;
+				if(b.result.dType != Lookup.I32) goto default;
+				index = (int)(long)((IR_Literal)b.result).data;
+			} break;
+			default: throw Jolly.addError(a.location, "The right-hand operant of member access can only be a symbol or index");
 		}
 		
 		if(a.result.dKind == ValueKind.ADDRES)
 		{
 			var iterator = a.result;
-			var definition = iterator.dType.getMember(iterator, b.text, instructions);
+			var definition = isName ?
+				iterator.dType.getMember(iterator, name,  instructions) :
+				iterator.dType.getMember(iterator, index, instructions);
 			
-			// while(definition == null) {
-			// 	iterator = dereference(a);
-			// 	definition = iterator.dType.getMember(iterator, b.text, instructions);
-			// }
+			while(definition == null) {
+				dereference(a);
+				iterator = a.result;
+				definition = isName ?
+					iterator.dType.getMember(iterator, name,  instructions) :
+					iterator.dType.getMember(iterator, index, instructions);
+			}
 			
 			if(definition == null) {
-				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(b.text));
+				throw Jolly.addError(b.location, "Type does not contain a member {0}".fill(name));
 			}
 			return definition;
 		}
 		else if(a.result.dKind == ValueKind.STATIC_TYPE)
 		{
+			if(!isName) {
+				throw new ParseException();
+			}
+			
 			// Get static member
-			var definition = ((AST_Symbol)a).symbol.getChildSymbol(b.text);
+			var definition = ((AST_Symbol)a).symbol.getChildSymbol(name);
 			if(definition == null) {
-				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(b.text));
+				throw Jolly.addError(b.location, "The type does not contain a member \"{0}\"".fill(name));
 			}
 			return definition.declaration;
 		}
@@ -645,25 +649,14 @@ static class Analyser
 	
 	static void load(AST_Node node)
 	{
-		if(node.nodeType == NT.TUPLE)
-		{
-			var tupType = (DataType_Tuple)node.result.dType;
-			node.result = instructions.Add(new IR_Allocate{ dType = node.result.dType, initialized = true });
-			
-			int i = 0;
-			foreach(var val in ((AST_Tuple)node).values) {
-				var member = instructions.Add(IR.getMember(node.result, tupType.members[i], i++));
-				load(val);
-				implicitCast(ref val.result, member.dType);
-				instructions.Add(IR.operation<IR_Assign>(member, val.result, null));
-			}
-		}
-		
 		if((node.result.dKind & ValueKind.ADDRES) == 0) {
 			return;
 		}
 		
-		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType, dKind = ValueKind.VALUE });
+		if(node.nodeType == NT.TUPLE) {
+			node.result = packTuple((AST_Tuple)node, ((DataType_Tuple)node.result.dType));
+		}
+		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType });
 	}
 	
 	static void inferOperands(AST_Operation op)
@@ -684,7 +677,7 @@ static class Analyser
 		}
 		
 		if(enclosure.type == NT.MEMBER_TUPLE) {
-			node.result = operatorGetMember(ref ((AST_Tuple)enclosure.node).membersFrom, node as AST_Symbol);
+			node.result = operatorGetMember(ref ((AST_Tuple)enclosure.node).membersFrom, node);
 			return;
 		}
 		AST_Symbol name = (AST_Symbol)node;
@@ -713,7 +706,7 @@ static class Analyser
 		if((inferFrom.dType.flags & DataType.Flags.INSTANTIABLE) == 0) {
 			throw Jolly.addError(errLoc, "Cannot instantiate auto");
 		}
-		// TODO: Add further type checkes
+		// TODO: Add further type checks
 		
 		int end = _object.startIndex + _object.memberCount;
 		_object.result.dType = inferFrom.dType;

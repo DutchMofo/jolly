@@ -18,7 +18,7 @@ namespace Jolly
 		public static Dictionary<DataType, DataType>
 			allReferenceTypes = new Dictionary<DataType, DataType>();
 			
-		public static void makeUnique(DataType dataType) => makeUnique(ref dataType);
+		public static DataType makeUnique(DataType dataType) { makeUnique(ref dataType); return dataType; }
 		public static void makeUnique(ref DataType dataType)
 		{
 			DataType found;

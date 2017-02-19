@@ -393,12 +393,9 @@ class Tokenizer
 		long integer = getLong();
 		char chr = source[cursor];
 		
-		if (prevToken.type == Token.Type.PERIOD || (chr == '.' && source[cursor + 1] != '.'))
+		if (chr == '.' && source[cursor + 1] != '.')
 		{ // Float numbers
 			token.type = Token.Type.FLOAT_LITERAL;
-			
-			if(prevToken.type == Token.Type.PERIOD)
-				start -= 1;
 			
 			while(true)
 			{
@@ -457,12 +454,6 @@ class Tokenizer
 			// token.number.minSize = 8;
 		}
 		
-		if (prevToken.type == Token.Type.PERIOD) {
-			prevToken._float = token._float;
-			prevToken.type = token.type;
-			overridePrev(prevToken);
-			return null;
-		}
 		return token;
 	}
 

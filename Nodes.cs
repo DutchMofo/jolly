@@ -135,9 +135,9 @@ namespace Jolly
 		public AST_Return(SourceLocation loc, AST_Node returns)
 			: base(loc, NT.RETURN)
 		{
-			this.values = returns;
+			this.value = returns;
 		}
-		public AST_Node values;
+		public AST_Node value;
 	}
 	
 	class AST_Logic : AST_Operation

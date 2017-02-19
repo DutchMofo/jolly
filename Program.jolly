@@ -1,15 +1,20 @@
 
 struct DisStilWork
 {
-	int a;
-	int b;
+	int a, b;
 }
 
 int main()
 {
-	DisStilWork vec3 =  { a: 1, b: 2, };
 	
-	return 0;
+	auto test = breakStuff();
+	
+	return test.0;
+}
+
+(int, int) breakStuff()
+{
+	return (0, 1);
 }
 
 // TODO:
