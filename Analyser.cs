@@ -335,17 +335,25 @@ static class Analyser
 				cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
-				var functionCall = (AST_FunctionCall)node;
-				var functionType = functionCall.function.result.dType as DataType_Function;
+				var call = (AST_FunctionCall)node;
+				var function = call.function;
+				
+				if(function.nodeType == NT.NAME) {
+					var symbol = (AST_Symbol)function;
+					// symbol.symbol.
+					
+				}
+				
+				var functionType = function.dType as DataType_Function;
 				if(functionType == null) {
-					throw Jolly.addError(node.location, "Can not call this");
+					throw Jolly.addError(node.location, "Cannot call this");
 				}
 				var arguments = functionType.arguments;
-				var values = new IR[functionCall.arguments.Length];
+				var values = new IR[call.arguments.Length];
 				
 				for(int i = 0; i < values.Length; i += 1)
 				{
-					var arg = functionCall.arguments[i];
+					var arg = call.arguments[i];
 					var argT = arguments[i];
 					
 					load(arg);
@@ -353,7 +361,7 @@ static class Analyser
 					
 					values[i] = arg.result;
 				}
-				node.result = instructions.Add(new IR_Call(){ target = functionCall.function.result, arguments = values, dType = functionType.returns });
+				node.result = instructions.Add(new IR_Call(){ target = function, arguments = values, dType = functionType.returns });
 			} },
 			{ NT.TUPLE, tupleContext },
 			{ NT.MEMBER_TUPLE, node => {
@@ -474,10 +482,10 @@ static class Analyser
 		
 		// TODO: Fix
 		switch(mod.toType) {
+			case AST_ModifyType.TO_SLICE:
 			case AST_ModifyType.TO_ARRAY:
 				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
 				break;
-			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
 			case AST_ModifyType.TO_POINTER:
 			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
 				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Reference(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
@@ -504,7 +512,11 @@ static class Analyser
 		var enclosureNode  = (AST_Scope)enclosure.node;
 		var declaration    = (AST_Declaration)node;
 		DataType allocType = declaration.typeFrom.result.dType;
-				
+		
+		if((allocType.flags & DataType.Flags.INSTANTIABLE) == 0 && allocType != Lookup.AUTO) {
+			throw Jolly.addError(node.location, "The type {0} is not instantiable.".fill(allocType));
+		}
+		
 		switch(enclosure.type)
 		{
 			case NT.FUNCTION:
@@ -687,8 +699,6 @@ static class Analyser
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 		}
-		Debug.Assert(definition.declaration.dType != null);
-		Debug.Assert(definition.declaration.dKind != ValueKind.UNDEFINED);
 		
 		name.result = definition.declaration;
 	}

@@ -1,20 +1,18 @@
 
-struct DisStilWork
-{
-	int a, b;
+
+(int, int, int) getVec3() {
+	return (0, 0, 0);
 }
 
-int main()
-{
+namespace Jolly {
+	(int, int, int) getVec3(int number) {
+		return (number, number, number);
+	}
 	
-	auto test = breakStuff();
-	
-	return test.1;
-}
-
-(int, int) breakStuff()
-{
-	return (0, 1);
+	int main() {
+		auto test = getVec3();
+		return test.2;
+	}
 }
 
 // TODO:

@@ -24,7 +24,7 @@ namespace Jolly
 			DataType found;
 			Debug.Assert(dataType != null);
 			if(!allReferenceTypes.TryGetValue(dataType, out found)) {
-				dataType.typeID = ++lastTypeID;
+				dataType.typeID = (lastTypeID += 1);
 				allReferenceTypes.Add( dataType, dataType );
 			} else {
 				dataType = found;
@@ -73,13 +73,11 @@ namespace Jolly
 	class DataType_Reference : DataType
 	{
 		public DataType referenced;
-		public byte depth; // How many pointers are there "int**" == 2, "int*" == 1, TODO: Do I even use this?
 		
 		public DataType_Reference(DataType referenced)
 		{
 			this.referenced = referenced;
 			this.flags = Flags.BASE_TYPE | Flags.INSTANTIABLE;
-			this.depth = (byte)(((referenced as DataType_Reference)?.depth ?? 1) + 1);
 		}
 		
 		public override bool Equals(object obj)
@@ -94,7 +92,7 @@ namespace Jolly
 		
 		public override string ToString() => referenced + "*";
 	}
-		
+	
 	class DataType_Enum : DataType
 	{
 		public DataType_Enum() { flags = Flags.INSTANTIABLE; }

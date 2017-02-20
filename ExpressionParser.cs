@@ -272,15 +272,13 @@ class ExpressionParser
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
 			
 			if(!scope.Add(name, functionTable)) {
-				// TODO: add overloads
-				Jolly.addError(token.location, "Trying to redefine function");
+				
 			}
 			
 			parseData.ast.Insert(startNodeCount, functionNode);
 			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1); // Skip the function node itself
 			
 			parseData.cursor += 2;
-			functionTable.canAllocate = true;
 			new ExpressionParser(parseData, TT.UNDEFINED, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
 				.parse(false);
 			

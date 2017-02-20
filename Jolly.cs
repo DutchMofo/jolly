@@ -98,7 +98,7 @@ namespace Jolly
 			
 			var parseData = new SharedParseData{ tokens = tokens, ast = new List<AST_Node>() };
 			
-			var globalScope = new SymbolTable(null){ canAllocate = true };
+			var globalScope = new SymbolTable(null);
 			new ScopeParser(parseData, tokens.Length - 1, globalScope).parse(ScopeParseMethod.GLOBAL);
 			
 			var instructions = Analyser.analyse(parseData.ast, globalScope);
