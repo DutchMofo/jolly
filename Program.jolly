@@ -1,23 +1,26 @@
 
-struct DisStilWork
+struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
 {
-	int a, b;
+	int count;
+	$type* data;
 }
 
-int main()
+($t, $t, $t) getVec($t val)
 {
-	
-	auto test = breakStuff();
-	
+	return (val, val, val);
+}
+
+(int, int) getVec() { return (0, 0); }
+(int, int, int) getVec(int i) { return (i, i, i); }
+
+int main() {
+	auto test = getVec();
 	return test.1;
 }
 
-(int, int) breakStuff()
-{
-	return (0, 1);
-}
 
 // TODO:
 // Disallow: i32 a, 10 * 2;
 
 // Ending on a comment breaks the tokenizer
+

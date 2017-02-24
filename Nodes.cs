@@ -23,6 +23,7 @@ namespace Jolly
 			FUNCTION_DEFINITION,
 			FUNCTION,
 			
+			TEMPLATE_NAME,
 			NAME,
 			MEMBER_NAME,
 			OBJECT_MEMBER_NAME,
@@ -138,6 +139,11 @@ namespace Jolly
 			this.value = returns;
 		}
 		public AST_Node value;
+	}
+	
+	class AST_Template : AST_Node
+	{
+		public TemplateItem item;
 	}
 	
 	class AST_Logic : AST_Operation

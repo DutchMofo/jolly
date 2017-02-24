@@ -1,13 +1,13 @@
 using System.Collections.Generic;
-using System;
 
 namespace Jolly
 {
 	class Symbol
 	{
 		public Symbol(SymbolTable parent) { this.parent = parent; }
-		public IR declaration;
 		public SymbolTable parent;
+		public Symbol extends;
+		public IR declaration;
 		
 		public virtual Symbol searchSymbol(string name) => null;
 		public virtual Symbol getChildSymbol(string name) => null;
@@ -15,20 +15,17 @@ namespace Jolly
 	
 	class SymbolTable : Symbol
 	{
-		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
-		
-		// public List<IR_Allocate> allocations = new List<IR_Allocate>();
-		public bool canAllocate;
-		
-		
 		public SymbolTable(SymbolTable parent) : base(parent) { }
+		
+		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
+		public Symbol[] template;
 		
 		public override Symbol searchSymbol(string name)
 		{
 			SymbolTable iterator = this;
 			Symbol item;
 			do {
-				if(iterator.children.TryGetValue(name, out item))
+				if((item = iterator.getChildSymbol(name)) != null)
 					return item;
 				iterator = iterator.parent;
 			} while(iterator != null);
@@ -38,22 +35,31 @@ namespace Jolly
 		public override Symbol getChildSymbol(string name)
 		{
 			Symbol item;
-			if(children.TryGetValue(name, out item))
-				return item;
+			if(children.TryGetValue(name, out item)) return item;
 			return null;
 		}
 		
-		public bool Add(string childName, Symbol definition)
+		public bool addChild(string name, Symbol definition, bool allowCollision = false)
 		{
-			SymbolTable iterator = this;
-			do {
-				if(iterator.children.ContainsKey(childName)) {
-					return false;
+			Symbol item;
+			if(children.TryGetValue(name, out item)) {
+				if(!allowCollision) return false;
+				definition.extends = item.extends;
+				item.extends = definition;
+				return true;
+			}
+			
+			SymbolTable iterator = parent;
+			while(iterator != null)
+			{
+				if(iterator.children.TryGetValue(name, out item)) {
+					if(!allowCollision) return false;
+					definition.extends = item;
+					break;
 				}
 				iterator = iterator.parent;
-			} while(iterator != null);
-			
-			children.Add(childName, definition);
+			}
+			children.Add(name, definition);
 			return true;
 		}
 	}

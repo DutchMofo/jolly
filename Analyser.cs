@@ -286,9 +286,29 @@ static class Analyser
 		}
 	}
 	
+	// TODO: Clean op all functions see things are easier to find.
+	static void inferTemplateName(AST_Node i, AST_Node other, IRList list)
+	{
+		
+	}
+
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
+			{ NT.TEMPLATE_NAME, node => {
+				var template = (AST_Template)node;
+				var type = template.item.constantValue?.result;
+				template.infer = inferTemplateName;
+				template.result = new IR { dType = Lookup.TEMPLATE, dKind = ValueKind.STATIC_TYPE };
+				if(type != null) {
+					// TODO: check type instantiable
+					if(type.dKind != ValueType.STATIC_TYPE) {
+						throw Jolly.addError(template.location, "Expected static type");
+					}
+					template.result.dKind = ValueKind.STATIC_VALUE;
+					template.result.dType = type.dType;
+				}
+			} },
 			{ NT.DECLARATION, declare },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
@@ -475,7 +495,7 @@ static class Analyser
 		// TODO: Fix
 		switch(mod.toType) {
 			case AST_ModifyType.TO_ARRAY:
-				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
+				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array_Data(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
 				break;
 			case AST_ModifyType.TO_SLICE: /*Debug.Assert(false); break;*/
 			case AST_ModifyType.TO_POINTER:
@@ -544,7 +564,7 @@ static class Analyser
 		implicitCast(ref op.b.result, op.a.result.dType);
 		
 		//TODO: Assign to tuple containing names: someStruct.(a, b) = (0, 1);
-				
+		
 		if(op.a.result.irType == NT.ALLOCATE) {
 			((IR_Allocate)op.a.result).initialized = true;
 		}
@@ -687,8 +707,6 @@ static class Analyser
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 		}
-		Debug.Assert(definition.declaration.dType != null);
-		Debug.Assert(definition.declaration.dKind != ValueKind.UNDEFINED);
 		
 		name.result = definition.declaration;
 	}

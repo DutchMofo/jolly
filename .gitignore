@@ -3,6 +3,8 @@
 /obj
 /debug
 
+**.swp
+
 # Include only settings, launch and tasks
 /.vscode/*
 !/.vscode/launch.json

@@ -26,20 +26,23 @@ static class Lookup
 	const DataType.Flags
 		BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE | DataType.Flags.SIGNED,
 		U_BASE_TYPE = DataType.Flags.BASE_TYPE | DataType.Flags.INSTANTIABLE,
-		INSTANTIABLE = DataType.Flags.INSTANTIABLE;
+		INSTANTIABLE = DataType.Flags.INSTANTIABLE,
+		UNFINISHED = DataType.Flags.UNFINISHED;
 	
 	public static readonly DataType
-		I1       = new DataType{ name = "i1",     size = 1,  align = 1, typeID = 1,  flags = BASE_TYPE },
-		I8       = new DataType{ name = "i8",     size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
-		I16      = new DataType{ name = "i16",    size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
-		I32      = new DataType{ name = "i32",    size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
-		I64      = new DataType{ name = "i64",    size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
-		F32      = new DataType{ name = "f32",    size = 4,  align = 4, typeID = 10, flags = BASE_TYPE },
-		F64      = new DataType{ name = "f64",    size = 4,  align = 4, typeID = 11, flags = BASE_TYPE },
-		VOID     = new DataType{ name = "void",   size = 0,  align = 0, typeID = 12, flags = BASE_TYPE },
-		STRING   = new DataType{ name = "string", size = 16, align = 8, typeID = 13, flags = INSTANTIABLE },
-		AUTO     = new DataType{ name = "auto",   size = 0,  align = 0, typeID = 14, flags = 0 },
-		TUPLE    = new DataType{ name = "tuple",  size = 0,  align = 0, typeID = 15, flags = 0 };
+		I1       = new DataType{ name = "i1",      size = 1,  align = 1, typeID = 1,  flags = BASE_TYPE },
+		I8       = new DataType{ name = "i8",      size = 1,  align = 1, typeID = 3,  flags = BASE_TYPE },
+		I16      = new DataType{ name = "i16",     size = 2,  align = 2, typeID = 5,  flags = BASE_TYPE },
+		I32      = new DataType{ name = "i32",     size = 4,  align = 4, typeID = 7,  flags = BASE_TYPE },
+		I64      = new DataType{ name = "i64",     size = 8,  align = 8, typeID = 9,  flags = BASE_TYPE },
+		F32      = new DataType{ name = "f32",     size = 4,  align = 4, typeID = 10, flags = BASE_TYPE },
+		F64      = new DataType{ name = "f64",     size = 4,  align = 4, typeID = 11, flags = BASE_TYPE },
+		VOID     = new DataType{ name = "void",    size = 0,  align = 0, typeID = 12, flags = BASE_TYPE },
+		STRING   = new DataType{ name = "string",  size = 16, align = 8, typeID = 13, flags = INSTANTIABLE },
+		AUTO     = new DataType{ name = "auto",    size = 0,  align = 0, typeID = 14, flags = UNFINISHED },
+		TUPLE    = new DataType{ name = "tuple",   size = 0,  align = 0, typeID = 15, flags = 0 },
+		TEMPLATE = new DataType{ name = "template", flags = UNFINISHED };
+
 	public static DataType
 		VOID_PTR = new DataType_Reference(new DataType{ size = 0, align = 0, typeID = 16,  flags = BASE_TYPE });
 	

@@ -29,6 +29,17 @@ bool, Foo? bar()
 	return false, null;
 }
 
+int nextIndex = -1;
+int[:] stack = {};
+void Push(int i) #inline
+{
+	nextIndex += 1;
+	if(nextIndex >= stack.count) #outline {
+		// Allocate new buffer and copy data
+	}
+	stack[nextIndex] = i;
+}
+
 i32 addThreei32s(i32 a, i32 b, i32 c)
 {
 	return a + b + c;
@@ -90,6 +101,10 @@ i32 main()
 		auto (status, foo) = bar();
 		i32? someCounter = foo?.someCounter;
 	}
+	
+	// Unit annotation, test == 'ms
+	f32 test = 1.'m / 10.'s;
+	
 	
 	// Initialize if condition.
 	if(auto (status, foo) = bar(); status) {

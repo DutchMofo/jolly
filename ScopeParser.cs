@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Jolly
 {
@@ -101,31 +102,40 @@ namespace Jolly
 			}
 			
 			Token next = parseData.tokens[parseData.cursor += 1];
-			AST_Node inherits = null;
 			
-			if(next.type == TT.COLON) {
-				parseData.cursor += 1;
-				inherits = new ExpressionParser(parseData, TT.BRACE_OPEN, scope, DefineMode.EXPRESSION, end)
-					.parse(false).getValue();
-				next = parseData.tokens[parseData.cursor];
-			}
-			
-			if(next.type != TT.BRACE_OPEN) {
-				throw Jolly.unexpected(token);
-			}
+			var template = new Dictionary<string, TemplateItem>();
 			
 			AST_Struct      structNode  = new AST_Struct(token.location);
 			DataType_Struct structType  = new DataType_Struct();
 			SymbolTable     structTable = new SymbolTable(scope);
 			
-			structNode.inherits = inherits;
+			if(next.type == TT.LESS) {
+				parseData.cursor += 1;
+				new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
+					{ template = template }
+					.parse(false);
+			}
+			
+			if(next.type == TT.COLON)
+			{
+				parseData.cursor += 1;
+				structNode.inherits =
+					new ExpressionParser(parseData, TT.BRACE_OPEN, scope, DefineMode.EXPRESSION, end)
+					{ template = template }
+					.parse(false)
+					.getValue();
+				next = parseData.tokens[parseData.cursor];
+			}
+			
+			if(next.type != TT.BRACE_OPEN) {
+				throw Jolly.unexpected(next);
+			}
+			
 			structNode.symbol   = structTable;
 			structNode.text     = structType.name  = name.text;
 			structNode.result   = structTable.declaration = new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE };
 			
-			if(!scope.Add(name.text, structTable)) {
-				Jolly.addError(name.location, "Trying to redefine \"{0}\"".fill(name.text));
-			}
+			scope.addChild(name.text, structTable);
 			
 			parseData.ast.Add(structNode);
 			parseData.cursor += 1;
@@ -158,9 +168,8 @@ namespace Jolly
 			enumNode.text     = enumType.name  = identifier.text;
 			enumNode.result   = enumTable.declaration = new IR{ irType = NT.ENUM, dType = enumType, dKind = ValueKind.STATIC_TYPE };
 			
-			if(!scope.Add(enumType.name, enumTable)) {
-				throw Jolly.addError(identifier.location, "Trying to redefinen {0}".fill(enumType.name));
-			}
+			scope.addChild(identifier.text, enumTable);
+			
 			parseData.ast.Add(enumNode);
 			
 			int startNodeCount = parseData.ast.Count;
@@ -176,8 +185,10 @@ namespace Jolly
 					throw Jolly.unexpected(memberNode);
 				}
 				
-				var symbol = new Symbol(enumTable) { declaration = new IR_Literal{ dType = enumType, data = nextValue++ } };
-				enumTable.Add(((AST_Symbol)memberNode).text, symbol);
+				var symbol = new Symbol(enumTable) {
+					declaration = new IR_Literal{ dType = enumType, data = nextValue++ }
+				};
+				enumTable.addChild(((AST_Symbol)memberNode).text, symbol);
 			}
 		}
 		

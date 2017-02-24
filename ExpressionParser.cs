@@ -14,6 +14,12 @@ class SharedParseData
 	public List<AST_Node> ast;
 }
 
+struct TemplateItem
+{
+	public AST_Node constantValue;
+	public ExpressionParser.DefineMode canBeInferredBy;
+}
+
 struct Context
 {
 	public enum Kind : byte
@@ -32,8 +38,8 @@ struct Context
 		TUPLE,
 		IF_CONDITION,
 		IF_TRUE,
-		IF_FALSE,
 		LOGIC_OR,
+		IF_FALSE,
 		LOGIC_AND,
 		FUNCTION_DECLARATION,
 	}
@@ -84,7 +90,7 @@ class ExpressionParser
 		public override string ToString()
 			=> "op: {0}, p: {1}, {2}".fill(operation, precedence, leftToRight ? "->" : "<-");
 	}
-
+	
 	enum TokenKind : byte
 	{
 		NONE      = 0,
@@ -95,12 +101,14 @@ class ExpressionParser
 	
 	public enum DefineMode : byte
 	{
+		UNDEFINED,
 		STATEMENT,  // Can define function or variable
 		MEMBER,     // Can only define variables, no expression
 		ARGUMENT,   // Can only define variables, no expression
 		EXPRESSION, // Only a expression, can't define anything
+		TEMPLATE,   // Only template arguments
 	}
-	
+
 	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope, DefineMode defineMode, int end)
 	{
 		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.STATEMENT));
@@ -111,12 +119,12 @@ class ExpressionParser
 		this.scope = scope;
 		this.end = end;
 	}
-	
+
 	// Was the previouly parsed token a value (literal, identifier, object),
 	// operator or a separator (comma)
 	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
-	          currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
-	
+		currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
+
 	// The first defined variable
 	AST_Declaration firstDefined;
 	SharedParseData parseData;
@@ -127,6 +135,7 @@ class ExpressionParser
 	Token token;
 	int end;
 
+	public Dictionary<string, TemplateItem> template;
 	Stack<Context> contextStack = new Stack<Context>();
 	Stack<AST_Node> values = new Stack<AST_Node>();
 	Stack<Operator> operators = new Stack<Operator>();
@@ -166,6 +175,7 @@ class ExpressionParser
 				case TT.BRACKET_CLOSE:     parseBracketClose();		break;
 				case TT.BRACE_OPEN:        parseBraceOpen();        break;
 				case TT.BRACE_CLOSE:       parseBraceClose();		break;
+				case TT.DOLLAR:            parseTemplateArgument(); break;
 				case TT.INTEGER_LITERAL:   _value = new AST_Node(token.location, NT.LITERAL) { result =      INT(token._integer) }; goto case 0;
 				case TT.STRING_LITERAL:    _value = new AST_Node(token.location, NT.LITERAL) { result =   STRING(token._string)  }; goto case 0;
 				case TT.FLOAT_LITERAL:     _value = new AST_Node(token.location, NT.LITERAL) { result =    FLOAT(token._float)   }; goto case 0;
@@ -271,16 +281,12 @@ class ExpressionParser
 			functionNode.text   = functionType.name  = name;
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
 			
-			if(!scope.Add(name, functionTable)) {
-				// TODO: add overloads
-				Jolly.addError(token.location, "Trying to redefine function");
-			}
+			scope.addChild(name, functionTable);
 			
 			parseData.ast.Insert(startNodeCount, functionNode);
 			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1); // Skip the function node itself
 			
 			parseData.cursor += 2;
-			functionTable.canAllocate = true;
 			new ExpressionParser(parseData, TT.UNDEFINED, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
 				.parse(false);
 			
@@ -314,7 +320,7 @@ class ExpressionParser
 	AST_Declaration declareVariable(string name, AST_Node target)
 	{
 		AST_Declaration variableNode;
-			
+		
 		if(defineMode == DefineMode.MEMBER)
 		{
 			var structType = (DataType_Struct)scope.declaration.dType;
@@ -331,17 +337,63 @@ class ExpressionParser
 			Symbol variableSymbol = new Symbol(scope);
 			       variableNode   = new AST_Declaration(token.location, target);
 			
-			variableNode.symbol     = variableSymbol;
-			variableNode.text       = name;
+			variableNode.symbol   = variableSymbol;
+			variableNode.text     = name;
 			// variableNode.allocation = scope.allocateVariable();
 			
-			if(!scope.Add(name, variableSymbol)) {
-				throw Jolly.addError(token.location, "Trying to redefine variable");
-			}
+			scope.addChild(name, variableSymbol);
 		} else {
 			throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 		}
 		return variableNode;
+	}
+	
+	void parseTemplateArgument()
+	{
+		if(template == null) {
+			throw Jolly.unexpected(token);
+		}
+		
+		Token name = parseData.tokens[parseData.cursor += 1];
+		if(name.type != TT.IDENTIFIER) {
+			Jolly.unexpected(name);
+		}
+		var node = new AST_Declaration(name.location, null) { nodeType = NT.TEMPLATE_NAME };
+		
+		if(prevTokenKind == TokenKind.VALUE) {
+			if(defineMode != DefineMode.TEMPLATE) {
+				throw Jolly.unexpected(token);
+			}
+			node.typeFrom = values.Pop();
+		}
+		
+		TemplateItem item;
+		if(canDefine)
+		{
+			DefineMode sdasdasd = (defineMode == DefineMode.TEMPLATE || defineMode == DefineMode.ARGUMENT) ? defineMode : DefineMode.UNDEFINED;
+			
+			if(!template.TryGetValue(name.text, out item))
+			{
+				template.Add(name.text, new TemplateItem {
+					canBeInferredBy = sdasdasd,
+					constantValue = node.typeFrom
+				});
+				return;
+			}
+			
+			if(item.canBeInferredBy == DefineMode.UNDEFINED) {
+				item.canBeInferredBy = sdasdasd;
+			} else if(item.canBeInferredBy == DefineMode.TEMPLATE && defineMode == DefineMode.TEMPLATE) {
+				throw Jolly.addError(name.location, "Trying to redefine template argument {0}".fill(name.text));
+			}
+		}
+		else if(!template.TryGetValue(name.text, out item))
+		{
+			throw Jolly.addError(name.location, "No template argument not found {0}".fill(name.text));
+		}
+		
+		parseData.ast.Add(node);
+		values.Push(node);
 	}
 	
 	void modifyType(byte toType)

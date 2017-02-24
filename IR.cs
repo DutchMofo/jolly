@@ -167,6 +167,9 @@ namespace Jolly
 		public IR a, b;
 	}
 	
+	class IR_Substript : IR_Operation {
+		public IR_Substript() : base() { irType = NT.SUBSCRIPT; }
+	}
 	class IR_Assign : IR_Operation {
 		public IR_Assign() : base() { irType = NT.ASSIGN; }
 	}
