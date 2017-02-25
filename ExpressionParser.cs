@@ -281,6 +281,7 @@ class ExpressionParser
 			AST_Function      functionNode  = new AST_Function(token.location);
 			SymbolTable       functionTable = new SymbolTable(scope);
 			
+			functionNode.templateArguments = templateArguments;
 			functionNode.symbol = functionTable;
 			functionNode.text   = functionType.name  = name;
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
@@ -338,6 +339,7 @@ class ExpressionParser
 				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
 			
+			variableNode.templateArguments = templateArguments;
 			firstDefined = variableNode;
 			values.Push(variableNode);
 			ast.Add(variableNode);
