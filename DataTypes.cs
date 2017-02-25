@@ -9,7 +9,7 @@ namespace Jolly
 		public enum Flags
 		{
 			NONE         = 0,
-			BASE_TYPE    = 1<<0,
+			INTEGER      = 1<<0,
 			INSTANTIABLE = 1<<1,
 			SIGNED       = 1<<2,
 			UNFINISHED   = 1<<3,
@@ -78,7 +78,7 @@ namespace Jolly
 		public DataType_Reference(DataType referenced)
 		{
 			this.referenced = referenced;
-			this.flags = Flags.BASE_TYPE | Flags.INSTANTIABLE;
+			this.flags = Flags.INSTANTIABLE;
 		}
 		
 		public override bool Equals(object obj)

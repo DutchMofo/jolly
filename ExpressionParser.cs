@@ -101,12 +101,12 @@ class ExpressionParser
 	
 	public enum DefineMode : byte
 	{
-		UNDEFINED,
-		STATEMENT,  // Can define function or variable
-		MEMBER,     // Can only define variables, no expression
-		ARGUMENT,   // Can only define variables, no expression
-		EXPRESSION, // Only a expression, can't define anything
-		TEMPLATE,   // Only template arguments
+		UNDEFINED  = 0,
+		STATEMENT  = 1<<0, // Can define function or variable
+		MEMBER     = 1<<1, // Can only define variables, no expression
+		ARGUMENT   = 1<<2, // Can only define variables, no expression
+		EXPRESSION = 1<<3, // Only a expression, can't define anything
+		TEMPLATE   = 1<<4, // Only template arguments
 	}
 
 	public ExpressionParser(SharedParseData parseData, Token.Type terminator, SymbolTable scope, DefineMode defineMode, int end)
@@ -123,8 +123,12 @@ class ExpressionParser
 	// Was the previouly parsed token a value (literal, identifier, object),
 	// operator or a separator (comma)
 	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
-		currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
-
+		      currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
+	
+	Token[] tokens { get { return parseData.tokens; } set { parseData.tokens = value; } }
+	List<AST_Node> ast { get { return parseData.ast; } set { parseData.ast = value; } }
+	int cursor { get { return parseData.cursor; } set { parseData.cursor = value; } }
+	
 	// The first defined variable
 	AST_Declaration firstDefined;
 	SharedParseData parseData;
@@ -135,7 +139,6 @@ class ExpressionParser
 	Token token;
 	int end;
 
-	public Dictionary<string, TemplateItem> template;
 	Stack<Context> contextStack = new Stack<Context>();
 	Stack<AST_Node> values = new Stack<AST_Node>();
 	Stack<Operator> operators = new Stack<Operator>();
@@ -208,7 +211,7 @@ class ExpressionParser
 		breakLoop:
 		
 		// An early exit is when you exit on a semicolon and not the terminator
-		if(!allowEarlyExit && parseData.cursor < end && token.type != terminator) {
+		if(!allowEarlyExit && cursor < end && token.type != terminator) {
 			throw Jolly.unexpected(token);
 		}
 		
@@ -252,12 +255,12 @@ class ExpressionParser
 				goto default;
 			default:
 				var symbol = new AST_Symbol(token.location, null, name);
-				parseData.ast.Add(symbol);
 				values.Push(symbol);
+				ast.Add(symbol);
 				return;
 		}
 		
-		Token nextToken = parseData.tokens[parseData.cursor + 1];
+		Token nextToken = tokens[cursor + 1];
 		int startNodeCount = contextStack.Peek().index;
 		
 		if(!canDefine) {
@@ -265,6 +268,8 @@ class ExpressionParser
 				(nextToken.type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
 				token.text));
 		}
+		
+		parseTemplate();
 		
 		// Declare
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
@@ -283,37 +288,38 @@ class ExpressionParser
 			
 			scope.addChild(name, functionTable);
 			
-			parseData.ast.Insert(startNodeCount, functionNode);
-			functionNode.returnCount = parseData.ast.Count - (startNodeCount += 1); // Skip the function node itself
+			ast.Insert(startNodeCount, functionNode);
+			functionNode.returnCount = ast.Count - (startNodeCount += 1); // Skip the function node itself
 			
-			parseData.cursor += 2;
+			cursor += 2;
 			new ExpressionParser(parseData, TT.UNDEFINED, functionTable, DefineMode.ARGUMENT, nextToken.partnerIndex)
 				.parse(false);
 			
 			functionNode.returns         = target;
 			functionType.arguments       = new DataType[functionTable.children.Count]; // TODO: This is the wrong count, I think
-			functionNode.definitionCount = parseData.ast.Count - startNodeCount;
+			functionNode.definitionCount = ast.Count - startNodeCount;
 			
-			Token brace = parseData.tokens[parseData.cursor + 1];
+			Token brace = tokens[cursor + 1];
 			if(brace.type != TT.BRACE_OPEN) {
 				throw Jolly.unexpected(brace);
 			}
 			
-			parseData.cursor += 2; // Skip parenthesis close and brace open
-			new ScopeParser(parseData, brace.partnerIndex, functionTable).parse(ScopeParseMethod.BLOCK);
-			functionNode.memberCount = parseData.ast.Count - startNodeCount;
+			cursor += 2; // Skip parenthesis close and brace open
+			new ScopeParser(parseData, brace.partnerIndex, functionTable)
+				.parse(ScopeParseMethod.BLOCK);
+			functionNode.memberCount = ast.Count - startNodeCount;
 			
-			parseData.cursor = brace.partnerIndex - 1;
 			terminator = TT.BRACE_CLOSE; // HACK: stop parsing 
+			cursor = brace.partnerIndex - 1;
 		}
 		else
 		{ // Variable
 			var variableNode = declareVariable(name, target);
 			
 			firstDefined = variableNode;
-			parseData.ast.Add(variableNode);
 			values.Push(variableNode);
-			contextStack.Push(new Context(parseData.ast.Count, Context.Kind.DECLARATION) { target = variableNode });
+			ast.Add(variableNode);
+			contextStack.Push(new Context(ast.Count, Context.Kind.DECLARATION) { target = variableNode });
 		}
 	} // parseIdentifier()
 	
@@ -331,8 +337,7 @@ class ExpressionParser
 			
 			variableNode = new AST_Declaration(token.location, target, scope, name);
 		}
-		else if(defineMode == DefineMode.STATEMENT ||
-				defineMode == DefineMode.ARGUMENT)
+		else if((defineMode & (DefineMode.STATEMENT | DefineMode.ARGUMENT)) != 0)
 		{
 			Symbol variableSymbol = new Symbol(scope);
 			       variableNode   = new AST_Declaration(token.location, target);
@@ -348,52 +353,58 @@ class ExpressionParser
 		return variableNode;
 	}
 	
+	void parseTemplate()
+	{
+		var less = tokens[cursor + 1];
+		if(less.type != TT.LESS) return;
+		
+		contextStack.Push(new Context(ast.Count, Context.Kind.TEMPLATE_LIST));
+		// parse(false);
+	}
+	
 	void parseTemplateArgument()
 	{
-		if(template == null) {
-			throw Jolly.unexpected(token);
-		}
+		currentTokenKind = TokenKind.VALUE;
 		
-		Token name = parseData.tokens[parseData.cursor += 1];
+		Token name = tokens[cursor += 1];
 		if(name.type != TT.IDENTIFIER) {
 			Jolly.unexpected(name);
 		}
-		var node = new AST_Declaration(name.location, null) { nodeType = NT.TEMPLATE_NAME };
+		AST_Template node = new AST_Template(name.location);
+		AST_Node typeFrom = null;
 		
-		if(prevTokenKind == TokenKind.VALUE) {
+		if(prevTokenKind == TokenKind.VALUE)
+		{
 			if(defineMode != DefineMode.TEMPLATE) {
 				throw Jolly.unexpected(token);
 			}
-			node.typeFrom = values.Pop();
+			typeFrom = values.Pop();
+			Debug.Assert(typeFrom != null);
 		}
 		
-		TemplateItem item;
 		if(canDefine)
 		{
-			DefineMode sdasdasd = (defineMode == DefineMode.TEMPLATE || defineMode == DefineMode.ARGUMENT) ? defineMode : DefineMode.UNDEFINED;
+			DefineMode inferrableDefineMode = (DefineMode.TEMPLATE | DefineMode.ARGUMENT) & defineMode;
 			
-			if(!template.TryGetValue(name.text, out item))
-			{
-				template.Add(name.text, new TemplateItem {
-					canBeInferredBy = sdasdasd,
-					constantValue = node.typeFrom
+			if(!scope.template.TryGetValue(name.text, out node.item)) {
+				scope.template.Add(name.text, node.item = new TemplateItem {
+					canBeInferredBy = inferrableDefineMode,
+					constantValue = typeFrom
 				});
-				return;
-			}
-			
-			if(item.canBeInferredBy == DefineMode.UNDEFINED) {
-				item.canBeInferredBy = sdasdasd;
-			} else if(item.canBeInferredBy == DefineMode.TEMPLATE && defineMode == DefineMode.TEMPLATE) {
-				throw Jolly.addError(name.location, "Trying to redefine template argument {0}".fill(name.text));
+			} else {
+				node.item.canBeInferredBy &= inferrableDefineMode;
+				if((node.item.canBeInferredBy & defineMode) == DefineMode.TEMPLATE) {
+					throw Jolly.addError(name.location, "Trying to redefine template argument ${0}".fill(name.text));
+				}
 			}
 		}
-		else if(!template.TryGetValue(name.text, out item))
+		else if(!scope.template.TryGetValue(name.text, out node.item))
 		{
-			throw Jolly.addError(name.location, "No template argument not found {0}".fill(name.text));
+			throw Jolly.addError(name.location, "Template argument not found ${0}".fill(name.text));
 		}
 		
-		parseData.ast.Add(node);
 		values.Push(node);
+		ast.Add(node);
 	}
 	
 	void modifyType(byte toType)
@@ -405,8 +416,8 @@ class ExpressionParser
 		
 		currentTokenKind = TokenKind.VALUE;
 		var mod = new AST_ModifyType(token.location, target, toType);
-		parseData.ast.Add(mod);
 		values.Push(mod);
+		ast.Add(mod);
 	}
 	
 	bool prevIsTypeModifier()
@@ -443,11 +454,18 @@ class ExpressionParser
 			return false;
 		currentTokenKind = TokenKind.OPERATOR;
 		
+		if(token.type == TT.GREATER &&
+		   contextStack.Peek().kind == Context.Kind.TEMPLATE_LIST)
+		{
+			contextStack.Pop();
+			return true;
+		}
+		
 		if(prevTokenKind != TokenKind.VALUE)
 		{
 			// If the previous operator was an asterisk or question mark
 			// then they arent operators but a pointer and nullable pointer:
-			// _ = (i32?*: null);
+			// _ = (i32*?: null);
 			if(prevIsTypeModifier())
 				return true;
 			
@@ -481,7 +499,7 @@ class ExpressionParser
 		
 		if(op.isSpecial)
 		{
-			op.operatorIndex = parseData.ast.Count;
+			op.operatorIndex = ast.Count;
 			
 			if(op.operation == NT.MULTIPLY)
 			{
@@ -499,7 +517,7 @@ class ExpressionParser
 					modifyType(AST_ModifyType.TO_NULLABLE);
 					return true;
 				}
-				contextStack.Push(new Context(parseData.ast.Count, Context.Kind.TERNARY));
+				contextStack.Push(new Context(ast.Count, Context.Kind.TERNARY));
 			}
 			else if(op.operation == NT.COLON)
 			{
@@ -579,7 +597,7 @@ class ExpressionParser
 		
 		values.Push(null);
 		operators.Push(new Operator(255, 0, false, NT.BRACE_OPEN, false, token.location));
-		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.OBJECT){ target = targetType });
+		contextStack.Push(new Context(ast.Count, Context.Kind.OBJECT){ target = targetType });
 	}
 	
 	void parseBraceClose()
@@ -601,7 +619,7 @@ class ExpressionParser
 		}
 		
 		AST_Node[] initializers = null;
-		if(context.index != parseData.ast.Count) {
+		if(context.index != ast.Count) {
 			AST_Node node = values.Pop();	
 			initializers = (node as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { node };
 		}
@@ -619,7 +637,7 @@ class ExpressionParser
 		}
 		
 		var _object = new AST_Object(op.location, NT.OBJECT) { 
-			memberCount = parseData.ast.Count - context.index,
+			memberCount = ast.Count - context.index,
 			inferFrom = context.target,
 			nodeType = NT.OBJECT,
 			isArray = isArray,
@@ -629,8 +647,8 @@ class ExpressionParser
 			values.Pop();
 		}
 		
-		parseData.ast.Insert(context.index, _object);
 		values.Push(_object);
+		ast.Insert(context.index, _object);
 	}
 	
 	void parseBracketOpen()
@@ -648,7 +666,7 @@ class ExpressionParser
 		
 		values.Push(null);
 		operators.Push(new Operator(255, 0, false, NT.BRACKET_OPEN, false, token.location));
-		contextStack.Push(new Context(parseData.ast.Count, Context.Kind.SUBSCRIPT){ target = target });
+		contextStack.Push(new Context(ast.Count, Context.Kind.SUBSCRIPT){ target = target });
 	}
 	
 	void parseBracketClose()
@@ -684,13 +702,13 @@ class ExpressionParser
 			
 			if(a == null) {
 				var mod = new AST_ModifyType(op.location, context.target, AST_ModifyType.TO_ARRAY);
-				parseData.ast.Add(mod);
+				ast.Add(mod);
 				values.Push(mod);
 				return;
 			}
 			var opNode = new AST_Operation(token.location, NT.SUBSCRIPT, a, null, false);
-			parseData.ast.Add(opNode);
 			values.Push(opNode);
+			ast.Add(opNode);
 		}
 		
 		if(values.Peek() == null) {
@@ -702,7 +720,7 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.OPERATOR;
 		
-		Context context = new Context(parseData.ast.Count, Context.Kind.GROUP);
+		Context context = new Context(ast.Count, Context.Kind.GROUP);
 		if(prevTokenKind == TokenKind.VALUE) {
 			context.isFunctionCall = true;
 			context.target = values.Pop();
@@ -732,35 +750,35 @@ class ExpressionParser
 		if(context.isFunctionCall)
 		{
 			AST_Node[] arguments = null;
-			if(context.index != parseData.ast.Count) {
+			if(context.index != ast.Count) {
 				AST_Node node = values.Pop();
 				AST_Tuple tuple = node as AST_Tuple;
 				arguments = tuple != null && !tuple.closed ? tuple.values.ToArray() : new AST_Node[] { node };
 			}
 			var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
-			parseData.ast.Add(call);
 			values.Push(call);
+			ast.Add(call);
 		}
 		else if(values.PeekOrDefault()?.nodeType == NT.TUPLE)
 		{
 			var tup = ((AST_Tuple)values.Pop());
 			// Close list so you can't add to it: (a, b), c
 			tup.closed = true;
-			tup.memberCount = parseData.ast.Count - context.index;
+			tup.memberCount = ast.Count - context.index;
 			if(operators.PeekOrDefault().operation == NT.GET_MEMBER) {
 				operators.Pop(); // Remove GET_MEMBER
 				tup.membersFrom = values.Pop();
 				tup.nodeType = NT.MEMBER_TUPLE;
 			}
-			parseData.ast.Insert(context.index, tup);
 			values.Push(tup);
+			ast.Insert(context.index, tup);
 		}
 	} // parseParenthesisClose()
 	
 	void contextEnd(Context context)
 	{
 		if(context.kind == Context.Kind.DECLARATION) {
-			((AST_Declaration)context.target).memberCount = parseData.ast.Count - context.index;
+			((AST_Declaration)context.target).memberCount = ast.Count - context.index;
 			return;
 		}
 		
@@ -805,16 +823,16 @@ class ExpressionParser
 			{
 				if(a == null & b == null) {
 					var mod = new AST_ModifyType(op.location, null, AST_ModifyType.TO_SLICE);
-					parseData.ast.Add(mod);
 					values.Push(mod);
+					ast.Add(mod);
 					return;
 				}
 				// Slice allows a value to be null
 				var slice = (a == null) ?
 					new AST_Operation(op.location, NT.SLICE, b, null, true) :
 					new AST_Operation(op.location, NT.SLICE, a, b, true);
-				parseData.ast.Add(slice);
 				values.Push(slice);
+				ast.Add(slice);
 				return;
 			}
 			
@@ -837,18 +855,18 @@ class ExpressionParser
 		{
 			if(op.operation == NT.LOGIC_AND)
 			{
-				int memberCount = parseData.ast.Count - op.operatorIndex;
+				int memberCount = ast.Count - op.operatorIndex;
 				var logic = new AST_Logic(op.location, NT.LOGIC_OR, memberCount, memberCount, condition: a, a: b, b: null);
-				parseData.ast.Insert(op.operatorIndex, logic);
 				values.Push(logic);
+				ast.Insert(op.operatorIndex, logic);
 				return;
 			}
 			else if(op.operation == NT.LOGIC_OR)
 			{
-				int memberCount = parseData.ast.Count - op.operatorIndex;
+				int memberCount = ast.Count - op.operatorIndex;
 				var logic = new AST_Logic(op.location, NT.LOGIC_AND, memberCount, memberCount, condition: a, a: b, b: null);
-				parseData.ast.Insert(op.operatorIndex, logic);
 				values.Push(logic);
+				ast.Insert(op.operatorIndex, logic);
 				return;
 			}
 			else if(op.operation == NT.TERNARY)
@@ -871,19 +889,19 @@ class ExpressionParser
 					context = contextStack.Pop();
 				}
 				
-				int memberCount = parseData.ast.Count - context.index,
+				int memberCount = ast.Count - context.index,
 					count = op.operatorIndex - context.index;
 				var logic = new AST_Logic(op.location, NT.TERNARY, memberCount, count, context.target, a, b);
-				parseData.ast.Insert(context.index, logic);
 				values.Push(logic);
+				ast.Insert(context.index, logic);
 				return;
 			}
 			Jolly.addNote(op.location, "Compiler: unnecessary operator marked special {0}".fill(op.operation));
 		} // if(op.isSpecial)
 		
 		AST_Operation opNode = new AST_Operation(op.location, op.operation, a, b, op.leftToRight);
-		parseData.ast.Add(opNode);
 		values.Push(opNode);
+		ast.Add(opNode);
 	} // pushOperator()
 }
 

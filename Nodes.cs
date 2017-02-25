@@ -143,6 +143,7 @@ namespace Jolly
 	
 	class AST_Template : AST_Node
 	{
+		public AST_Template(SourceLocation loc) : base(loc, NT.TEMPLATE_NAME) { }
 		public TemplateItem item;
 	}
 	

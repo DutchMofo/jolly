@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Jolly
 {
@@ -103,8 +102,6 @@ namespace Jolly
 			
 			Token next = parseData.tokens[parseData.cursor += 1];
 			
-			var template = new Dictionary<string, TemplateItem>();
-			
 			AST_Struct      structNode  = new AST_Struct(token.location);
 			DataType_Struct structType  = new DataType_Struct();
 			SymbolTable     structTable = new SymbolTable(scope);
@@ -112,8 +109,8 @@ namespace Jolly
 			if(next.type == TT.LESS) {
 				parseData.cursor += 1;
 				new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
-					{ template = template }
 					.parse(false);
+				next = parseData.tokens[parseData.cursor += 1]; // Skip greater than
 			}
 			
 			if(next.type == TT.COLON)
@@ -121,7 +118,6 @@ namespace Jolly
 				parseData.cursor += 1;
 				structNode.inherits =
 					new ExpressionParser(parseData, TT.BRACE_OPEN, scope, DefineMode.EXPRESSION, end)
-					{ template = template }
 					.parse(false)
 					.getValue();
 				next = parseData.tokens[parseData.cursor];

@@ -17,8 +17,8 @@ namespace Jolly
 	{
 		public SymbolTable(SymbolTable parent) : base(parent) { }
 		
-		public Dictionary<string, Symbol> children = new Dictionary<string, Symbol>();
-		public Symbol[] template;
+		public Dictionary<string, Symbol>       children = new Dictionary<string, Symbol>();
+		public Dictionary<string, TemplateItem> template = new Dictionary<string, TemplateItem>();
 		
 		public override Symbol searchSymbol(string name)
 		{

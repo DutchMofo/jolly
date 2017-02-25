@@ -4,7 +4,7 @@ struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
 	$type* data;
 }
 
-($t, $t, $t) getVec($t val)
+($T, $T, $T) getVec<$T>($T val)
 {
 	return (val, val, val);
 }

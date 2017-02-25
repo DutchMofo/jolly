@@ -357,7 +357,7 @@ static class Analyser
 					
 				}
 				
-				var functionType = function.dType as DataType_Function;
+				var functionType = function.result.dType as DataType_Function;
 				if(functionType == null) {
 					throw Jolly.addError(node.location, "Cannot call this");
 				}
@@ -374,7 +374,7 @@ static class Analyser
 					
 					values[i] = arg.result;
 				}
-				node.result = instructions.Add(new IR_Call(){ target = function, arguments = values, dType = functionType.returns });
+				node.result = instructions.Add(new IR_Call(){ target = function.result, arguments = values, dType = functionType.returns });
 			} },
 			{ NT.TUPLE, tupleContext },
 			{ NT.MEMBER_TUPLE, node => {
