@@ -231,6 +231,7 @@ class ExpressionParser
 		currentTokenKind = TokenKind.VALUE;
 		string name = token.text;
 		AST_Node target = null;
+		AST_Template[] templateArguments = parseTemplate();
 		
 		switch(prevTokenKind)
 		{
@@ -254,7 +255,7 @@ class ExpressionParser
 				}
 				goto default;
 			default:
-				var symbol = new AST_Symbol(token.location, null, name);
+				var symbol = new AST_Symbol(token.location, null, name){ templateArguments = templateArguments };
 				values.Push(symbol);
 				ast.Add(symbol);
 				return;
@@ -268,8 +269,6 @@ class ExpressionParser
 				(nextToken.type == TT.PARENTHESIS_OPEN) ? "function" : "variable",
 				token.text));
 		}
-		
-		parseTemplate();
 		
 		// Declare
 		if(nextToken.type == TT.PARENTHESIS_OPEN)
@@ -314,7 +313,30 @@ class ExpressionParser
 		}
 		else
 		{ // Variable
-			var variableNode = declareVariable(name, target);
+			AST_Declaration variableNode;
+		
+			if(defineMode == DefineMode.MEMBER)
+			{
+				var structType = (DataType_Struct)scope.declaration.dType;
+				if(structType.memberMap.ContainsKey(name)) {
+					throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
+				}
+				structType.memberMap.Add(name, structType.memberMap.Count);
+				
+				variableNode = new AST_Declaration(token.location, target, scope, name);
+			}
+			else if((defineMode & (DefineMode.STATEMENT | DefineMode.ARGUMENT)) != 0)
+			{
+				Symbol variableSymbol = new Symbol(scope);
+					   variableNode   = new AST_Declaration(token.location, target);
+				
+				variableNode.symbol   = variableSymbol;
+				variableNode.text     = name;
+				
+				scope.addChild(name, variableSymbol);
+			} else {
+				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
+			}
 			
 			firstDefined = variableNode;
 			values.Push(variableNode);
@@ -323,43 +345,34 @@ class ExpressionParser
 		}
 	} // parseIdentifier()
 	
-	AST_Declaration declareVariable(string name, AST_Node target)
-	{
-		AST_Declaration variableNode;
-		
-		if(defineMode == DefineMode.MEMBER)
-		{
-			var structType = (DataType_Struct)scope.declaration.dType;
-			if(structType.memberMap.ContainsKey(name)) {
-				throw Jolly.addError(token.location, "Type {0} already contains a member named {1}".fill(structType.name, name));
-			}
-			structType.memberMap.Add(name, structType.memberMap.Count);
-			
-			variableNode = new AST_Declaration(token.location, target, scope, name);
-		}
-		else if((defineMode & (DefineMode.STATEMENT | DefineMode.ARGUMENT)) != 0)
-		{
-			Symbol variableSymbol = new Symbol(scope);
-			       variableNode   = new AST_Declaration(token.location, target);
-			
-			variableNode.symbol   = variableSymbol;
-			variableNode.text     = name;
-			// variableNode.allocation = scope.allocateVariable();
-			
-			scope.addChild(name, variableSymbol);
-		} else {
-			throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
-		}
-		return variableNode;
-	}
-	
-	void parseTemplate()
+	AST_Template[] parseTemplate()
 	{
 		var less = tokens[cursor + 1];
-		if(less.type != TT.LESS) return;
-		
-		contextStack.Push(new Context(ast.Count, Context.Kind.TEMPLATE_LIST));
-		// parse(false);
+		if(less.type != TT.LESS) return null;
+		cursor += 2;
+		var result = new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
+			.parse(false)
+			.getValue();
+		if(result == null) throw Jolly.addError(less.location, "Expected template argument(s)");
+
+		if(result.nodeType == NT.TUPLE)
+		{
+			var tuple = (AST_Tuple)result;
+			var returns = new AST_Template[tuple.values.Count];
+			tuple.values.forEach((v, i) => {
+				if(v.nodeType != NT.TEMPLATE_NAME) throw Jolly.unexpected(v);
+				returns[i] = (AST_Template)v;
+			});
+			return returns;
+		}
+		else if(result.nodeType == NT.TEMPLATE_NAME)
+		{
+			return new AST_Template[] { (AST_Template)result };
+		}
+		else
+		{
+			throw Jolly.unexpected(result); 
+		}
 	}
 	
 	void parseTemplateArgument()
@@ -453,13 +466,6 @@ class ExpressionParser
 		if(!Lookup.OPERATORS.TryGetValue(token.type, out op))
 			return false;
 		currentTokenKind = TokenKind.OPERATOR;
-		
-		if(token.type == TT.GREATER &&
-		   contextStack.Peek().kind == Context.Kind.TEMPLATE_LIST)
-		{
-			contextStack.Pop();
-			return true;
-		}
 		
 		if(prevTokenKind != TokenKind.VALUE)
 		{
