@@ -289,6 +289,19 @@ static class Analyser
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
+			{ NT.TEMPLATE_NAME, node => {
+				var template = (AST_Template)node;
+				var type = template.item.constantValue?.result;
+				template.result = new IR { dType = Lookup.TEMPLATE, dKind = ValueKind.STATIC_TYPE };
+				if(type != null) {
+					// TODO: check type instantiable
+					if(type.dKind != ValueKind.STATIC_TYPE) {
+						throw Jolly.addError(template.location, "Expected static type");
+					}
+					template.result.dKind = ValueKind.STATIC_VALUE;
+					template.result.dType = type.dType;
+				}
+			} },
 			{ NT.DECLARATION, declare },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
@@ -484,7 +497,7 @@ static class Analyser
 		switch(mod.toType) {
 			case AST_ModifyType.TO_SLICE:
 			case AST_ModifyType.TO_ARRAY:
-				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
+				mod.result = new IR{ irType = NT.BASETYPE, dType = new DataType_Array_Data(mod.target.result.dType), dKind = ValueKind.STATIC_TYPE };
 				break;
 			case AST_ModifyType.TO_POINTER:
 			case AST_ModifyType.TO_NULLABLE: // TODO: Make regular pointer non nullable
@@ -556,7 +569,7 @@ static class Analyser
 		implicitCast(ref op.b.result, op.a.result.dType);
 		
 		//TODO: Assign to tuple containing names: someStruct.(a, b) = (0, 1);
-				
+		
 		if(op.a.result.irType == NT.ALLOCATE) {
 			((IR_Allocate)op.a.result).initialized = true;
 		}
@@ -565,9 +578,9 @@ static class Analyser
 		
 	static IR operatorGetMember(ref AST_Node a, AST_Node b)
 	{
-		bool isName;
-		string name  = null;
-		int    index = 0;
+		bool   isName = false;
+		string name   = null;
+		int    index  = 0;
 		
 		switch(b.nodeType) {
 			case NT.NAME: {
@@ -575,7 +588,6 @@ static class Analyser
 				name = ((AST_Symbol)b).text;
 			} break;
 			case NT.LITERAL: {
-				isName = false;
 				if(b.result.dType != Lookup.I32) goto default;
 				index = (int)(long)((IR_Literal)b.result).data;
 			} break;
@@ -694,7 +706,6 @@ static class Analyser
 		}
 		AST_Symbol name = (AST_Symbol)node;
 		var definition = enclosure.scope.searchSymbol(name.text);
-		// ((IR_Allocate)definition.declaration).references += 1;
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));

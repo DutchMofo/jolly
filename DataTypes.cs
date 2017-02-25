@@ -12,6 +12,7 @@ namespace Jolly
 			BASE_TYPE    = 1<<0,
 			INSTANTIABLE = 1<<1,
 			SIGNED       = 1<<2,
+			UNFINISHED   = 1<<3,
 		}
 		
 		static int lastTypeID = 40;
@@ -87,10 +88,16 @@ namespace Jolly
 				return refr.referenced == referenced;
 			return false;
 		}
-		public override int GetHashCode()
-			=> referenced.GetHashCode() << 3;
 		
-		public override string ToString() => referenced + "*";
+		public override IR subscript(IR i, IR index, IRList list)
+		{
+			if(index.dType != Lookup.I32) {
+				throw Jolly.addError(new SourceLocation(), "Only int can be used as subscript");
+			}
+			return list.Add(IR.operation<IR_Substript>(i, index, null));
+		}
+		
+		public override int GetHashCode() => referenced.GetHashCode() << 3;
 	}
 	
 	class DataType_Enum : DataType
@@ -98,7 +105,6 @@ namespace Jolly
 		public DataType_Enum() { flags = Flags.INSTANTIABLE; }
 		
 		public DataType inherits = Lookup.I32;
-		public override string ToString() => inherits.ToString();
 	}
 	
 	class DataType_Struct : DataType
@@ -153,8 +159,6 @@ namespace Jolly
 		
 		public void finishDefinition(string name, DataType type)
 			=> members[ memberMap[name] ] = type;
-				
-		public override string ToString() => '%'+name;
 	}
 	
 	class DataType_Function : DataType
@@ -171,40 +175,37 @@ namespace Jolly
 			}
 			return false;
 		}
+		
 		public override int GetHashCode()
 		{
 			int hash = returns.GetHashCode();
 			arguments.forEach(a => hash ^= a.GetHashCode());
 			return hash;
 		}
-		
-		public override string ToString() => '%'+name;
 	}
 	
-	class DataType_Array : DataType
+	class DataType_Array_Data : DataType
 	{
-		public DataType_Array(DataType collectionType) { this.collectionType = collectionType; }
+		public DataType_Array_Data(DataType collectionType) { this.collectionType = collectionType; }
 		
 		public DataType collectionType;
 		public int count = 10;
 				
 		public override bool Equals(object obj)
 		{
-			var arr = obj as DataType_Array;
+			var arr = obj as DataType_Array_Data;
 			if(arr != null) return arr.count == count && arr.collectionType == collectionType;
 			return false;
 		}
-		public override int GetHashCode()
-			=> collectionType.GetHashCode() << 7 & count;
 		
-		public override IR getMember(IR i, string name, IRList list)
+		public override int GetHashCode() => collectionType.GetHashCode() << 7 ^ count;
+		
+		public override IR subscript(IR i, IR index, IRList list)
 		{
-			if(name == "count") return list.Add(IR.getMember(i, Lookup.I64, 0));
-			if(name == "data")  return list.Add(IR.getMember(i, collectionType, 1));
-			return null;
+			if(index.dType != Lookup.I32) {
+				throw Jolly.addError(new SourceLocation(), "Only int can be used as subscript");
+			}
+			return list.Add(IR.operation<IR_Substript>(i, index, null));
 		}
-		
-		public override IR subscript(IR i, IR subscript, IRList list) => null;
-		public override string ToString() => "struct {{ i64, [{0} x {1}] }}".fill(count, collectionType);
 	}
 }

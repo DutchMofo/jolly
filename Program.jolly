@@ -1,21 +1,25 @@
-
-
-(int, int, int) getVec3() {
-	return (0, 0, 0);
+struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
+{
+	int count;
+	$type* data;
 }
 
-namespace Jolly {
-	(int, int, int) getVec3(int number) {
-		return (number, number, number);
-	}
-	
-	int main() {
-		auto test = getVec3();
-		return test.2;
-	}
+($t, $t, $t) getVec($t val)
+{
+	return (val, val, val);
 }
+
+(int, int) getVec() { return (0, 0); }
+(int, int, int) getVec(int i) { return (i, i, i); }
+
+int main() {
+	auto test = getVec();
+	return test.1;
+}
+
 
 // TODO:
 // Disallow: i32 a, 10 * 2;
 
 // Ending on a comment breaks the tokenizer
+
