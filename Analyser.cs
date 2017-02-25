@@ -286,23 +286,16 @@ static class Analyser
 		}
 	}
 	
-	// TODO: Clean op all functions see things are easier to find.
-	static void inferTemplateName(AST_Node i, AST_Node other, IRList list)
-	{
-		
-	}
-
 	static readonly Dictionary<NT, Action<AST_Node>>
 		// Used for the first pass to define all the struct members
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.TEMPLATE_NAME, node => {
 				var template = (AST_Template)node;
 				var type = template.item.constantValue?.result;
-				template.infer = inferTemplateName;
 				template.result = new IR { dType = Lookup.TEMPLATE, dKind = ValueKind.STATIC_TYPE };
 				if(type != null) {
 					// TODO: check type instantiable
-					if(type.dKind != ValueType.STATIC_TYPE) {
+					if(type.dKind != ValueKind.STATIC_TYPE) {
 						throw Jolly.addError(template.location, "Expected static type");
 					}
 					template.result.dKind = ValueKind.STATIC_VALUE;
@@ -573,9 +566,9 @@ static class Analyser
 		
 	static IR operatorGetMember(ref AST_Node a, AST_Node b)
 	{
-		bool isName;
-		string name  = null;
-		int    index = 0;
+		bool   isName = false;
+		string name   = null;
+		int    index  = 0;
 		
 		switch(b.nodeType) {
 			case NT.NAME: {
@@ -583,7 +576,6 @@ static class Analyser
 				name = ((AST_Symbol)b).text;
 			} break;
 			case NT.LITERAL: {
-				isName = false;
 				if(b.result.dType != Lookup.I32) goto default;
 				index = (int)(long)((IR_Literal)b.result).data;
 			} break;
@@ -702,7 +694,6 @@ static class Analyser
 		}
 		AST_Symbol name = (AST_Symbol)node;
 		var definition = enclosure.scope.searchSymbol(name.text);
-		// ((IR_Allocate)definition.declaration).references += 1;
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
