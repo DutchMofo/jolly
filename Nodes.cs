@@ -145,6 +145,7 @@ namespace Jolly
 	{
 		public AST_Template(SourceLocation loc) : base(loc, NT.TEMPLATE_NAME) { }
 		public TemplateItem item;
+		public string name;
 	}
 	
 	class AST_Logic : AST_Operation

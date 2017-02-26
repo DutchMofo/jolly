@@ -28,6 +28,9 @@ namespace Jolly
 		public static void forEach<T>(this IEnumerable<T> list, Action<T> action)
 			{ foreach(T i in list) action(i); }
 			
+		public static void forEach<T>(this IEnumerable<T> list, Action<T, int> action)
+			{ int index = 0; foreach(T i in list) action(i, index++); }
+			
 		public static void forEach<T>(this List<T> list, Action<T, int> action)
 			{ for(int i = 0; i < list.Count; ++i) action(list[i], i); }
 			

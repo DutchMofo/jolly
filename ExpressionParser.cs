@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -14,8 +15,9 @@ class SharedParseData
 	public List<AST_Node> ast;
 }
 
-struct TemplateItem
+class TemplateItem
 {
+	public SourceLocation location;
 	public AST_Node constantValue;
 	public ExpressionParser.DefineMode canBeInferredBy;
 }
@@ -99,6 +101,7 @@ class ExpressionParser
 		SEPARATOR = 3,
 	}
 	
+	[Flags]
 	public enum DefineMode : byte
 	{
 		UNDEFINED  = 0,
@@ -225,13 +228,12 @@ class ExpressionParser
 		
 		return this; // Make calls chainable: new ExpressionParser(...).parse();
 	} // parseExpression()
-	
+		
 	void parseIdentifier()
 	{
 		currentTokenKind = TokenKind.VALUE;
 		string name = token.text;
 		AST_Node target = null;
-		AST_Template[] templateArguments = parseTemplate();
 		
 		switch(prevTokenKind)
 		{
@@ -255,7 +257,7 @@ class ExpressionParser
 				}
 				goto default;
 			default:
-				var symbol = new AST_Symbol(token.location, null, name){ templateArguments = templateArguments };
+				var symbol = new AST_Symbol(token.location, null, name){ templateArguments = parseTemplate(scope) };
 				values.Push(symbol);
 				ast.Add(symbol);
 				return;
@@ -271,7 +273,8 @@ class ExpressionParser
 		}
 		
 		// Declare
-		if(nextToken.type == TT.PARENTHESIS_OPEN)
+		if(nextToken.type == TT.PARENTHESIS_OPEN ||
+		   nextToken.type == TT.LESS)
 		{ // Function
 			if(defineMode != DefineMode.STATEMENT) {
 				throw Jolly.addError(token.location, "Can't define the function \"{0}\" here".fill(name));
@@ -281,7 +284,9 @@ class ExpressionParser
 			AST_Function      functionNode  = new AST_Function(token.location);
 			SymbolTable       functionTable = new SymbolTable(scope);
 			
-			functionNode.templateArguments = templateArguments;
+			functionNode.templateArguments = parseTemplate(functionTable);
+			nextToken = tokens[cursor + 1];
+			
 			functionNode.symbol = functionTable;
 			functionNode.text   = functionType.name  = name;
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
@@ -339,7 +344,6 @@ class ExpressionParser
 				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
 			
-			variableNode.templateArguments = templateArguments;
 			firstDefined = variableNode;
 			values.Push(variableNode);
 			ast.Add(variableNode);
@@ -347,18 +351,19 @@ class ExpressionParser
 		}
 	} // parseIdentifier()
 	
-	AST_Template[] parseTemplate()
+	AST_Template[] parseTemplate(SymbolTable theScope)
 	{
 		var less = tokens[cursor + 1];
 		if(less.type != TT.LESS) return null;
 		cursor += 2;
-		var result = new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
+		var result = new ExpressionParser(parseData, TT.GREATER, theScope, DefineMode.TEMPLATE, end)
 			.parse(false)
 			.getValue();
 		if(result == null) throw Jolly.addError(less.location, "Expected template argument(s)");
-
-		if(result.nodeType == NT.TUPLE)
+		
+		switch(result.nodeType)
 		{
+		case NT.TUPLE:
 			var tuple = (AST_Tuple)result;
 			var returns = new AST_Template[tuple.values.Count];
 			tuple.values.forEach((v, i) => {
@@ -366,13 +371,9 @@ class ExpressionParser
 				returns[i] = (AST_Template)v;
 			});
 			return returns;
-		}
-		else if(result.nodeType == NT.TEMPLATE_NAME)
-		{
+		case NT.TEMPLATE_NAME:
 			return new AST_Template[] { (AST_Template)result };
-		}
-		else
-		{
+		default:
 			throw Jolly.unexpected(result); 
 		}
 	}
@@ -397,25 +398,23 @@ class ExpressionParser
 			Debug.Assert(typeFrom != null);
 		}
 		
-		if(canDefine)
+		DefineMode inferrableDefineMode = (DefineMode.TEMPLATE | DefineMode.ARGUMENT) & defineMode;
+		if(canDefine && inferrableDefineMode != 0)
 		{
-			DefineMode inferrableDefineMode = (DefineMode.TEMPLATE | DefineMode.ARGUMENT) & defineMode;
-			
-			if(!scope.template.TryGetValue(name.text, out node.item)) {
-				scope.template.Add(name.text, node.item = new TemplateItem {
-					canBeInferredBy = inferrableDefineMode,
-					constantValue = typeFrom
-				});
-			} else {
-				node.item.canBeInferredBy &= inferrableDefineMode;
+			if(scope.template.TryGetValue(name.text, out node.item)) {
 				if((node.item.canBeInferredBy & defineMode) == DefineMode.TEMPLATE) {
 					throw Jolly.addError(name.location, "Trying to redefine template argument ${0}".fill(name.text));
 				}
+				node.item.canBeInferredBy |= inferrableDefineMode;
+			} else {
+				scope.template.Add(name.text, node.item = new TemplateItem {
+					canBeInferredBy = inferrableDefineMode,
+					constantValue = typeFrom,
+					location = node.location,                        
+				});
 			}
-		}
-		else if(!scope.template.TryGetValue(name.text, out node.item))
-		{
-			throw Jolly.addError(name.location, "Template argument not found ${0}".fill(name.text));
+		} else {
+			node.name = name.text;
 		}
 		
 		values.Push(node);
@@ -458,7 +457,6 @@ class ExpressionParser
 		
 		parseOperator();
 		currentTokenKind = TokenKind.SEPARATOR;
-		canDefine = true;
 	} // parseComma()
 	
 	// Returns true if it parsed the token
@@ -735,6 +733,7 @@ class ExpressionParser
 		}
 		contextStack.Push(context);
 		operators.Push(new Operator(255, 0, false, NT.PARENTHESIS_OPEN, false, token.location));
+		values.Push(null);
 	} // parseParenthesisOpen()
 	
 	void parseParenthesisClose()
@@ -758,10 +757,11 @@ class ExpressionParser
 		if(context.isFunctionCall)
 		{
 			AST_Node[] arguments = null;
-			if(context.index != ast.Count) {
-				AST_Node node = values.Pop();
+			AST_Node node = values.Pop();
+			if(node != null) {
 				AST_Tuple tuple = node as AST_Tuple;
 				arguments = tuple != null && !tuple.closed ? tuple.values.ToArray() : new AST_Node[] { node };
+				values.Pop(); // Pop extra null
 			}
 			var call = new AST_FunctionCall(token.location, context.target, arguments ?? new AST_Node[0]);
 			values.Push(call);

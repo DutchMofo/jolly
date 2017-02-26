@@ -291,27 +291,43 @@ static class Analyser
 		typeDefinitionAnalysers = new Dictionary<NT, Action<AST_Node>>() {
 			{ NT.TEMPLATE_NAME, node => {
 				var template = (AST_Template)node;
-				var type = template.item.constantValue?.result;
 				template.result = new IR { dType = Lookup.TEMPLATE, dKind = ValueKind.STATIC_TYPE };
-				if(type != null) {
-					// TODO: check type instantiable
-					if(type.dKind != ValueKind.STATIC_TYPE) {
-						throw Jolly.addError(template.location, "Expected static type");
+				if(template.item == null)
+				{
+					template.item = enclosure.scope.getTemplate(template.name);
+				}
+				else
+				{
+					var type = template.item?.constantValue?.result;
+					if(type != null)
+					{
+						// TODO: check type instantiable
+						if(type.dKind != ValueKind.STATIC_TYPE) {
+							throw Jolly.addError(template.location, "Expected static type");
+						}
+						template.result.dKind = ValueKind.STATIC_VALUE;
+						template.result.dType = type.dType;
 					}
-					template.result.dKind = ValueKind.STATIC_VALUE;
-					template.result.dType = type.dType;
 				}
 			} },
 			{ NT.DECLARATION, declare },
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
+				if(table.template.Count > 0) { // TODO: Maybe a better wat to check if generic
+					cursor += function.memberCount;
+					return;
+				}
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				contextStack.Push(new Context(function.definitionCount + cursor, Context.Kind.FUNCTION_DECLARATION));
 			} },
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
 				var table = (SymbolTable)structNode.symbol;
+				if(table.template.Count > 0) { // TODO: Maybe a better wat to check if generic
+					cursor += structNode.memberCount;
+					return;
+				}
 				enclosureStack.Push(new Enclosure(NT.STRUCT, structNode, table, structNode.memberCount + cursor));
 			} },
 			{ NT.GET_MEMBER, node => {
@@ -340,11 +356,16 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var functionIR = (IR_Function)function.result;
+				var table = (SymbolTable)function.symbol;
+				if(table.template.Count > 0) { // TODO: Maybe a better wat to check if generic
+					cursor += function.memberCount;
+					return;
+				}
 				instructions.Add(functionIR);
 				functionIR.block = instructions;
 				instructions = new IRList();
 				
-				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, (SymbolTable)function.symbol, function.memberCount + cursor));
+				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				cursor += function.definitionCount;
 			} },
 			{ NT.FUNCTION_CALL, node => {
@@ -704,11 +725,17 @@ static class Analyser
 			node.result = operatorGetMember(ref ((AST_Tuple)enclosure.node).membersFrom, node);
 			return;
 		}
+		
 		AST_Symbol name = (AST_Symbol)node;
 		var definition = enclosure.scope.searchSymbol(name.text);
 		
 		if(definition == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
+		}
+		
+		if((definition as SymbolTable)?.template.Count > 0 ||
+			name.templateArguments?.Length > 0) {
+			"".ToString();
 		}
 		
 		name.result = definition.declaration;

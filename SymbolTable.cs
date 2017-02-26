@@ -20,6 +20,18 @@ namespace Jolly
 		public Dictionary<string, Symbol>       children = new Dictionary<string, Symbol>();
 		public Dictionary<string, TemplateItem> template = new Dictionary<string, TemplateItem>();
 		
+		public TemplateItem getTemplate(string name)
+		{
+			SymbolTable iterator = this;
+			TemplateItem item;
+			do {
+				if(iterator.template.TryGetValue(name, out item))
+					return item;
+				iterator = iterator.parent;
+			} while(iterator != null);
+			return null;
+		}
+		
 		public override Symbol searchSymbol(string name)
 		{
 			SymbolTable iterator = this;

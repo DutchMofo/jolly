@@ -1,19 +1,16 @@
-// struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
-// {
-// 	int count;
-// 	$type* data;
-// }
+struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
+{
+	int count;
+	$type* data;
+}
 
 ($T, $T, $T) getVec<$T>($T val)
 {
 	return (val, val, val);
 }
 
-(int, int) getVec() { return (0, 0); }
-(int, int, int) getVec(int i) { return (i, i, i); }
-
 int main() {
-	auto test = getVec();
+	auto test = getVec(0.1);
 	return test.1;
 }
 

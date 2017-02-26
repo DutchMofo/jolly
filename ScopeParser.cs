@@ -16,7 +16,6 @@ namespace Jolly
 	
     class ScopeParser
 	{
-		public AST_Scope scopeHead;
 		SharedParseData parseData;
 		SymbolTable scope;
 		Token token;
@@ -38,8 +37,11 @@ namespace Jolly
 			{
 				new Action[] { parseNextGlobal, parseNextStruct, parseNextBlock, parseNextEnum }[(int)parseMethod]();
 			}
-			if(scopeHead != null) {
-				scopeHead.memberCount = parseData.ast.Count - startNodeCount;
+			
+			if(scope.template.Count > 0) {
+				scope.template.Values.forEach(t => {
+					if(t.canBeInferredBy == 0) throw Jolly.addError(t.location, "Template argument can't be inferred.");
+				});
 			}
 		}
 		
@@ -106,9 +108,12 @@ namespace Jolly
 			DataType_Struct structType  = new DataType_Struct();
 			SymbolTable     structTable = new SymbolTable(scope);
 			
+			parseData.ast.Add(structNode);
+			int startNodeCount = parseData.ast.Count;
+			
 			if(next.type == TT.LESS) {
 				parseData.cursor += 1;
-				new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
+				new ExpressionParser(parseData, TT.GREATER, structTable, DefineMode.TEMPLATE, end)
 					.parse(false);
 				next = parseData.tokens[parseData.cursor += 1]; // Skip greater than
 			}
@@ -117,7 +122,7 @@ namespace Jolly
 			{
 				parseData.cursor += 1;
 				structNode.inherits =
-					new ExpressionParser(parseData, TT.BRACE_OPEN, scope, DefineMode.EXPRESSION, end)
+					new ExpressionParser(parseData, TT.BRACE_OPEN, structTable, DefineMode.EXPRESSION, end)
 					.parse(false)
 					.getValue();
 				next = parseData.tokens[parseData.cursor];
@@ -133,12 +138,11 @@ namespace Jolly
 			
 			scope.addChild(name.text, structTable);
 			
-			parseData.ast.Add(structNode);
 			parseData.cursor += 1;
 			new ScopeParser(parseData, next.partnerIndex, structTable)
-				{ scopeHead = structNode } // Hacky
 				.parse(ScopeParseMethod.STRUCT);
 			
+			structNode.memberCount = parseData.ast.Count - startNodeCount;
 			structType.members = new DataType[structType.memberMap.Count];
 		}
 		
