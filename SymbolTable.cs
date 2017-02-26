@@ -8,6 +8,7 @@ namespace Jolly
 		public SymbolTable parent;
 		public Symbol extends;
 		public IR declaration;
+		public bool isGeneric;
 		
 		public virtual Symbol searchSymbol(string name) => null;
 		public virtual Symbol getChildSymbol(string name) => null;

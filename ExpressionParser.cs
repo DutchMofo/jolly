@@ -17,6 +17,7 @@ class SharedParseData
 
 class TemplateItem
 {
+	public int defineIndex;
 	public SourceLocation location;
 	public AST_Node constantValue;
 	public ExpressionParser.DefineMode canBeInferredBy;
@@ -133,11 +134,13 @@ class ExpressionParser
 	int cursor { get { return parseData.cursor; } set { parseData.cursor = value; } }
 	
 	// The first defined variable
-	AST_Declaration firstDefined;
-	SharedParseData parseData;
+	AST_Node prevDefinedType; // int a, b; prevDefinedType == int
 	DefineMode defineMode;
-	SymbolTable scope;
+	int defineIndex;
 	bool canDefine;
+	
+	SharedParseData parseData;
+	SymbolTable scope;
 	TT terminator;
 	Token token;
 	int end;
@@ -153,7 +156,7 @@ class ExpressionParser
 	
 	static IR VOID_PTR() => new IR_Literal{ dType = Lookup.STRING, data = 0L };
 	
-	public bool isDefinition() => firstDefined != null;
+	public bool isDefinition() => prevDefinedType != null;
 	
 	public AST_Node getValue() => values.PeekOrDefault();
 	public void addValue(AST_Node _value)
@@ -233,7 +236,7 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.VALUE;
 		string name = token.text;
-		AST_Node target = null;
+		AST_Node target = null; // If function return type else variable type
 		
 		switch(prevTokenKind)
 		{
@@ -249,10 +252,10 @@ class ExpressionParser
 					contextEnd(contextStack.Pop());
 				}
 				if(defineMode != DefineMode.ARGUMENT &&
-				   firstDefined != null &&
+				   prevDefinedType != null &&
 				   contextStack.Peek().kind == Context.Kind.STATEMENT)
 				{
-					target = firstDefined.typeFrom;
+					target = prevDefinedType;
 					break;
 				}
 				goto default;
@@ -344,7 +347,7 @@ class ExpressionParser
 				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
 			
-			firstDefined = variableNode;
+			prevDefinedType = target;
 			values.Push(variableNode);
 			ast.Add(variableNode);
 			contextStack.Push(new Context(ast.Count, Context.Kind.DECLARATION) { target = variableNode });
@@ -410,7 +413,8 @@ class ExpressionParser
 				scope.template.Add(name.text, node.item = new TemplateItem {
 					canBeInferredBy = inferrableDefineMode,
 					constantValue = typeFrom,
-					location = node.location,                        
+					location = node.location,
+					defineIndex = defineIndex++,
 				});
 			}
 		} else {

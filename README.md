@@ -93,7 +93,7 @@ i32 main()
 	curry_2(2, 1);    // 5
 	curry_3(1);       // 5
 	
-	Example example_2;
+	Example example_2 = { };
 	// Assign to the type and name members at the same time
 	example_2.(type, name) = example.(type, name);
 	
@@ -102,8 +102,7 @@ i32 main()
 		i32? someCounter = foo?.someCounter;
 	}
 	
-	// Unit annotation, test == 'ms
-	f32 test = 1.'m / 10.'s;
+	int ms = 1000'm / 10's;
 	
 	
 	// Initialize if condition.

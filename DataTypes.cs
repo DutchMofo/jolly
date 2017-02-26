@@ -6,6 +6,7 @@ namespace Jolly
 {
 	class DataType
 	{
+		[System.Flags]
 		public enum Flags
 		{
 			NONE         = 0,

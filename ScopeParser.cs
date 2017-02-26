@@ -39,6 +39,7 @@ namespace Jolly
 			}
 			
 			if(scope.template.Count > 0) {
+				scope.isGeneric = true;
 				scope.template.Values.forEach(t => {
 					if(t.canBeInferredBy == 0) throw Jolly.addError(t.location, "Template argument can't be inferred.");
 				});

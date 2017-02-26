@@ -372,23 +372,34 @@ static class Analyser
 				var call = (AST_FunctionCall)node;
 				var function = call.function;
 				
-				if(function.nodeType == NT.NAME) {
-					var symbol = (AST_Symbol)function;
-					// symbol.symbol.
+				var args = call.arguments;
+				AST_Symbol name = function as AST_Symbol;
+				if(name?.symbol.isGeneric ?? false) {
+					var template = ((SymbolTable)name.symbol).template;
+					var tArgs = name.templateArguments;
+					var types = new DataType[template.Count];
 					
+					// tArgs.forEach(temp => {
+					// 	int i = temp.item.defineIndex;
+					// 	if(types[i] == null) types[i] = temp;
+					// });
+					
+					
+					
+					Debug.Fail("Not implemented");
 				}
 				
 				var functionType = function.result.dType as DataType_Function;
 				if(functionType == null) {
 					throw Jolly.addError(node.location, "Cannot call this");
 				}
-				var arguments = functionType.arguments;
-				var values = new IR[call.arguments.Length];
+				var FTArgs = functionType.arguments;
+				var values = new IR[args.Length];
 				
 				for(int i = 0; i < values.Length; i += 1)
 				{
-					var arg = call.arguments[i];
-					var argT = arguments[i];
+					var arg = args[i];
+					var argT = FTArgs[i];
 					
 					load(arg);
 					implicitCast(ref arg.result, argT);
@@ -547,7 +558,8 @@ static class Analyser
 		var declaration    = (AST_Declaration)node;
 		DataType allocType = declaration.typeFrom.result.dType;
 		
-		if((allocType.flags & DataType.Flags.INSTANTIABLE) == 0 && allocType != Lookup.AUTO) {
+		// Has to be instantiable 
+		if((allocType.flags & DataType.Flags.INSTANTIABLE) == 0) {
 			throw Jolly.addError(node.location, "The type {0} is not instantiable.".fill(allocType));
 		}
 		
@@ -701,6 +713,12 @@ static class Analyser
 		if(node.nodeType == NT.TUPLE) {
 			node.result = packTuple((AST_Tuple)node, ((DataType_Tuple)node.result.dType));
 		}
+		
+		AST_Symbol name = node as AST_Symbol;
+		if(name.symbol.isGeneric) {
+			Debug.Fail("Not implemented");
+		}
+		
 		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType });
 	}
 	
@@ -717,7 +735,8 @@ static class Analyser
 	
 	static void getTypeFromName(AST_Node node)
 	{
-		if(node.result?.dType != null) {
+		if(node.result?.dType != null &&
+		   (node.result.dType.flags & DataType.Flags.UNFINISHED) == 0) {
 			return;
 		}
 		
@@ -727,18 +746,13 @@ static class Analyser
 		}
 		
 		AST_Symbol name = (AST_Symbol)node;
-		var definition = enclosure.scope.searchSymbol(name.text);
+		name.symbol = enclosure.scope.searchSymbol(name.text);
 		
-		if(definition == null) {
+		if(name.symbol == null) {
 			throw Jolly.addError(name.location, "The name \"{0}\" does not exist in the current context".fill(name.text));
 		}
 		
-		if((definition as SymbolTable)?.template.Count > 0 ||
-			name.templateArguments?.Length > 0) {
-			"".ToString();
-		}
-		
-		name.result = definition.declaration;
+		name.result = name.symbol.declaration;
 	}
 	
 	/*###########
@@ -770,11 +784,9 @@ static class Analyser
 		DataType type = other.result.dType;
 		var declaration = (AST_Declaration)i;
 		
-		if((type.flags & DataType.Flags.INSTANTIABLE) == 0) {
+		// Has to be instantiable and not unfinished
+		if((type.flags & DataType.Flags.INSTANTIABLE & DataType.Flags.UNFINISHED) != DataType.Flags.INSTANTIABLE) {
 			throw Jolly.addError(declaration.location, "The inferred type {0} is not instantiable.".fill(type));
-		}
-		if(type == Lookup.AUTO) {
-			throw Jolly.addError(declaration.location, "The inferred type auto is not valid.");
 		}
 		declaration.symbol.declaration.dType = type;
 		return true;
