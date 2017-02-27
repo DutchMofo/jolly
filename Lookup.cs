@@ -156,6 +156,9 @@ static class Lookup
 	
 	public class CastLookup : Dictionary<Pair, Cast>
 	{
+		public bool contains(DataType a, DataType b)
+			=> ContainsKey(new Pair{ a = a, b = b });
+
 		public void Add(DataType a, DataType b)
 		{
 			Add(a, b, casts[new Pair{ a = a, b = b }]);

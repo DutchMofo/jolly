@@ -124,7 +124,7 @@ class ExpressionParser
 		this.end = end;
 	}
 
-	// Was the previouly parsed token a value (literal, identifier, object),
+	// Was the previouly parsed token a value (literal, identifier, object), // if(op.isSpecial)
 	// operator or a separator (comma)
 	TokenKind prevTokenKind    = TokenKind.OPERATOR, // Was the previous parsed token an operator or a value
 		      currentTokenKind = TokenKind.VALUE;    // Is the current token being parsed an operator or a value
@@ -236,7 +236,7 @@ class ExpressionParser
 	{
 		currentTokenKind = TokenKind.VALUE;
 		string name = token.text;
-		AST_Node target = null; // If function return type else variable type
+		AST_Node target = null; // If function it's the return type otherwhise it's the variable type
 		
 		switch(prevTokenKind)
 		{
@@ -260,7 +260,7 @@ class ExpressionParser
 				}
 				goto default;
 			default:
-				var symbol = new AST_Symbol(token.location, null, name){ templateArguments = parseTemplate(scope) };
+				var symbol = new AST_Symbol(token.location, null, name){ templateArguments = parseTemplateArguments() } ;
 				values.Push(symbol);
 				ast.Add(symbol);
 				return;
@@ -278,14 +278,15 @@ class ExpressionParser
 		// Declare
 		if(nextToken.type == TT.PARENTHESIS_OPEN ||
 		   nextToken.type == TT.LESS)
-		{ // Function
+		{
+			// Function
 			if(defineMode != DefineMode.STATEMENT) {
 				throw Jolly.addError(token.location, "Can't define the function \"{0}\" here".fill(name));
 			}
 			
 			DataType_Function functionType  = new DataType_Function();
 			AST_Function      functionNode  = new AST_Function(token.location);
-			SymbolTable       functionTable = new SymbolTable(scope);
+			FunctionTable     functionTable = new FunctionTable(scope);
 			
 			functionNode.templateArguments = parseTemplate(functionTable);
 			nextToken = tokens[cursor + 1];
@@ -294,7 +295,7 @@ class ExpressionParser
 			functionNode.text   = functionType.name  = name;
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };
 			
-			scope.addChild(name, functionTable);
+			scope.addChild(name, functionTable, true);
 			
 			ast.Insert(startNodeCount, functionNode);
 			functionNode.returnCount = ast.Count - (startNodeCount += 1); // Skip the function node itself
@@ -304,7 +305,7 @@ class ExpressionParser
 				.parse(false);
 			
 			functionNode.returns         = target;
-			functionType.arguments       = new DataType[functionTable.children.Count]; // TODO: This is the wrong count, I think
+			functionType.arguments       = new DataType[functionTable.arguments.Count]; // TODO: This is the wrong count, I think
 			functionNode.definitionCount = ast.Count - startNodeCount;
 			
 			Token brace = tokens[cursor + 1];
@@ -321,7 +322,8 @@ class ExpressionParser
 			cursor = brace.partnerIndex - 1;
 		}
 		else
-		{ // Variable
+		{
+			// Variable
 			AST_Declaration variableNode;
 		
 			if(defineMode == DefineMode.MEMBER)
@@ -339,10 +341,15 @@ class ExpressionParser
 				Symbol variableSymbol = new Symbol(scope);
 					   variableNode   = new AST_Declaration(token.location, target);
 				
-				variableNode.symbol   = variableSymbol;
-				variableNode.text     = name;
+				variableSymbol.defineIndex = defineIndex++;
+				variableNode.symbol        = variableSymbol;
+				variableNode.text          = name;
 				
-				scope.addChild(name, variableSymbol);
+				if(defineMode == DefineMode.ARGUMENT) {
+					((FunctionTable)scope).arguments.Add(name, variableSymbol);
+				} else {
+					scope.addChild(name, variableSymbol);
+				}
 			} else {
 				throw Jolly.addError(token.location, "Can't define the variable \"{0}\" here.".fill(name));
 			}
@@ -354,6 +361,18 @@ class ExpressionParser
 		}
 	} // parseIdentifier()
 	
+	AST_Node[] parseTemplateArguments()
+	{
+		var less = tokens[cursor + 1];
+		if(less.type != TT.LESS) return null;
+		cursor += 2;
+		var result = new ExpressionParser(parseData, TT.GREATER, scope, DefineMode.TEMPLATE, end)
+			.parse(false)
+			.getValue();
+		if(result == null) return null;
+		return (result as AST_Tuple)?.values.ToArray() ?? new AST_Node[] { result };
+	}
+
 	AST_Template[] parseTemplate(SymbolTable theScope)
 	{
 		var less = tokens[cursor + 1];
@@ -362,7 +381,7 @@ class ExpressionParser
 		var result = new ExpressionParser(parseData, TT.GREATER, theScope, DefineMode.TEMPLATE, end)
 			.parse(false)
 			.getValue();
-		if(result == null) throw Jolly.addError(less.location, "Expected template argument(s)");
+		if(result == null) return null; 
 		
 		switch(result.nodeType)
 		{

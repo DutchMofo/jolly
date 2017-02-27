@@ -199,7 +199,7 @@ namespace Jolly
 		public AST_Symbol(SourceLocation loc, Symbol symbol, string name, NT type = NT.NAME)
 			: base(loc, type) { this.text = name; }
 		
-		public AST_Template[] templateArguments;
+		public AST_Node[] templateArguments;
 		public Symbol symbol;
 		public string text;
 	}

@@ -9,6 +9,7 @@ namespace Jolly
 		public Symbol extends;
 		public IR declaration;
 		public bool isGeneric;
+		public int defineIndex;
 		
 		public virtual Symbol searchSymbol(string name) => null;
 		public virtual Symbol getChildSymbol(string name) => null;
@@ -75,5 +76,11 @@ namespace Jolly
 			children.Add(name, definition);
 			return true;
 		}
+	}
+
+	class FunctionTable : SymbolTable
+	{
+		public FunctionTable(SymbolTable parent) : base(parent) { }	
+		public Dictionary<string, Symbol> arguments = new Dictionary<string, Symbol>();
 	}
 }

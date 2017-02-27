@@ -82,6 +82,9 @@ static class Analyser
 		b = _swp;
 	}
 	
+	static bool canImplicitCast(DataType from, DataType to)
+		=> Lookup.implicitCast.contains(from, to);
+
 	static void implicitCast(ref IR ir, DataType to)
 	{
 		if(ir.dType != to)
@@ -143,42 +146,42 @@ static class Analyser
 	{
 		switch(ended.type)
 		{
-			case NT.IF: break;
-			case NT.MEMBER_TUPLE: {
-				AST_Tuple      tuple = (AST_Tuple)ended.node;
-				DataType_Tuple tupleType;
-				ValueKind      tupleKind;
-				getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
-				tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
-				
-				// TODO: only allow members
-			} break;
-			case NT.FUNCTION: if(!isDefineFase) swap(ref instructions, ref ((IR_Function)ended.node.result).block); break;
-			case NT.STRUCT: {
-				var structNode = (AST_Struct)ended.node;
-				var structType = (DataType_Struct)structNode.result.dType;
-				
-				DataType[] members;
-				if(structNode.inherits != null) {
-					members = new DataType[structType.members.Length + 1];
-					members[0] = structNode.inherits.result.dType;
-					structType.members.CopyTo(members, 1);
-				} else {
-					members = new DataType[structType.members.Length];
-					structType.members.CopyTo(members, 0);
+		case NT.IF: break;
+		case NT.MEMBER_TUPLE: {
+			AST_Tuple      tuple = (AST_Tuple)ended.node;
+			DataType_Tuple tupleType;
+			ValueKind      tupleKind;
+			getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
+			tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
+			
+			// TODO: only allow members
+		} break;
+		case NT.FUNCTION: if(!isDefineFase) swap(ref instructions, ref ((IR_Function)ended.node.result).block); break;
+		case NT.STRUCT: {
+			var structNode = (AST_Struct)ended.node;
+			var structType = (DataType_Struct)structNode.result.dType;
+			
+			DataType[] members;
+			if(structNode.inherits != null) {
+				members = new DataType[structType.members.Length + 1];
+				members[0] = structNode.inherits.result.dType;
+				structType.members.CopyTo(members, 1);
+			} else {
+				members = new DataType[structType.members.Length];
+				structType.members.CopyTo(members, 0);
+			}
+			structNode.result = instructions.Add(new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE });
+			
+			if(structNode.inherits != null) {
+				if(structNode.inherits.result.dKind != ValueKind.STATIC_TYPE || !(structNode.inherits.result.dType is DataType_Struct)) {
+					throw Jolly.addError(structNode.inherits.location, "Can only inherit from other structs");
 				}
-				structNode.result = instructions.Add(new IR{ irType = NT.STRUCT, dType = structType, dKind = ValueKind.STATIC_TYPE });
-				
-				if(structNode.inherits != null) {
-					if(structNode.inherits.result.dKind != ValueKind.STATIC_TYPE || !(structNode.inherits.result.dType is DataType_Struct)) {
-						throw Jolly.addError(structNode.inherits.location, "Can only inherit from other structs");
-					}
-					structType.inherits = (DataType_Struct)structNode.inherits.result.dType;
-				}
-			} break;
-			case NT.OBJECT: break;
-			default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
-		}
+				structType.inherits = (DataType_Struct)structNode.inherits.result.dType;
+			}
+		} break;
+		case NT.OBJECT: break;
+		default: throw Jolly.addError(ended.node.location, "Internal compiler error: illigal node used as enclosure");
+		} // switch(ended.type)
 	}
 	
 	static void getTuple_Type_Kind(AST_Tuple tuple, out DataType_Tuple tupleType, out ValueKind tupleKind)
@@ -216,74 +219,74 @@ static class Analyser
 	{
 		switch(ended.kind)
 		{
-			case Context.Kind.TUPLE: {
-				AST_Tuple      tuple = (AST_Tuple)ended.target;
-				DataType_Tuple tupleType;
-				ValueKind      tupleKind;
-				getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
-				
-				// If the tuple doesn't contain names pack it
-				if((tupleKind & (ValueKind.ADDRES | ValueKind.STATIC_TYPE)) == 0) {
-					tuple.result = instructions.Add(new IR_Read{ target = packTuple(tuple, tupleType), dType = tupleType });
-				} else {
-					tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
-				}
-			} break;
-			case Context.Kind.IF_CONDITION: {
-				var ifNode = (AST_If)ended.target;
-				implicitCast(ref ifNode.condition.result, Lookup.I1);
-				ifNode.result = instructions.Add(new IR_If{ condition = ifNode.condition.result, ifBlock = instructions });
-				contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
+		case Context.Kind.TUPLE: {
+			AST_Tuple      tuple = (AST_Tuple)ended.target;
+			DataType_Tuple tupleType;
+			ValueKind      tupleKind;
+			getTuple_Type_Kind(tuple, out tupleType, out tupleKind);
+			
+			// If the tuple doesn't contain names pack it
+			if((tupleKind & (ValueKind.ADDRES | ValueKind.STATIC_TYPE)) == 0) {
+				tuple.result = instructions.Add(new IR_Read{ target = packTuple(tuple, tupleType), dType = tupleType });
+			} else {
+				tuple.result = new IR{ irType = NT.TUPLE, dType = tupleType, dKind = tupleKind };
+			}
+		} break;
+		case Context.Kind.IF_CONDITION: {
+			var ifNode = (AST_If)ended.target;
+			implicitCast(ref ifNode.condition.result, Lookup.I1);
+			ifNode.result = instructions.Add(new IR_If{ condition = ifNode.condition.result, ifBlock = instructions });
+			contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
+			instructions = new IRList();
+		} break;
+		case Context.Kind.IF_TRUE: {
+			var ifNode = (AST_If)ended.target;
+			var ifIR = (IR_If)ifNode.result;
+			swap(ref instructions, ref ifIR.ifBlock);
+			
+			if(ifNode.elseCount > 0) {
+				ifIR.elseBlock = instructions;
 				instructions = new IRList();
-			} break;
-			case Context.Kind.IF_TRUE: {
-				var ifNode = (AST_If)ended.target;
-				var ifIR = (IR_If)ifNode.result;
-				swap(ref instructions, ref ifIR.ifBlock);
-				
-				if(ifNode.elseCount > 0) {
-					ifIR.elseBlock = instructions;
-					instructions = new IRList();
-					contextStack.Push(new Context(cursor + ifNode.elseCount, Context.Kind.IF_FALSE) { target = ifNode });
-				}
-			} break;
-			case Context.Kind.IF_FALSE: {
-				var ifNode = (AST_If)ended.target;
-				var ifIR = (IR_If)ifNode.result;
-				swap(ref instructions, ref ifIR.elseBlock);
-			} break;
-			case Context.Kind.LOGIC_OR: {
-				var lor = (AST_Logic)ended.target;
-				var lorIR = (IR_Logic)lor.result;
-				implicitCast(ref lor.a.result, Lookup.I1);
-				swap(ref instructions, ref lorIR.block);
-				lorIR.a = lor.a.result;
-			} break;
-			case Context.Kind.LOGIC_AND: {
-				var land = (AST_Logic)ended.target;
-				var landIR = (IR_Logic)land.result;
-				implicitCast(ref land.a.result, Lookup.I1);
-				swap(ref instructions, ref landIR.block);
-				landIR.a = land.a.result;
-			} break;
-			case Context.Kind.DECLARATION: {
-				// type inference
-				var declaration = (AST_Declaration)ended.target;
-				var alloc = (IR_Allocate)declaration.result;
-				
-				if(alloc.dType == Lookup.AUTO || !alloc.initialized) {
-					throw Jolly.addError(declaration.location, "Auto variables must be initialized.");
-				}
-			} break;
-			case Context.Kind.FUNCTION_DECLARATION: {
-				// The declaration ends after the return values and arguments are parsed.
-				var function = (AST_Function)enclosure.node;
-				var functionType = (DataType_Function)function.result.dType;
-				functionType.returns = function.returns.result.dType;
-				DataType.makeUnique(ref function.result.dType);
-				cursor = enclosure.end; // Skip to end of function enclosure
-			} break;
-		}
+				contextStack.Push(new Context(cursor + ifNode.elseCount, Context.Kind.IF_FALSE) { target = ifNode });
+			}
+		} break;
+		case Context.Kind.IF_FALSE: {
+			var ifNode = (AST_If)ended.target;
+			var ifIR = (IR_If)ifNode.result;
+			swap(ref instructions, ref ifIR.elseBlock);
+		} break;
+		case Context.Kind.LOGIC_OR: {
+			var lor = (AST_Logic)ended.target;
+			var lorIR = (IR_Logic)lor.result;
+			implicitCast(ref lor.a.result, Lookup.I1);
+			swap(ref instructions, ref lorIR.block);
+			lorIR.a = lor.a.result;
+		} break;
+		case Context.Kind.LOGIC_AND: {
+			var land = (AST_Logic)ended.target;
+			var landIR = (IR_Logic)land.result;
+			implicitCast(ref land.a.result, Lookup.I1);
+			swap(ref instructions, ref landIR.block);
+			landIR.a = land.a.result;
+		} break;
+		case Context.Kind.DECLARATION: {
+			// type inference
+			var declaration = (AST_Declaration)ended.target;
+			var alloc = (IR_Allocate)declaration.result;
+			
+			if(alloc.dType == Lookup.AUTO || !alloc.initialized) {
+				throw Jolly.addError(declaration.location, "Auto variables must be initialized.");
+			}
+		} break;
+		case Context.Kind.FUNCTION_DECLARATION: {
+			// The declaration ends after the return values and arguments are parsed.
+			var function = (AST_Function)enclosure.node;
+			var functionType = (DataType_Function)function.result.dType;
+			functionType.returns = function.returns.result.dType;
+			DataType.makeUnique(ref function.result.dType);
+			cursor = enclosure.end; // Skip to end of function enclosure
+		} break;
+		} // switch(ended.kind)
 	}
 	
 	static readonly Dictionary<NT, Action<AST_Node>>
@@ -314,17 +317,13 @@ static class Analyser
 			{ NT.FUNCTION, node => {
 				var function = (AST_Function)node;
 				var table = (SymbolTable)function.symbol;
-				if(table.template.Count > 0) { // TODO: Maybe a better wat to check if generic
-					cursor += function.memberCount;
-					return;
-				}
 				enclosureStack.Push(new Enclosure(NT.FUNCTION, function, table, function.memberCount + cursor));
 				contextStack.Push(new Context(function.definitionCount + cursor, Context.Kind.FUNCTION_DECLARATION));
 			} },
 			{ NT.STRUCT, node => {
 				var structNode = (AST_Scope)node;
 				var table = (SymbolTable)structNode.symbol;
-				if(table.template.Count > 0) { // TODO: Maybe a better wat to check if generic
+				if(table.isGeneric) {
 					cursor += structNode.memberCount;
 					return;
 				}
@@ -374,22 +373,51 @@ static class Analyser
 				
 				var args = call.arguments;
 				AST_Symbol name = function as AST_Symbol;
-				if(name?.symbol.isGeneric ?? false) {
-					var template = ((SymbolTable)name.symbol).template;
-					var tArgs = name.templateArguments;
-					var types = new DataType[template.Count];
+				DataType_Function functionType = function.result.dType as DataType_Function;
+
+				if(name != null)
+				{
+					Symbol it = name.symbol;
+					FunctionTable bestMatch = null;
+					do {
+						var functionTable = (FunctionTable)it; //TODO: This makes a lot of assumptions
+						if(functionTable.arguments.Count == args.Length)
+						{
+							int i = 0;
+							foreach(var a in functionTable.arguments.Values) {
+								var aType = a.declaration.dType;
+								var aVal = args[i++];
+								if(aType != aVal.result.dType && aType != Lookup.TEMPLATE)
+								   goto noMatch;
+							}
+							bestMatch = functionTable;
+						}
+						it = it.extends;
+noMatch:;
+					} while(it != null);
 					
-					// tArgs.forEach(temp => {
-					// 	int i = temp.item.defineIndex;
-					// 	if(types[i] == null) types[i] = temp;
-					// });
-					
-					
-					
-					Debug.Fail("Not implemented");
+					if(bestMatch == null) throw Jolly.addError(name.location, "No fitting overload");
+
+					if(bestMatch.isGeneric)
+					{
+						var template = ((SymbolTable)name.symbol).template;
+						var tArgs = name.templateArguments;
+						var types = new DataType[template.Count];
+						
+						// tArgs.forEach(temp => {
+						// 	int i = temp.item.defineIndex;
+						// 	if(types[i] == null) types[i] = temp.result.dType;
+						// });
+
+						args.forEach(arg => {
+							
+						});
+						
+						Debug.Fail("Not implemented");
+					}
+					functionType = bestMatch.declaration.dType as DataType_Function;
 				}
 				
-				var functionType = function.result.dType as DataType_Function;
 				if(functionType == null) {
 					throw Jolly.addError(node.location, "Cannot call this");
 				}
@@ -565,25 +593,26 @@ static class Analyser
 		
 		switch(enclosure.type)
 		{
-			case NT.FUNCTION:
-			case NT.GLOBAL: {
-				var alloc = new IR_Allocate{ dType = allocType };
-				declaration.symbol.declaration = alloc;
-				declaration.result = instructions.Add(alloc);
-				
-				if(context.kind == Context.Kind.FUNCTION_DECLARATION)
-				{
-					var function     = (AST_Function)enclosure.node;
-					var functionType = (DataType_Function)function.result.dType;
-					functionType.arguments[function.finishedArguments] = allocType;
-					function.finishedArguments += 1;
-					cursor = enclosure.end;
-				}
-			} break;
-			case NT.STRUCT: {
-				((DataType_Struct)enclosureNode.result.dType).finishDefinition(declaration.text, allocType);
-			} break;
-			default: throw Jolly.addError(declaration.location, "Cannot define a variable here");
+		case NT.FUNCTION:
+		case NT.GLOBAL: {
+			var alloc = new IR_Allocate{ dType = allocType };
+			declaration.symbol.declaration = alloc;
+			declaration.result = instructions.Add(alloc);
+			
+			// Variable is an argument
+			if(context.kind == Context.Kind.FUNCTION_DECLARATION)
+			{
+				var function     = (AST_Function)enclosure.node;
+				var functionType = (DataType_Function)function.result.dType;
+				functionType.arguments[function.finishedArguments] = allocType;
+				function.finishedArguments += 1;
+				cursor = enclosure.end;
+			}
+		} break;
+		case NT.STRUCT: {
+			((DataType_Struct)enclosureNode.result.dType).finishDefinition(declaration.text, allocType);
+		} break;
+		default: throw Jolly.addError(declaration.location, "Cannot define a variable here");
 		}
 		if(allocType == Lookup.AUTO) {
 			declaration.infer = inferAutoVariable;
@@ -633,7 +662,7 @@ static class Analyser
 			var definition = isName ?
 				iterator.dType.getMember(iterator, name,  instructions) :
 				iterator.dType.getMember(iterator, index, instructions);
-			
+			// TODO: Differentiate between not found and doesn't implement getMember
 			while(definition == null) {
 				dereference(a);
 				iterator = a.result;
@@ -785,7 +814,7 @@ static class Analyser
 		var declaration = (AST_Declaration)i;
 		
 		// Has to be instantiable and not unfinished
-		if((type.flags & DataType.Flags.INSTANTIABLE & DataType.Flags.UNFINISHED) != DataType.Flags.INSTANTIABLE) {
+		if((type.flags & (DataType.Flags.INSTANTIABLE | DataType.Flags.UNFINISHED)) != DataType.Flags.INSTANTIABLE) {
 			throw Jolly.addError(declaration.location, "The inferred type {0} is not instantiable.".fill(type));
 		}
 		declaration.symbol.declaration.dType = type;
