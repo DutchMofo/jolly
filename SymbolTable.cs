@@ -36,14 +36,10 @@ namespace Jolly
 		
 		public override Symbol searchSymbol(string name)
 		{
-			SymbolTable iterator = this;
 			Symbol item;
-			do {
-				if((item = iterator.getChildSymbol(name)) != null)
-					return item;
-				iterator = iterator.parent;
-			} while(iterator != null);
-			return null;
+			if(children.TryGetValue(name, out item))
+				return item;
+			return parent?.searchSymbol(name);
 		}
 		
 		public override Symbol getChildSymbol(string name)
@@ -82,5 +78,16 @@ namespace Jolly
 	{
 		public FunctionTable(SymbolTable parent) : base(parent) { }	
 		public Dictionary<string, Symbol> arguments = new Dictionary<string, Symbol>();
+
+		public override Symbol searchSymbol(string name)
+		{
+			Symbol item;
+			if(children.TryGetValue(name, out item) ||
+			   arguments.TryGetValue(name, out item))
+			{
+				return item;
+			}
+			return parent?.searchSymbol(name);
+		}
 	}
 }

@@ -10,7 +10,7 @@ struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
 // }
 
 void getVec() {}
-f32 getVec(f32 f) { return 0.1; }
+f32 getVec(f32 f) { return f; }
 
 int main()
 {

@@ -121,7 +121,10 @@ namespace Jolly
 	
 	class IR_Dereference : IR
 	{
-		public IR_Dereference() { irType = NT.DEREFERENCE; }
+		public IR_Dereference() {
+		   irType = NT.DEREFERENCE;
+		   dKind = ValueKind.ADDRES;
+		}
 		public IR target;
 	}
 	

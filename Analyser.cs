@@ -234,6 +234,7 @@ static class Analyser
 		} break;
 		case Context.Kind.IF_CONDITION: {
 			var ifNode = (AST_If)ended.target;
+			load(ifNode.condition);
 			implicitCast(ref ifNode.condition.result, Lookup.I1);
 			ifNode.result = instructions.Add(new IR_If{ condition = ifNode.condition.result, ifBlock = instructions });
 			contextStack.Push(new Context(cursor + ifNode.ifCount, Context.Kind.IF_TRUE){ target = ifNode });
@@ -258,6 +259,7 @@ static class Analyser
 		case Context.Kind.LOGIC_OR: {
 			var lor = (AST_Logic)ended.target;
 			var lorIR = (IR_Logic)lor.result;
+			load(lor.a);
 			implicitCast(ref lor.a.result, Lookup.I1);
 			swap(ref instructions, ref lorIR.block);
 			lorIR.a = lor.a.result;
@@ -265,6 +267,7 @@ static class Analyser
 		case Context.Kind.LOGIC_AND: {
 			var land = (AST_Logic)ended.target;
 			var landIR = (IR_Logic)land.result;
+			load(land.a);
 			implicitCast(ref land.a.result, Lookup.I1);
 			swap(ref instructions, ref landIR.block);
 			landIR.a = land.a.result;
@@ -387,7 +390,7 @@ static class Analyser
 							foreach(var a in functionTable.arguments.Values) {
 								var aType = a.declaration.dType;
 								var aVal = args[i++];
-								if(aType != aVal.result.dType && aType != Lookup.TEMPLATE)
+								if(!canImplicitCast(aType, aVal.result.dType) && aType != Lookup.TEMPLATE)
 								   goto noMatch;
 							}
 							bestMatch = functionTable;
@@ -453,7 +456,8 @@ noMatch:;
 				node.result = operatorGetMember(ref enclosure.node, node);
 			} },
 			{ NT.RETURN, node => {
-				var returnNode = (AST_Return)node;
+				var returns = ((AST_Return)node).value;
+				var returnResult = returns.result;
 				AST_Function function = null;
 				foreach(var closure in enclosureStack) {
 					function = closure.node as AST_Function;
@@ -461,9 +465,9 @@ noMatch:;
 				}
 				Debug.Assert(function != null);
 				
-				var returns = ((DataType_Function)function.result.dType).returns;
-				implicitCast(ref returnNode.value.result, returns);
-				node.result = instructions.Add(new IR_Return{ value = returnNode.value.result, dType = returns });
+				load(returns);	
+				implicitCast(ref returnResult, returns.result.dType);
+				node.result = instructions.Add(new IR_Return{ value = returnResult, dType = returns.result.dType });
 			} },
 			{ NT.SUBTRACT, node => basicOperator<IR_Subtract>(node, null) },
 			{ NT.ADD,      node => basicOperator<IR_Add>     (node, null) },
@@ -487,6 +491,7 @@ noMatch:;
 				var land = (AST_Logic)node;
 				land.result = instructions.Add(new IR_Logic{ irType = NT.LOGIC_AND, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions });
 				instructions = new IRList();
+				load(land.condition);
 				implicitCast(ref land.condition.result, Lookup.I1);
 				contextStack.Push(new Context(cursor + land.memberCount, Context.Kind.LOGIC_OR){ target = land });
 			} },
@@ -494,6 +499,7 @@ noMatch:;
 				var lor = (AST_Logic)node;
 				lor.result   = instructions.Add(new IR_Logic{ irType = NT.LOGIC_OR, dType = Lookup.I1, dKind = ValueKind.VALUE, block = instructions });
 				instructions = new IRList();				
+				load(lor.condition);
 				implicitCast(ref lor.condition.result, Lookup.I1);
 				contextStack.Push(new Context(cursor + lor.memberCount, Context.Kind.LOGIC_AND){ target = lor });
 			} },
@@ -504,6 +510,7 @@ noMatch:;
 			{ NT.LOGIC_NOT,   node => {
 				// Cast cast;
 				var op = (AST_Operation)node;
+				load(op.a);
 				implicitCast(ref op.a.result, Lookup.I1);
 				// var result = IR.operation<IR_Xor>(op.a.result, op.b.result, (a,b) => (bool)a ^ (bool)b);
 				
@@ -725,12 +732,12 @@ noMatch:;
 	
 	static void dereference(AST_Node node)
 	{
-		var op = (AST_Operation)node;
-		var reference = op.a.result.dType as DataType_Reference;
-		if(isStatic(op.a.result.dKind) || reference == null) {
-			throw Jolly.addError(op.a.location, "Cannot dereference this");
+		IR refIR = (node as AST_Operation)?.a.result ?? node.result;
+		var reference = refIR.dType as DataType_Reference;
+		if(isStatic(refIR.dKind) || reference == null) {
+			throw Jolly.addError((node as AST_Operation ?? node).location, "Cannot dereference this");
 		}
-		op.result = instructions.Add(new IR_Dereference{ target = op.a.result, dType = reference.referenced, dKind = ValueKind.ADDRES });
+		node.result = instructions.Add(new IR_Dereference{ target = refIR, dType = reference.referenced });
 	}
 	
 	static void load(AST_Node node)
