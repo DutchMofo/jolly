@@ -4,13 +4,10 @@ struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
     $type* data;
 }
 
-// ($T, $T, $T) getVec<$T>($T val)
-// {
-//     return (val, val, val);
-// }
-
-void getVec() {}
-f32 getVec(f32 f) { return f; }
+$T getVec<$T>($T val)
+{
+    return val;
+}
 
 int main()
 {

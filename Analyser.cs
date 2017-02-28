@@ -384,40 +384,31 @@ static class Analyser
 					FunctionTable bestMatch = null;
 					do {
 						var functionTable = (FunctionTable)it; //TODO: This makes a lot of assumptions
-						if(functionTable.arguments.Count == args.Length)
-						{
-							int i = 0;
-							foreach(var a in functionTable.arguments.Values) {
-								var aType = a.declaration.dType;
-								var aVal = args[i++];
-								if(!canImplicitCast(aType, aVal.result.dType) && aType != Lookup.TEMPLATE)
-								   goto noMatch;
-							}
-							bestMatch = functionTable;
+						if(functionTable.arguments.Count != args.Length)
+							goto noMatch;
+						
+						int i = 0;
+						foreach(var a in functionTable.arguments.Values) {
+							var aType = a.declaration.dType;
+							var aVal = args[i++];
+							if(!canImplicitCast(aType, aVal.result.dType) && aType != Lookup.TEMPLATE)
+							   goto noMatch;
 						}
+
+						if(functionTable.isGeneric)
+						{
+							i = 0;
+							Debug.Fail("Generic function calls not implemented yet");
+						}
+
+						bestMatch = functionTable;
+						noMatch:
 						it = it.extends;
-noMatch:;
 					} while(it != null);
 					
-					if(bestMatch == null) throw Jolly.addError(name.location, "No fitting overload");
+					if(bestMatch == null)
+						throw Jolly.addError(name.location, "No fitting overload");
 
-					if(bestMatch.isGeneric)
-					{
-						var template = ((SymbolTable)name.symbol).template;
-						var tArgs = name.templateArguments;
-						var types = new DataType[template.Count];
-						
-						// tArgs.forEach(temp => {
-						// 	int i = temp.item.defineIndex;
-						// 	if(types[i] == null) types[i] = temp.result.dType;
-						// });
-
-						args.forEach(arg => {
-							
-						});
-						
-						Debug.Fail("Not implemented");
-					}
 					functionType = bestMatch.declaration.dType as DataType_Function;
 				}
 				

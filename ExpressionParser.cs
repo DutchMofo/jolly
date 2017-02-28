@@ -341,6 +341,7 @@ class ExpressionParser
 				Symbol variableSymbol = new Symbol(scope);
 					   variableNode   = new AST_Declaration(token.location, target);
 				
+				variableSymbol.isGeneric   = (target.nodeType == NT.TEMPLATE_NAME); //TODO: Fix generic in tuple
 				variableSymbol.defineIndex = defineIndex++;
 				variableNode.symbol        = variableSymbol;
 				variableNode.text          = name;
@@ -829,7 +830,8 @@ class ExpressionParser
 			
 			if(op.operation == NT.COMMA)
 			{
-				if(a == null) {
+				if(a == null)
+				{
 					values.Push(null);
 					if(!(b is AST_Tuple)) {
 						var tup = new AST_Tuple(b.location, NT.TUPLE);
