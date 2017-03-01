@@ -1,15 +1,22 @@
+using System.Collections.Generic;
+
 namespace dev
 {
+
+class IR {
+	public S type;
+	
+}
 
 class S {
 	public bool isGeneric;
 	public bool isStatic;
 	
-	public S type;
+	public IR declaration;
 }
 
 class ST : S {
-	
+	public List<S> members = new List<S>();
 }
 
 	
