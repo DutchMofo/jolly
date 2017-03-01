@@ -291,6 +291,7 @@ class ExpressionParser
 			functionNode.templateArguments = parseTemplate(functionTable);
 			nextToken = tokens[cursor + 1];
 			
+			functionNode.index  = ast.Count;
 			functionNode.symbol = functionTable;
 			functionNode.text   = functionType.name  = name;
 			functionNode.result = functionTable.declaration = new IR_Function{ dType = functionType };

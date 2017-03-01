@@ -743,7 +743,6 @@ static class Analyser
 		
 		AST_Symbol name = node as AST_Symbol;
 		if(name.symbol.isGeneric) {
-			Debug.Fail("Not implemented");
 		}
 		
 		node.result = instructions.Add(new IR_Read{ target = node.result, dType = node.result.dType });

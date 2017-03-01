@@ -109,6 +109,7 @@ namespace Jolly
 			DataType_Struct structType  = new DataType_Struct();
 			SymbolTable     structTable = new SymbolTable(scope);
 			
+			structNode.index = parseData.ast.Count;
 			parseData.ast.Add(structNode);
 			int startNodeCount = parseData.ast.Count;
 			

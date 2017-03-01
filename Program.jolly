@@ -1,18 +1,23 @@
-struct Slice<$type, int $test> // #ordered // TODO: Implement array ordering
+struct Slice<$type> // #ordered // TODO: Implement array ordering
 {
     int count;
     $type* data;
 }
 
-$T getVec<$T>($T val)
-{
-    return val;
-}
+// $T getVec<$T>($T val)
+// {
+//     return val;
+// }
 
 int main()
 {
-    auto test = getVec(0.1);
-    return (i32: test);
+	int* data = null;
+	int[:] slice = data[0 : 10];
+	
+	
+    // auto test = getVec(0.1);
+    // return (i32: test);
+	return 0;
 }
 
 

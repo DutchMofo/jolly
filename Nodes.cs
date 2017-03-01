@@ -231,7 +231,7 @@ namespace Jolly
 		public AST_Scope(SourceLocation loc, NT type, SymbolTable scope, string name)
 			: base(loc, scope, name, type) { }
 			
-		public int memberCount;
+		public int index, memberCount;
 	}
 	
 	class AST_Struct : AST_Scope
